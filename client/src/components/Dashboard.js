@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 
 const modules = [
@@ -30,16 +30,36 @@ const cardStyle = (color) => ({
 });
 
 const Dashboard = () => {
+  const [moduleQuery, setModuleQuery] = useState('');
+
+  const filteredModules = useMemo(() => {
+    const query = moduleQuery.trim().toLowerCase();
+    if (!query) return modules;
+    return modules.filter((module) => {
+      return module.name.toLowerCase().includes(query) || module.description.toLowerCase().includes(query);
+    });
+  }, [moduleQuery]);
+
   return (
-    <main style={{ padding: '28px', maxWidth: '1220px', margin: '0 auto', background: 'linear-gradient(to bottom, #f0f9ff 0%, #f3f4f6 100%)', minHeight: 'calc(100vh - 100px)' }}>
+    <main style={{ padding: '28px', maxWidth: '1220px', margin: '0 auto', background: 'radial-gradient(circle at 15% 20%, #e0f2fe 0%, #f8fafc 40%, #eef2ff 100%)', minHeight: 'calc(100vh - 100px)' }}>
       <section>
-        <h2 style={{ fontSize: '2rem', color: '#1e40af', fontWeight: '700', marginBottom: '8px' }}>📚 School ERP Dashboard</h2>
-        <p style={{ color: '#475569', fontSize: '1.1rem', marginBottom: '32px', fontWeight: '500' }}>
-          Welcome to the professional School ERP system. Select a module to manage.
-        </p>
+        <div style={{ padding: '18px 20px', border: '2px solid #bfdbfe', borderRadius: '18px', background: 'linear-gradient(135deg, #eff6ff 0%, #f8fafc 60%, #f0fdf4 100%)', boxShadow: '0 10px 30px rgba(30, 64, 175, 0.12)' }}>
+          <h2 style={{ fontSize: '2rem', color: '#1e40af', fontWeight: '700', marginBottom: '8px' }}>📚 School ERP Dashboard</h2>
+          <p style={{ color: '#475569', fontSize: '1.05rem', marginBottom: '14px', fontWeight: '500' }}>
+            Welcome to the professional School ERP system. Search and open any module instantly.
+          </p>
+          <input
+            type="text"
+            value={moduleQuery}
+            onChange={(e) => setModuleQuery(e.target.value)}
+            placeholder="Search module by name or purpose"
+            style={{ width: '100%', maxWidth: '460px', padding: '11px 13px', borderRadius: '10px', border: '1px solid #93c5fd', fontSize: '0.95rem', outline: 'none', background: '#fff' }}
+          />
+          <p style={{ margin: '10px 0 0', color: '#64748b', fontSize: '0.9rem' }}>Showing {filteredModules.length} of {modules.length} modules</p>
+        </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '20px', marginTop: '20px' }}>
-          {modules.map((module) => (
+          {filteredModules.map((module) => (
             <Link key={module.path} to={module.path} style={{...cardStyle(module.color), display: 'block'}}>
               <div style={{ fontSize: '2.5rem', marginBottom: '12px' }}>{module.icon}</div>
               <h3 style={{ color: module.color, fontWeight: '700', marginBottom: '8px', fontSize: '1.2rem' }}>{module.name}</h3>

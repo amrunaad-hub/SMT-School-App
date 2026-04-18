@@ -34,6 +34,7 @@ const makeEmail = (name, code) => {
 
 const HR = () => {
   const [isMobile, setIsMobile] = useState(() => window.innerWidth < 920);
+  const [staffQuery, setStaffQuery] = useState('');
 
   useEffect(() => {
     const onResize = () => setIsMobile(window.innerWidth < 920);
@@ -122,6 +123,18 @@ const HR = () => {
     };
   }, [staffMasterList, teachingStaff, nonTeachingStaff]);
 
+  const filteredStaff = useMemo(() => {
+    const query = staffQuery.trim().toLowerCase();
+    if (!query) return staffMasterList;
+    return staffMasterList.filter((member) => {
+      return member.name.toLowerCase().includes(query)
+        || member.id.toLowerCase().includes(query)
+        || member.role.toLowerCase().includes(query)
+        || member.department.toLowerCase().includes(query)
+        || member.category.toLowerCase().includes(query);
+    });
+  }, [staffMasterList, staffQuery]);
+
   const cardStyle = {
     padding: '18px',
     border: '1px solid #dbeafe',
@@ -160,9 +173,17 @@ const HR = () => {
 
       <section style={{ marginTop: '24px' }}>
         <h3 style={{ marginBottom: '12px', color: '#0f172a' }}>Staff Profiles</h3>
+        <input
+          type="text"
+          value={staffQuery}
+          onChange={(e) => setStaffQuery(e.target.value)}
+          placeholder="Search staff by name, role, employee code, category or department"
+          style={{ width: '100%', maxWidth: '620px', marginBottom: '12px', padding: '10px 12px', border: '1px solid #bfdbfe', borderRadius: '10px', fontSize: '0.95rem' }}
+        />
+        <p style={{ color: '#64748b', marginTop: 0 }}>Showing {filteredStaff.length} of {staffMasterList.length} profiles.</p>
         {isMobile ? (
           <div style={{ display: 'grid', gap: '10px' }}>
-            {staffMasterList.map((person) => (
+            {filteredStaff.map((person) => (
               <article key={person.id} style={{ ...cardStyle, borderColor: person.category === 'Teaching' ? '#86efac' : '#fed7aa' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', gap: '10px', alignItems: 'center' }}>
                   <strong style={{ color: '#0f172a' }}>{person.name}</strong>
@@ -198,7 +219,7 @@ const HR = () => {
                 </tr>
               </thead>
               <tbody>
-                {staffMasterList.map((person, index) => (
+                {filteredStaff.map((person, index) => (
                   <tr key={person.id} style={{ borderBottom: '1px solid #e2e8f0', background: index % 2 === 0 ? '#ffffff' : '#f8fafc' }}>
                     <td style={{ padding: '10px' }}>{person.id}</td>
                     <td style={{ padding: '10px', fontWeight: 600 }}>{person.name}</td>

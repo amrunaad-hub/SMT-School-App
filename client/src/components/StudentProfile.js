@@ -1,8 +1,9 @@
 import React from 'react';
-import { useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 
 const StudentProfile = () => {
   const { id } = useParams();
+  const navigate = useNavigate();
 
   // Parse the ID to get grade, division, rollNo
   const [grade, division, rollNo] = id.split('-');
@@ -109,6 +110,11 @@ const StudentProfile = () => {
   return (
     <main style={{ padding: '24px', maxWidth: '1220px', margin: '0 auto' }}>
       <section>
+        <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginBottom: '14px' }}>
+          <button type="button" onClick={() => navigate(-1)} style={{ padding: '8px 14px', borderRadius: '8px', border: '1px solid #cbd5e1', background: '#ffffff', cursor: 'pointer' }}>← Previous Menu</button>
+          <Link to={`/sis/grade/${grade}/${division}`} style={{ padding: '8px 14px', borderRadius: '8px', border: '1px solid #cbd5e1', background: '#f8fafc', textDecoration: 'none', color: '#0f172a' }}>↩ Back to Student List</Link>
+          <Link to="/sis" style={{ padding: '8px 14px', borderRadius: '8px', border: '1px solid #cbd5e1', background: '#f8fafc', textDecoration: 'none', color: '#0f172a' }}>👥 SIS Home</Link>
+        </div>
         <h2>Student Profile</h2>
         <div style={profileStyle}>
           <img src={student.photo} alt={student.name} style={photoStyle} />

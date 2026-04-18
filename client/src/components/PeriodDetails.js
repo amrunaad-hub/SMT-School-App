@@ -1,8 +1,9 @@
 import React from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useNavigate, useParams, Link } from 'react-router-dom';
 
 const PeriodDetails = () => {
   const { id } = useParams();
+  const navigate = useNavigate();
 
   // Parse the ID to get grade, division, and period index
   const [grade, division, periodIndex] = id.split('-').map((part, index) => index === 0 ? parseInt(part) : index === 2 ? parseInt(part) : part);
@@ -132,6 +133,7 @@ const PeriodDetails = () => {
   return (
     <main style={{ padding: '24px', maxWidth: '1000px', margin: '0 auto' }}>
       <section>
+        <button type="button" onClick={() => navigate(-1)} style={{ ...backButtonStyle, background: '#0f766e', marginRight: '10px' }}>← Previous Menu</button>
         <Link to="/timetable" style={backButtonStyle}>← Back to Timetable</Link>
         <h2>Period Details</h2>
         <h3>Grade {period.grade} {period.division} - {period.type}</h3>
