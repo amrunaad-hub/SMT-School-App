@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import SearchBar from './SearchBar';
 
 const teachingSubjects = [
   'Mathematics', 'English', 'Hindi', 'Science', 'EVS', 'Social Studies',
@@ -173,12 +174,13 @@ const HR = () => {
 
       <section style={{ marginTop: '24px' }}>
         <h3 style={{ marginBottom: '12px', color: '#0f172a' }}>Staff Profiles</h3>
-        <input
-          type="text"
+        <SearchBar
           value={staffQuery}
           onChange={(e) => setStaffQuery(e.target.value)}
           placeholder="Search staff by name, role, employee code, category or department"
-          style={{ width: '100%', maxWidth: '620px', marginBottom: '12px', padding: '10px 12px', border: '1px solid #bfdbfe', borderRadius: '10px', fontSize: '0.95rem' }}
+          maxWidth="620px"
+          containerStyle={{ marginBottom: '12px' }}
+          inputStyle={{ border: '1px solid #bfdbfe' }}
         />
         <p style={{ color: '#64748b', marginTop: 0 }}>Showing {filteredStaff.length} of {staffMasterList.length} profiles.</p>
         {isMobile ? (

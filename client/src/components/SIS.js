@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
+import SearchBar from './SearchBar';
 
 const grades = Array.from({ length: 10 }, (_, i) => i + 1);
 const firstNames = ['Rahul', 'Priya', 'Rohan', 'Ananya', 'Karan', 'Meera', 'Vikram', 'Sneha', 'Arjun', 'Pooja', 'Sachin', 'Kavita', 'Aditya', 'Shreya', 'Vishal', 'Neha'];
@@ -55,12 +56,11 @@ const SIS = () => {
         </p>
 
         <div style={{ marginTop: '14px', marginBottom: '8px' }}>
-          <input
-            type="text"
+          <SearchBar
             value={studentQuery}
             onChange={(e) => setStudentQuery(e.target.value)}
             placeholder="Search student by name (school-wide)"
-            style={{ width: '100%', maxWidth: '500px', padding: '11px 13px', border: '1px solid #cbd5e1', borderRadius: '10px', fontSize: '0.95rem' }}
+            maxWidth="500px"
           />
         </div>
 

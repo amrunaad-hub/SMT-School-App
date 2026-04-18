@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
+import SearchBar from './SearchBar';
 
 const metrics = [
   { label: 'Students Present Today', value: 1192, trend: '+3%', link: '/attendance' },
@@ -53,12 +54,12 @@ const CommandCenter = () => {
           <p style={{ color: '#4b5563', marginTop: '8px', marginBottom: '10px' }}>
             Real-time school analytics for attendance, finance, events, transport and operations.
           </p>
-          <input
-            type="text"
+          <SearchBar
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search analytics cards by keyword"
-            style={{ width: '100%', maxWidth: '430px', padding: '10px 12px', borderRadius: '10px', border: '1px solid #93c5fd', fontSize: '0.95rem' }}
+            maxWidth="430px"
+            inputStyle={{ border: '1px solid #93c5fd' }}
           />
         </div>
 

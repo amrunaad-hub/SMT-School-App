@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
+import SearchBar from './SearchBar';
 
 const modules = [
   { name: 'Command Center', path: '/command-center', description: 'Real-time school analytics', icon: '🎛️', color: '#1e40af' },
@@ -48,12 +49,12 @@ const Dashboard = () => {
           <p style={{ color: '#475569', fontSize: '1.05rem', marginBottom: '14px', fontWeight: '500' }}>
             Welcome to the professional School ERP system. Search and open any module instantly.
           </p>
-          <input
-            type="text"
+          <SearchBar
             value={moduleQuery}
             onChange={(e) => setModuleQuery(e.target.value)}
             placeholder="Search module by name or purpose"
-            style={{ width: '100%', maxWidth: '460px', padding: '11px 13px', borderRadius: '10px', border: '1px solid #93c5fd', fontSize: '0.95rem', outline: 'none', background: '#fff' }}
+            maxWidth="460px"
+            inputStyle={{ border: '1px solid #93c5fd', padding: '11px 38px 11px 34px' }}
           />
           <p style={{ margin: '10px 0 0', color: '#64748b', fontSize: '0.9rem' }}>Showing {filteredModules.length} of {modules.length} modules</p>
         </div>

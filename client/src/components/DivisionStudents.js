@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
+import SearchBar from './SearchBar';
 
 const DivisionStudents = () => {
   const { grade, division } = useParams();
@@ -69,12 +70,12 @@ const DivisionStudents = () => {
           {students.length} students in Grade {grade} {division.charAt(0).toUpperCase() + division.slice(1)}.
         </p>
 
-        <input
-          type="text"
+        <SearchBar
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
           placeholder="Search student by name in this division"
-          style={{ marginTop: '8px', width: '100%', maxWidth: '460px', padding: '10px 12px', border: '1px solid #cbd5e1', borderRadius: '10px', fontSize: '0.95rem' }}
+          maxWidth="460px"
+          containerStyle={{ marginTop: '8px' }}
         />
         <p style={{ color: '#64748b', marginTop: '8px', marginBottom: 0 }}>Showing {filteredStudents.length} of {students.length} students.</p>
 
