@@ -11,7 +11,7 @@ const { ensureDefaultUsers } = require('./utils/seedUsers');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
-const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/school-erp';
+const MONGODB_URI = process.env.MONGODB_URI || (process.env.NODE_ENV === 'production' ? '' : 'mongodb://localhost:27017/school-erp');
 const allowedOrigin = process.env.CLIENT_ORIGIN || '*';
 
 app.set('trust proxy', 1);
@@ -51,29 +51,34 @@ app.use(express.json());
 // Database connection
 let mongoConnected = false;
 
-mongoose.connect(MONGODB_URI, {
-    useNewUrlParser: true,
-    useUnifiedTopology: true,
-})
-.then(async () => {
-    mongoConnected = true;
-    console.log('MongoDB connected');
-    await ensureDefaultUsers();
-    console.log('Default role users ensured');
-})
-.catch(err => {
-    mongoConnected = false;
-    console.error('MongoDB connection error:', err.message);
-    console.error('MONGODB_URI:', MONGODB_URI);
-});
+if (!MONGODB_URI) {
+    console.error('MongoDB connection skipped: MONGODB_URI is missing.');
+} else {
+    mongoose.connect(MONGODB_URI, {
+        useNewUrlParser: true,
+        useUnifiedTopology: true,
+    })
+    .then(async () => {
+        mongoConnected = true;
+        console.log('MongoDB connected');
+        await ensureDefaultUsers();
+        console.log('Default role users ensured');
+    })
+    .catch(err => {
+        mongoConnected = false;
+        console.error('MongoDB connection error:', err.message);
+    });
+}
 
 // Middleware to check MongoDB connection
 app.use((req, res, next) => {
-    if (!req.path.startsWith('/api/health')) {
-        if (!mongoConnected) {
-            return res.status(503).json({ message: 'Service temporarily unavailable. Database connection failed. Check MongoDB configuration.' });
-        }
+    const isApiRequest = req.path.startsWith('/api');
+    const isHealthRequest = req.path === '/api/health';
+
+    if (isApiRequest && !isHealthRequest && !mongoConnected) {
+        return res.status(503).json({ message: 'Service temporarily unavailable. Database connection failed. Check MongoDB configuration.' });
     }
+
     next();
 });
 
