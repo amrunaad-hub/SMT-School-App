@@ -64,16 +64,23 @@ mongoose.connect(MONGODB_URI, {
 app.use('/api/auth', authRoutes);
 app.use('/api/attachments', attachmentRoutes);
 
-// Health check endpoint
+// Health check endpoint - must be before static files and wildcard
 app.get('/api/health', (req, res) => {
     res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-// Serve static files and SPA
+// Serve static files
 const clientBuildPath = path.join(__dirname, '../client/build');
-app.use(express.static(clientBuildPath));
+app.use(express.static(clientBuildPath, { 
+    setHeaders: (res, path) => {
+        // Don't cache index.html
+        if (path.endsWith('index.html')) {
+            res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
+        }
+    }
+}));
 
-// Fallback to index.html for SPA routing
+// SPA fallback - MUST be last
 app.get('*', (req, res) => {
     res.sendFile(path.join(clientBuildPath, 'index.html'), (err) => {
         if (err) {
