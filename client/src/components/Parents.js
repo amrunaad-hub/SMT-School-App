@@ -7,6 +7,7 @@ const Parents = () => {
   const [selectedWeek, setSelectedWeek] = useState(new Date());
   const [selectedDay, setSelectedDay] = useState(null);
   const [isMobile, setIsMobile] = useState(() => window.innerWidth < 900);
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [currentMonth, setCurrentMonth] = useState(new Date(2026, 3, 1));
 
   useEffect(() => {
@@ -175,73 +176,77 @@ const Parents = () => {
     switch (activeModule) {
       case 'profile':
         return (
-          <div style={{ padding: '24px', borderRadius: '16px', background: 'linear-gradient(135deg, #f0f9ff 0%, #eff6ff 100%)', border: '2px solid #0ea5e9', boxShadow: '0 4px 16px rgba(6, 182, 212, 0.1)' }}>
-            <h3 style={{ color: '#0369a1', fontSize: '1.4rem', fontWeight: '700', marginBottom: '20px' }}>👤 Student Profile</h3>
-            <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', alignItems: isMobile ? 'flex-start' : 'center', gap: '20px' }}>
-              <img src={studentProfile.photo} alt="Student" onClick={() => setSelectedStudent(studentProfile)} style={{ cursor: 'pointer', borderRadius: '12px', width: '120px', height: '120px', border: '4px solid #0ea5e9', boxShadow: '0 4px 12px rgba(6, 182, 212, 0.2)' }} />
-              <div>
-                <p style={{ fontSize: '1.1rem', marginBottom: '8px' }}><strong>👨 Name:</strong> {studentProfile.name}</p>
-                <p style={{ fontSize: '1rem', marginBottom: '8px' }}><strong>📚 Grade:</strong> {studentProfile.grade} {studentProfile.division}</p>
-                <p style={{ fontSize: '1rem', marginBottom: '8px' }}><strong>🎫 Roll No:</strong> {studentProfile.rollNo}</p>
+          <div style={{ padding: isMobile ? '16px' : '24px', borderRadius: '16px', background: 'linear-gradient(135deg, #f0f9ff 0%, #eff6ff 100%)', border: '2px solid #0ea5e9', boxShadow: '0 4px 16px rgba(6, 182, 212, 0.1)' }}>
+            <h3 style={{ color: '#0369a1', fontSize: isMobile ? '1.2rem' : '1.4rem', fontWeight: '700', marginBottom: '16px' }}>👤 Student Profile</h3>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: isMobile ? 'center' : 'flex-start', gap: '16px' }}>
+              <img src={studentProfile.photo} alt="Student" onClick={() => setSelectedStudent(studentProfile)} style={{ cursor: 'pointer', borderRadius: '12px', width: isMobile ? '100px' : '120px', height: isMobile ? '100px' : '120px', border: '4px solid #0ea5e9', boxShadow: '0 4px 12px rgba(6, 182, 212, 0.2)' }} />
+              <div style={{ width: '100%', textAlign: isMobile ? 'center' : 'left' }}>
+                <p style={{ fontSize: isMobile ? '0.95rem' : '1.1rem', marginBottom: '8px' }}><strong>👨 Name:</strong> {studentProfile.name}</p>
+                <p style={{ fontSize: isMobile ? '0.9rem' : '1rem', marginBottom: '8px' }}><strong>📚 Grade:</strong> {studentProfile.grade} {studentProfile.division}</p>
+                <p style={{ fontSize: isMobile ? '0.9rem' : '1rem', marginBottom: '8px' }}><strong>🎫 Roll No:</strong> {studentProfile.rollNo}</p>
               </div>
             </div>
             {selectedStudent && (
-              <div style={{ marginTop: '20px', padding: '20px', background: '#fff', borderRadius: '12px', border: '1px solid #e0f2fe' }}>
-                <h4 style={{ color: '#0369a1', fontWeight: '600' }}>📋 Detailed Profile</h4>
-                <p><strong>🎂 DOB:</strong> {selectedStudent.dob}</p>
-                <p><strong>📍 Address:</strong> {selectedStudent.address}</p>
-                <p><strong>☎️ Phone:</strong> {selectedStudent.phone}</p>
-                <p><strong>📧 Email:</strong> {selectedStudent.email}</p>
-                <p><strong>🩸 Blood Group:</strong> {selectedStudent.bloodGroup}</p>
-                <p><strong>🚨 Emergency Contact:</strong> {selectedStudent.emergencyContact}</p>
+              <div style={{ marginTop: '20px', padding: isMobile ? '14px' : '20px', background: '#fff', borderRadius: '12px', border: '1px solid #e0f2fe' }}>
+                <h4 style={{ color: '#0369a1', fontWeight: '600', fontSize: isMobile ? '1.05rem' : '1.1rem' }}>📋 Detailed Profile</h4>
+                <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(2, 1fr)', gap: isMobile ? '8px' : '12px' }}>
+                  <p style={{ fontSize: isMobile ? '0.85rem' : '0.95rem' }}><strong>🎂 DOB:</strong> {selectedStudent.dob}</p>
+                  <p style={{ fontSize: isMobile ? '0.85rem' : '0.95rem' }}><strong>📍 Address:</strong> {selectedStudent.address}</p>
+                  <p style={{ fontSize: isMobile ? '0.85rem' : '0.95rem' }}><strong>☎️ Phone:</strong> {selectedStudent.phone}</p>
+                  <p style={{ fontSize: isMobile ? '0.85rem' : '0.95rem' }}><strong>📧 Email:</strong> {selectedStudent.email}</p>
+                  <p style={{ fontSize: isMobile ? '0.85rem' : '0.95rem' }}><strong>🩸 Blood Group:</strong> {selectedStudent.bloodGroup}</p>
+                  <p style={{ fontSize: isMobile ? '0.85rem' : '0.95rem' }}><strong>🚨 Emergency Contact:</strong> {selectedStudent.emergencyContact}</p>
+                </div>
               </div>
             )}
           </div>
         );
       case 'parent-profile':
         return (
-          <div style={{ padding: '24px', borderRadius: '16px', background: 'linear-gradient(135deg, #f3f4f6 0%, #f9fafb 100%)', border: '2px solid #6b7280' }}>
-            <h3 style={{ color: '#374151', fontSize: '1.4rem', fontWeight: '700', marginBottom: '20px' }}>👨‍💼 Parent Profile</h3>
-            <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', alignItems: isMobile ? 'flex-start' : 'center', gap: '20px' }}>
-              <img src={parentProfile.photo} alt="Parent" onClick={() => setSelectedStudent(parentProfile)} style={{ cursor: 'pointer', borderRadius: '12px', width: '120px', height: '120px', border: '4px solid #6b7280', boxShadow: '0 4px 12px rgba(107, 114, 128, 0.2)' }} />
-              <div>
-                <p style={{ fontSize: '1.1rem', marginBottom: '8px' }}><strong>👨 Name:</strong> {parentProfile.name}</p>
-                <p style={{ fontSize: '1rem', marginBottom: '8px' }}><strong>🔗 Relation:</strong> {parentProfile.relation}</p>
+          <div style={{ padding: isMobile ? '16px' : '24px', borderRadius: '16px', background: 'linear-gradient(135deg, #f3f4f6 0%, #f9fafb 100%)', border: '2px solid #6b7280' }}>
+            <h3 style={{ color: '#374151', fontSize: isMobile ? '1.2rem' : '1.4rem', fontWeight: '700', marginBottom: '16px' }}>👨‍💼 Parent Profile</h3>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: isMobile ? 'center' : 'flex-start', gap: '16px' }}>
+              <img src={parentProfile.photo} alt="Parent" onClick={() => setSelectedStudent(parentProfile)} style={{ cursor: 'pointer', borderRadius: '12px', width: isMobile ? '100px' : '120px', height: isMobile ? '100px' : '120px', border: '4px solid #6b7280', boxShadow: '0 4px 12px rgba(107, 114, 128, 0.2)' }} />
+              <div style={{ width: '100%', textAlign: isMobile ? 'center' : 'left' }}>
+                <p style={{ fontSize: isMobile ? '0.95rem' : '1.1rem', marginBottom: '8px' }}><strong>👨 Name:</strong> {parentProfile.name}</p>
+                <p style={{ fontSize: isMobile ? '0.9rem' : '1rem', marginBottom: '8px' }}><strong>🔗 Relation:</strong> {parentProfile.relation}</p>
               </div>
             </div>
             {selectedStudent && (
-              <div style={{ marginTop: '20px', padding: '20px', background: '#fff', borderRadius: '12px', border: '1px solid #e5e7eb' }}>
-                <h4 style={{ color: '#374151', fontWeight: '600' }}>📋 Detailed Profile</h4>
-                <p><strong>☎️ Phone:</strong> {selectedStudent.phone}</p>
-                <p><strong>📧 Email:</strong> {selectedStudent.email}</p>
-                <p><strong>💼 Occupation:</strong> {selectedStudent.occupation}</p>
-                <p><strong>🏢 Company:</strong> {selectedStudent.company}</p>
+              <div style={{ marginTop: '20px', padding: isMobile ? '14px' : '20px', background: '#fff', borderRadius: '12px', border: '1px solid #e5e7eb' }}>
+                <h4 style={{ color: '#374151', fontWeight: '600', fontSize: isMobile ? '1.05rem' : '1.1rem' }}>📋 Detailed Profile</h4>
+                <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(2, 1fr)', gap: isMobile ? '8px' : '12px' }}>
+                  <p style={{ fontSize: isMobile ? '0.85rem' : '0.95rem' }}><strong>☎️ Phone:</strong> {selectedStudent.phone}</p>
+                  <p style={{ fontSize: isMobile ? '0.85rem' : '0.95rem' }}><strong>📧 Email:</strong> {selectedStudent.email}</p>
+                  <p style={{ fontSize: isMobile ? '0.85rem' : '0.95rem' }}><strong>💼 Occupation:</strong> {selectedStudent.occupation}</p>
+                  <p style={{ fontSize: isMobile ? '0.85rem' : '0.95rem' }}><strong>🏢 Company:</strong> {selectedStudent.company}</p>
+                </div>
               </div>
             )}
           </div>
         );
       case 'attendance':
         return (
-          <div style={{ padding: '24px', borderRadius: '16px', background: 'linear-gradient(135deg, #f0fdf4 0%, #f7fee7 100%)', border: '2px solid #22c55e', boxShadow: '0 4px 16px rgba(34, 197, 94, 0.1)' }}>
-            <h3 style={{ color: '#166534', fontSize: '1.4rem', fontWeight: '700', marginBottom: '20px' }}>📅 Attendance Calendar & History</h3>
+          <div style={{ padding: isMobile ? '16px' : '24px', borderRadius: '16px', background: 'linear-gradient(135deg, #f0fdf4 0%, #f7fee7 100%)', border: '2px solid #22c55e', boxShadow: '0 4px 16px rgba(34, 197, 94, 0.1)' }}>
+            <h3 style={{ color: '#166534', fontSize: isMobile ? '1.2rem' : '1.4rem', fontWeight: '700', marginBottom: '16px' }}>📅 Attendance Calendar & History</h3>
             
             {/* Calendar */}
-            <div style={{ marginBottom: '32px', background: '#fff', padding: '20px', borderRadius: '12px', border: '1px solid #dcfce7' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-                <button onClick={() => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1))} style={{ padding: '8px 12px', background: '#22c55e', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600' }}>← Prev</button>
-                <h4 style={{ margin: 0, fontSize: '1.2rem', color: '#166534', fontWeight: '700' }}>{currentMonth.toLocaleString('default', { month: 'long', year: 'numeric' })}</h4>
-                <button onClick={() => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1))} style={{ padding: '8px 12px', background: '#22c55e', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600' }}>Next →</button>
+            <div style={{ marginBottom: '24px', background: '#fff', padding: isMobile ? '12px' : '20px', borderRadius: '12px', border: '1px solid #dcfce7' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', gap: '8px', flexWrap: 'wrap' }}>
+                <button onClick={() => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1))} style={{ padding: isMobile ? '6px 8px' : '8px 12px', background: '#22c55e', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600', fontSize: isMobile ? '0.8rem' : '0.9rem', minHeight: '36px' }}>← Prev</button>
+                <h4 style={{ margin: 0, fontSize: isMobile ? '1rem' : '1.2rem', color: '#166534', fontWeight: '700' }}>{currentMonth.toLocaleString('default', { month: 'long', year: 'numeric' })}</h4>
+                <button onClick={() => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1))} style={{ padding: isMobile ? '6px 8px' : '8px 12px', background: '#22c55e', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600', fontSize: isMobile ? '0.8rem' : '0.9rem', minHeight: '36px' }}>Next →</button>
               </div>
               
               {/* Day headers */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '4px', marginBottom: '8px' }}>
-                {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
-                  <div key={day} style={{ textAlign: 'center', fontWeight: '700', color: '#166534', padding: '8px', fontSize: '0.9rem' }}>{day}</div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '2px', marginBottom: '6px' }}>
+                {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map(day => (
+                  <div key={day} style={{ textAlign: 'center', fontWeight: '700', color: '#166534', padding: isMobile ? '4px' : '8px', fontSize: isMobile ? '0.75rem' : '0.9rem' }}>{day}</div>
                 ))}
               </div>
               
               {/* Calendar grid */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '4px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '2px' }}>
                 {calendarDays.map((date, index) => {
                   const attendance = date ? getAttendanceForDate(date) : null;
                   const bgColor = !date ? '#f3f4f6' : attendance ? getStatusColor(attendance.status, attendance.type) : '#fafafa';
@@ -250,18 +255,18 @@ const Parents = () => {
                   return (
                     <div key={index} style={{
                       backgroundColor: bgColor,
-                      padding: '10px',
+                      padding: isMobile ? '6px' : '10px',
                       border: isCurrentDate ? '3px solid #22c55e' : '1px solid #dcfce7',
-                      borderRadius: '6px',
+                      borderRadius: '4px',
                       textAlign: 'center',
                       color: date ? '#1f2937' : '#d1d5db',
-                      minHeight: '45px',
+                      minHeight: isMobile ? '32px' : '45px',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
                       fontWeight: date ? '600' : '400',
                       cursor: date && attendance ? 'help' : 'default',
-                      fontSize: '0.9rem',
+                      fontSize: isMobile ? '0.8rem' : '0.9rem',
                       transition: 'all 0.2s'
                     }} title={attendance ? `${attendance.status.toUpperCase()} - ${attendance.reason || attendance.type}` : ''}>
                       {date ? date.getDate() : ''}
@@ -272,40 +277,42 @@ const Parents = () => {
             </div>
 
             {/* Legend */}
-            <div style={{ background: '#fff', padding: '16px', borderRadius: '12px', border: '1px solid #dcfce7', marginBottom: '24px' }}>
-              <h4 style={{ color: '#166534', fontWeight: '700', marginBottom: '12px' }}>Legend:</h4>
-              <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(2, 1fr)', gap: '8px' }}>
-                <p style={{ margin: '4px 0' }}><span style={{ backgroundColor: '#10b981', color: '#fff', padding: '4px 8px', borderRadius: '4px', fontSize: '0.85rem', fontWeight: '600' }}>✓ Present</span></p>
-                <p style={{ margin: '4px 0' }}><span style={{ backgroundColor: '#f59e0b', color: '#fff', padding: '4px 8px', borderRadius: '4px', fontSize: '0.85rem', fontWeight: '600' }}>⚠ Absent (Advance)</span></p>
-                <p style={{ margin: '4px 0' }}><span style={{ backgroundColor: '#ef4444', color: '#fff', padding: '4px 8px', borderRadius: '4px', fontSize: '0.85rem', fontWeight: '600' }}>✕ Absent (Impromptu)</span></p>
-                <p style={{ margin: '4px 0' }}><span style={{ backgroundColor: '#6b7280', color: '#fff', padding: '4px 8px', borderRadius: '4px', fontSize: '0.85rem', fontWeight: '600' }}>● Holiday</span></p>
+            <div style={{ background: '#fff', padding: isMobile ? '12px' : '16px', borderRadius: '12px', border: '1px solid #dcfce7', marginBottom: '20px' }}>
+              <h4 style={{ color: '#166534', fontWeight: '700', marginBottom: '10px', fontSize: isMobile ? '1rem' : '1.05rem' }}>Legend:</h4>
+              <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(2, 1fr)', gap: isMobile ? '6px' : '8px' }}>
+                <p style={{ margin: '4px 0', fontSize: isMobile ? '0.8rem' : '0.85rem' }}><span style={{ backgroundColor: '#10b981', color: '#fff', padding: '3px 6px', borderRadius: '4px', fontWeight: '600' }}>✓ Present</span></p>
+                <p style={{ margin: '4px 0', fontSize: isMobile ? '0.8rem' : '0.85rem' }}><span style={{ backgroundColor: '#f59e0b', color: '#fff', padding: '3px 6px', borderRadius: '4px', fontWeight: '600' }}>⚠ Advance</span></p>
+                <p style={{ margin: '4px 0', fontSize: isMobile ? '0.8rem' : '0.85rem' }}><span style={{ backgroundColor: '#ef4444', color: '#fff', padding: '3px 6px', borderRadius: '4px', fontWeight: '600' }}>✕ Impromptu</span></p>
+                <p style={{ margin: '4px 0', fontSize: isMobile ? '0.8rem' : '0.85rem' }}><span style={{ backgroundColor: '#6b7280', color: '#fff', padding: '3px 6px', borderRadius: '4px', fontWeight: '600' }}>● Holiday</span></p>
               </div>
             </div>
 
             {/* Last 10 Days History */}
             <div>
-              <h4 style={{ color: '#166534', fontWeight: '700', marginBottom: '12px', fontSize: '1.1rem' }}>📊 Last 10 Days Attendance History</h4>
-              <div style={{ display: 'grid', gap: '8px' }}>
+              <h4 style={{ color: '#166534', fontWeight: '700', marginBottom: '10px', fontSize: isMobile ? '1.05rem' : '1.1rem' }}>📊 Last 10 Days History</h4>
+              <div style={{ display: 'grid', gap: '6px' }}>
                 {last10DaysAttendance.map((day) => {
                   const statusBg = getStatusColor(day.status, day.type);
                   const statusText = day.status === 'holiday' ? '🗓️ Holiday' : day.status === 'present' ? '✓ Present' : '✗ Absent';
                   
                   return (
                     <div key={day.date} style={{
-                      padding: '12px',
+                      padding: isMobile ? '10px' : '12px',
                       background: '#fff',
                       borderRadius: '8px',
                       border: `2px solid ${statusBg}`,
                       display: 'flex',
                       justifyContent: 'space-between',
                       alignItems: 'center',
-                      boxShadow: `0 2px 8px ${statusBg}25`
+                      boxShadow: `0 2px 8px ${statusBg}25`,
+                      gap: '8px',
+                      flexWrap: 'wrap'
                     }}>
-                      <div>
-                        <strong style={{ color: '#166534' }}>{new Date(day.date).toLocaleDateString()}</strong>
-                        <p style={{ margin: '4px 0 0', color: '#666', fontSize: '0.9rem' }}>{day.reason || day.type}</p>
+                      <div style={{ flex: 1, minWidth: isMobile ? '150px' : '200px' }}>
+                        <strong style={{ color: '#166534', fontSize: isMobile ? '0.85rem' : '0.95rem' }}>{new Date(day.date).toLocaleDateString('en-IN', { weekday: 'short', month: 'short', day: 'numeric' })}</strong>
+                        <p style={{ margin: '2px 0 0', color: '#666', fontSize: isMobile ? '0.75rem' : '0.85rem' }}>{day.reason || day.type}</p>
                       </div>
-                      <span style={{ background: statusBg, color: '#fff', padding: '6px 12px', borderRadius: '6px', fontWeight: '600', fontSize: '0.9rem' }}>{statusText}</span>
+                      <span style={{ background: statusBg, color: '#fff', padding: isMobile ? '4px 8px' : '6px 12px', borderRadius: '6px', fontWeight: '600', fontSize: isMobile ? '0.75rem' : '0.85rem', whiteSpace: 'nowrap' }}>{statusText}</span>
                     </div>
                   );
                 })}
@@ -315,15 +322,16 @@ const Parents = () => {
         );
       case 'timetable':
         return (
-          <div style={{ padding: '24px', borderRadius: '16px', background: 'linear-gradient(135deg, #fef3c7 0%, #fef9e7 100%)', border: '2px solid #fbbf24', boxShadow: '0 4px 16px rgba(251, 191, 36, 0.1)' }}>
-            <h3 style={{ color: '#92400e', fontSize: '1.4rem', fontWeight: '700', marginBottom: '20px' }}>⏰ Weekly Timetable - Grade 7 Alpha</h3>
+          <div style={{ padding: isMobile ? '16px' : '24px', borderRadius: '16px', background: 'linear-gradient(135deg, #fef3c7 0%, #fef9e7 100%)', border: '2px solid #fbbf24', boxShadow: '0 4px 16px rgba(251, 191, 36, 0.1)' }}>
+            <h3 style={{ color: '#92400e', fontSize: isMobile ? '1.2rem' : '1.4rem', fontWeight: '700', marginBottom: '16px' }}>⏰ Weekly Timetable - Grade 7 Alpha</h3>
             {timetable.map(day => (
-              <div key={day.day} style={{ marginBottom: '20px', background: '#fff', padding: '16px', borderRadius: '12px', border: '1px solid #fcd34d' }}>
-                <h4 style={{ color: '#92400e', fontWeight: '700', marginBottom: '12px' }}>{day.day}</h4>
-                <div style={{ display: 'grid', gap: '10px' }}>
+              <div key={day.day} style={{ marginBottom: '16px', background: '#fff', padding: isMobile ? '12px' : '16px', borderRadius: '12px', border: '1px solid #fcd34d' }}>
+                <h4 style={{ color: '#92400e', fontWeight: '700', marginBottom: '10px', fontSize: isMobile ? '1rem' : '1.05rem' }}>{day.day}</h4>
+                <div style={{ display: 'grid', gap: '8px' }}>
                   {day.periods.map(period => (
-                    <div key={period.time} onClick={() => alert(`Subject: ${period.subject}\nTeacher: ${period.teacher}\nDetails: ${period.details}`)} style={{ padding: '12px', background: 'linear-gradient(135deg, #fef3c7 0%, #fef9e7 100%)', borderRadius: '8px', cursor: 'pointer', border: '2px solid #fcd34d', transition: 'all 0.2s' }}>
-                      <strong style={{ color: '#92400e' }}>{period.time}:</strong> {period.subject} - {period.teacher}
+                    <div key={period.time} onClick={() => alert(`Subject: ${period.subject}\nTeacher: ${period.teacher}\nDetails: ${period.details}`)} style={{ padding: isMobile ? '10px' : '12px', background: 'linear-gradient(135deg, #fef3c7 0%, #fef9e7 100%)', borderRadius: '8px', cursor: 'pointer', border: '2px solid #fcd34d', transition: 'all 0.2', minHeight: isMobile ? '44px' : 'auto', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                      <strong style={{ color: '#92400e', fontSize: isMobile ? '0.85rem' : '0.95rem' }}>{period.time}</strong>
+                      <span style={{ fontSize: isMobile ? '0.8rem' : '0.85rem' }}>{period.subject} - {period.teacher}</span>
                     </div>
                   ))}
                 </div>
@@ -333,21 +341,20 @@ const Parents = () => {
         );
       case 'events':
         return (
-          <div style={{ padding: '24px', borderRadius: '16px', background: 'linear-gradient(135deg, #fce7f3 0%, #fce7f3 100%)', border: '2px solid #ec4899', boxShadow: '0 4px 16px rgba(236, 72, 153, 0.1)' }}>
-            <h3 style={{ color: '#9d174d', fontSize: '1.4rem', fontWeight: '700', marginBottom: '20px' }}>🎉 Event Calendar</h3>
+          <div style={{ padding: isMobile ? '16px' : '24px', borderRadius: '16px', background: 'linear-gradient(135deg, #fce7f3 0%, #fce7f3 100%)', border: '2px solid #ec4899', boxShadow: '0 4px 16px rgba(236, 72, 153, 0.1)' }}>
+            <h3 style={{ color: '#9d174d', fontSize: isMobile ? '1.2rem' : '1.4rem', fontWeight: '700', marginBottom: '16px' }}>🎉 Event Calendar</h3>
             {events.map(event => (
-              <div key={event.id} style={{ marginBottom: '20px', padding: '16px', background: '#fff', borderRadius: '12px', border: '2px solid #fbcfe8', boxShadow: '0 2px 8px rgba(236, 72, 153, 0.1)' }}>
-                <h4 style={{ color: '#9d174d', fontWeight: '700', marginBottom: '8px' }}>{event.title} - {event.date}</h4>
-                <p><strong>📍 Type:</strong> {event.type === 'past' ? 'Past Event' : 'Upcoming Event'}</p>
+              <div key={event.id} style={{ marginBottom: '16px', padding: isMobile ? '12px' : '16px', background: '#fff', borderRadius: '12px', border: '2px solid #fbcfe8', boxShadow: '0 2px 8px rgba(236, 72, 153, 0.1)' }}>
+                <h4 style={{ color: '#9d174d', fontWeight: '700', marginBottom: '8px', fontSize: isMobile ? '0.95rem' : '1.05rem' }}>{event.title}</h4>
+                <p style={{ margin: '4px 0', fontSize: isMobile ? '0.85rem' : '0.9rem' }}><strong>📅 Date:</strong> {event.date}</p>
+                <p style={{ margin: '4px 0', fontSize: isMobile ? '0.85rem' : '0.9rem' }}><strong>📍 Type:</strong> {event.type === 'past' ? 'Past Event' : 'Upcoming Event'}</p>
                 {event.type === 'past' ? (
-                  <div>
-                    <p><strong>📸 Takeaways:</strong> {event.takeaways}</p>
-                    <p><strong>ℹ️ Details:</strong> {event.details}</p>
+                  <div style={{ marginTop: '8px' }}>
+                    <p style={{ margin: '4px 0', fontSize: isMobile ? '0.8rem' : '0.85rem' }}><strong>📸 Takeaways:</strong> {event.takeaways}</p>
                   </div>
                 ) : (
-                  <div>
-                    <p><strong>📝 Preparation:</strong> {event.preparation}</p>
-                    <p><strong>ℹ️ Details:</strong> {event.details}</p>
+                  <div style={{ marginTop: '8px' }}>
+                    <p style={{ margin: '4px 0', fontSize: isMobile ? '0.8rem' : '0.85rem' }}><strong>📝 Preparation:</strong> {event.preparation}</p>
                   </div>
                 )}
               </div>
@@ -356,37 +363,40 @@ const Parents = () => {
         );
       case 'activities':
         return (
-          <div style={{ padding: '24px', borderRadius: '16px', background: 'linear-gradient(135deg, #e0e7ff 0%, #f0f4ff 100%)', border: '2px solid #6366f1', boxShadow: '0 4px 16px rgba(99, 102, 241, 0.1)' }}>
-            <h3 style={{ color: '#3730a3', fontSize: '1.4rem', fontWeight: '700', marginBottom: '20px' }}>📚 Daily Activities</h3>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '20px', gap: '8px', flexWrap: 'wrap' }}>
-              <button onClick={() => setSelectedWeek(new Date(selectedWeek.getTime() - 7 * 24 * 60 * 60 * 1000))} style={{ padding: '8px 16px', background: '#6366f1', color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '600' }}>← Previous Week</button>
-              <span style={{ fontWeight: '700', color: '#3730a3' }}>Week of {selectedWeek.toDateString()}</span>
-              <button onClick={() => setSelectedWeek(new Date(selectedWeek.getTime() + 7 * 24 * 60 * 60 * 1000))} style={{ padding: '8px 16px', background: '#6366f1', color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '600' }}>Next Week →</button>
+          <div style={{ padding: isMobile ? '16px' : '24px', borderRadius: '16px', background: 'linear-gradient(135deg, #e0e7ff 0%, #f0f4ff 100%)', border: '2px solid #6366f1', boxShadow: '0 4px 16px rgba(99, 102, 241, 0.1)' }}>
+            <h3 style={{ color: '#3730a3', fontSize: isMobile ? '1.2rem' : '1.4rem', fontWeight: '700', marginBottom: '16px' }}>📚 Daily Activities</h3>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '16px', gap: '6px', flexWrap: 'wrap' }}>
+              <button onClick={() => setSelectedWeek(new Date(selectedWeek.getTime() - 7 * 24 * 60 * 60 * 1000))} style={{ padding: isMobile ? '8px 10px' : '8px 16px', background: '#6366f1', color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '600', fontSize: isMobile ? '0.8rem' : '0.9rem', minHeight: '36px' }}>← Prev</button>
+              <span style={{ fontWeight: '700', color: '#3730a3', fontSize: isMobile ? '0.85rem' : '0.95rem', display: 'flex', alignItems: 'center' }}>Week</span>
+              <button onClick={() => setSelectedWeek(new Date(selectedWeek.getTime() + 7 * 24 * 60 * 60 * 1000))} style={{ padding: isMobile ? '8px 10px' : '8px 16px', background: '#6366f1', color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '600', fontSize: isMobile ? '0.8rem' : '0.9rem', minHeight: '36px' }}>Next →</button>
             </div>
             {dailyActivities.map(activity => (
-              <div key={activity.date} onClick={() => setSelectedDay(activity)} style={{ marginBottom: '10px', padding: '12px', background: '#fff', borderRadius: '8px', cursor: 'pointer', border: '2px solid #a5b4fc', boxShadow: '0 2px 6px rgba(99, 102, 241, 0.1)' }}>
-                <strong style={{ color: '#3730a3' }}>{activity.date}:</strong> {activity.classwork}
+              <div key={activity.date} onClick={() => setSelectedDay(activity)} style={{ marginBottom: '10px', padding: isMobile ? '10px' : '12px', background: '#fff', borderRadius: '8px', cursor: 'pointer', border: '2px solid #a5b4fc', boxShadow: '0 2px 6px rgba(99, 102, 241, 0.1)', minHeight: isMobile ? '44px' : 'auto', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                <strong style={{ color: '#3730a3', fontSize: isMobile ? '0.85rem' : '0.95rem' }}>{activity.date}</strong>
+                <span style={{ fontSize: isMobile ? '0.8rem' : '0.85rem', color: '#666', marginTop: '4px' }}>{activity.classwork}</span>
               </div>
             ))}
             {selectedDay && (
-              <div style={{ marginTop: '20px', padding: '20px', background: '#fff', borderRadius: '12px', border: '2px solid #a5b4fc' }}>
-                <h4 style={{ color: '#3730a3', fontWeight: '700' }}>📋 Details for {selectedDay.date}</h4>
-                <p><strong>✏️ Classwork:</strong> {selectedDay.classwork}</p>
-                <p><strong>📝 Homework:</strong> {selectedDay.homework}</p>
-                <p><strong>🎯 Topics:</strong> {selectedDay.topics.join(', ')}</p>
+              <div style={{ marginTop: '16px', padding: isMobile ? '12px' : '20px', background: '#fff', borderRadius: '12px', border: '2px solid #a5b4fc' }}>
+                <h4 style={{ color: '#3730a3', fontWeight: '700', fontSize: isMobile ? '1rem' : '1.05rem' }}>📋 Details for {selectedDay.date}</h4>
+                <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(2, 1fr)', gap: isMobile ? '8px' : '12px' }}>
+                  <p style={{ fontSize: isMobile ? '0.8rem' : '0.85rem' }}><strong>✏️ Classwork:</strong> {selectedDay.classwork}</p>
+                  <p style={{ fontSize: isMobile ? '0.8rem' : '0.85rem' }}><strong>📝 Homework:</strong> {selectedDay.homework}</p>
+                  <p style={{ fontSize: isMobile ? '0.8rem' : '0.85rem', gridColumn: isMobile ? '1' : 'span 2' }}><strong>🎯 Topics:</strong> {selectedDay.topics.join(', ')}</p>
+                </div>
               </div>
             )}
           </div>
         );
       case 'gallery':
         return (
-          <div style={{ padding: '24px', borderRadius: '16px', background: 'linear-gradient(135deg, #dbeafe 0%, #eff6ff 100%)', border: '2px solid #0284c7' }}>
-            <h3 style={{ color: '#0c4a6e', fontSize: '1.4rem', fontWeight: '700', marginBottom: '20px' }}>🖼️ Photo Gallery</h3>
+          <div style={{ padding: isMobile ? '16px' : '24px', borderRadius: '16px', background: 'linear-gradient(135deg, #dbeafe 0%, #eff6ff 100%)', border: '2px solid #0284c7' }}>
+            <h3 style={{ color: '#0c4a6e', fontSize: isMobile ? '1.2rem' : '1.4rem', fontWeight: '700', marginBottom: '16px' }}>🖼️ Photo Gallery</h3>
             {photoGallery.map(album => (
-              <div key={album.event} style={{ marginBottom: '20px', background: '#fff', padding: '16px', borderRadius: '12px', border: '1px solid #bfdbfe' }}>
-                <h4 style={{ color: '#0c4a6e', fontWeight: '700', marginBottom: '12px' }}>{album.event}</h4>
-                <div style={{ display: 'flex', gap: '10px', overflowX: 'auto', paddingBottom: '4px' }}>
-                  {album.photos.map(photo => <img key={photo} src={`https://via.placeholder.com/150?text=${photo}`} alt={photo} style={{ borderRadius: '8px', border: '2px solid #0284c7' }} />)}
+              <div key={album.event} style={{ marginBottom: '16px', background: '#fff', padding: isMobile ? '12px' : '16px', borderRadius: '12px', border: '1px solid #bfdbfe' }}>
+                <h4 style={{ color: '#0c4a6e', fontWeight: '700', marginBottom: '10px', fontSize: isMobile ? '0.95rem' : '1.05rem' }}>{album.event}</h4>
+                <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', paddingBottom: '4px', scrollBehavior: 'smooth' }}>
+                  {album.photos.map(photo => <img key={photo} src={`https://via.placeholder.com/120?text=${photo}`} alt={photo} style={{ borderRadius: '8px', border: '2px solid #0284c7', minWidth: isMobile ? '100px' : '120px', height: isMobile ? '100px' : '120px', objectFit: 'cover' }} />)}
                 </div>
               </div>
             ))}
@@ -394,44 +404,47 @@ const Parents = () => {
         );
       case 'fees':
         return (
-          <div style={{ padding: '24px', borderRadius: '16px', background: 'linear-gradient(135deg, #dcfce7 0%, #f0fdf4 100%)', border: '2px solid #10b981', boxShadow: '0 4px 16px rgba(16, 185, 129, 0.1)' }}>
-            <h3 style={{ color: '#166534', fontSize: '1.4rem', fontWeight: '700', marginBottom: '20px' }}>💳 Fee Details</h3>
-            <div style={{ background: '#fff', padding: '16px', borderRadius: '12px', border: '1px solid #dcfce7', marginBottom: '16px' }}>
-              <p style={{ fontSize: '1.1rem', marginBottom: '12px' }}><strong>💰 Total Fee:</strong> ₹{feeDetails.totalFee.toLocaleString()}</p>
-              <p style={{ fontSize: '1.1rem', marginBottom: '12px', color: '#10b981' }}><strong>✓ Paid:</strong> ₹{feeDetails.paid.toLocaleString()}</p>
-              <p style={{ fontSize: '1.1rem', color: '#ef4444' }}><strong>⏳ Balance:</strong> ₹{feeDetails.balance.toLocaleString()}</p>
+          <div style={{ padding: isMobile ? '16px' : '24px', borderRadius: '16px', background: 'linear-gradient(135deg, #dcfce7 0%, #f0fdf4 100%)', border: '2px solid #10b981', boxShadow: '0 4px 16px rgba(16, 185, 129, 0.1)' }}>
+            <h3 style={{ color: '#166534', fontSize: isMobile ? '1.2rem' : '1.4rem', fontWeight: '700', marginBottom: '16px' }}>💳 Fee Details</h3>
+            <div style={{ background: '#fff', padding: isMobile ? '12px' : '16px', borderRadius: '12px', border: '1px solid #dcfce7', marginBottom: '16px' }}>
+              <p style={{ fontSize: isMobile ? '0.95rem' : '1.1rem', marginBottom: '10px' }}><strong>💰 Total Fee:</strong> ₹{feeDetails.totalFee.toLocaleString()}</p>
+              <p style={{ fontSize: isMobile ? '0.95rem' : '1.1rem', marginBottom: '10px', color: '#10b981' }}><strong>✓ Paid:</strong> ₹{feeDetails.paid.toLocaleString()}</p>
+              <p style={{ fontSize: isMobile ? '0.95rem' : '1.1rem', color: '#ef4444' }}><strong>⏳ Balance:</strong> ₹{feeDetails.balance.toLocaleString()}</p>
             </div>
-            <h4 style={{ color: '#166534', fontWeight: '700', marginBottom: '12px' }}>📅 Instalments</h4>
+            <h4 style={{ color: '#166534', fontWeight: '700', marginBottom: '10px', fontSize: isMobile ? '1.05rem' : '1.1rem' }}>📅 Instalments</h4>
             {feeDetails.instalments.map((inst, index) => (
-              <div key={index} style={{ background: '#fff', padding: '12px', borderRadius: '8px', marginBottom: '8px', border: `2px solid ${inst.status === 'paid' ? '#dcfce7' : '#fef3c7'}` }}>
-                <p><strong>{inst.dueDate}:</strong> ₹{inst.amount.toLocaleString()} - <span style={{ background: inst.status === 'paid' ? '#10b981' : '#f59e0b', color: '#fff', padding: '4px 8px', borderRadius: '4px', fontWeight: '600', fontSize: '0.9rem' }}>{inst.status.toUpperCase()}</span></p>
+              <div key={index} style={{ background: '#fff', padding: isMobile ? '10px' : '12px', borderRadius: '8px', marginBottom: '8px', border: `2px solid ${inst.status === 'paid' ? '#dcfce7' : '#fef3c7'}`, minHeight: isMobile ? '44px' : 'auto', display: 'flex', flexDirection: isMobile ? 'column' : 'row', justifyContent: 'space-between', alignItems: isMobile ? 'flex-start' : 'center', gap: '8px' }}>
+                <p style={{ margin: 0, fontSize: isMobile ? '0.85rem' : '0.95rem' }}><strong>{inst.dueDate}:</strong> ₹{inst.amount.toLocaleString()}</p>
+                <span style={{ background: inst.status === 'paid' ? '#10b981' : '#f59e0b', color: '#fff', padding: isMobile ? '4px 8px' : '6px 12px', borderRadius: '4px', fontWeight: '600', fontSize: isMobile ? '0.75rem' : '0.85rem', whiteSpace: 'nowrap' }}>{inst.status.toUpperCase()}</span>
               </div>
             ))}
-            <button style={{ padding: '12px 24px', background: '#10b981', color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '700', fontSize: '1rem', marginTop: '16px', boxShadow: '0 4px 12px rgba(16, 185, 129, 0.3)' }}>💳 Pay Now</button>
+            <button style={{ padding: isMobile ? '10px 16px' : '12px 24px', background: '#10b981', color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '700', fontSize: isMobile ? '0.9rem' : '1rem', marginTop: '16px', boxShadow: '0 4px 12px rgba(16, 185, 129, 0.3)', width: isMobile ? '100%' : 'auto', minHeight: '44px' }}>💳 Pay Now</button>
           </div>
         );
       case 'report':
         return (
-          <div style={{ padding: '24px', borderRadius: '16px', background: 'linear-gradient(135deg, #fef3c7 0%, #fef9e7 100%)', border: '2px solid #fbbf24', boxShadow: '0 4px 16px rgba(251, 191, 36, 0.1)' }}>
-            <h3 style={{ color: '#92400e', fontSize: '1.4rem', fontWeight: '700', marginBottom: '20px' }}>📑 Report Card</h3>
+          <div style={{ padding: isMobile ? '16px' : '24px', borderRadius: '16px', background: 'linear-gradient(135deg, #fef3c7 0%, #fef9e7 100%)', border: '2px solid #fbbf24', boxShadow: '0 4px 16px rgba(251, 191, 36, 0.1)' }}>
+            <h3 style={{ color: '#92400e', fontSize: isMobile ? '1.2rem' : '1.4rem', fontWeight: '700', marginBottom: '16px' }}>📑 Report Card</h3>
             {reportCard.exams.map(exam => (
-              <div key={exam.name} style={{ marginBottom: '20px', padding: '16px', background: '#fff', borderRadius: '12px', border: '1px solid #fcd34d' }}>
-                <h4 style={{ color: '#92400e', fontWeight: '700', marginBottom: '12px' }}>{exam.name}</h4>
-                {Object.entries(exam.subjects).map(([subject, marks]) => (
-                  <p key={subject} style={{ margin: '8px 0' }}><strong>{subject}:</strong> <span style={{ background: marks >= 80 ? '#dcfce7' : marks >= 60 ? '#fef3c7' : '#fee2e2', padding: '4px 8px', borderRadius: '4px', fontWeight: '600' }}>{marks}/100</span></p>
-                ))}
+              <div key={exam.name} style={{ marginBottom: '16px', padding: isMobile ? '12px' : '16px', background: '#fff', borderRadius: '12px', border: '1px solid #fcd34d' }}>
+                <h4 style={{ color: '#92400e', fontWeight: '700', marginBottom: '10px', fontSize: isMobile ? '0.95rem' : '1.05rem' }}>{exam.name}</h4>
+                <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(2, 1fr)', gap: isMobile ? '6px' : '8px' }}>
+                  {Object.entries(exam.subjects).map(([subject, marks]) => (
+                    <p key={subject} style={{ margin: '4px 0', fontSize: isMobile ? '0.8rem' : '0.85rem' }}><strong>{subject}:</strong> <span style={{ background: marks >= 80 ? '#dcfce7' : marks >= 60 ? '#fef3c7' : '#fee2e2', padding: '2px 6px', borderRadius: '4px', fontWeight: '600' }}>{marks}/100</span></p>
+                  ))}
+                </div>
               </div>
             ))}
           </div>
         );
       case 'contact':
         return (
-          <div style={{ padding: '24px', borderRadius: '16px', background: 'linear-gradient(135deg, #f3f4f6 0%, #f9fafb 100%)', border: '2px solid #6b7280' }}>
-            <h3 style={{ color: '#374151', fontSize: '1.4rem', fontWeight: '700', marginBottom: '20px' }}>📞 Contact Us</h3>
+          <div style={{ padding: isMobile ? '16px' : '24px', borderRadius: '16px', background: 'linear-gradient(135deg, #f3f4f6 0%, #f9fafb 100%)', border: '2px solid #6b7280' }}>
+            <h3 style={{ color: '#374151', fontSize: isMobile ? '1.2rem' : '1.4rem', fontWeight: '700', marginBottom: '16px' }}>📞 Contact Us</h3>
             {contacts.map(contact => (
-              <div key={contact.role} style={{ marginBottom: '12px', padding: '12px', background: '#fff', borderRadius: '8px', border: '1px solid #e5e7eb', boxShadow: '0 2px 6px rgba(107, 114, 128, 0.1)' }}>
-                <p style={{ margin: '0 0 6px' }}><strong style={{ color: '#374151' }}>👤 {contact.role}:</strong> {contact.name}</p>
-                <p style={{ margin: 0 }}><strong>📧 Email:</strong> <a href={`mailto:${contact.email}`} style={{ color: '#3b82f6', textDecoration: 'none', fontWeight: '600' }}>{contact.email}</a></p>
+              <div key={contact.role} style={{ marginBottom: '12px', padding: isMobile ? '12px' : '14px', background: '#fff', borderRadius: '8px', border: '1px solid #e5e7eb', boxShadow: '0 2px 6px rgba(107, 114, 128, 0.1)', minHeight: isMobile ? '44px' : 'auto' }}>
+                <p style={{ margin: '0 0 6px', fontSize: isMobile ? '0.9rem' : '0.95rem' }}><strong style={{ color: '#374151' }}>👤 {contact.role}:</strong> {contact.name}</p>
+                <p style={{ margin: 0, fontSize: isMobile ? '0.85rem' : '0.9rem' }}><strong>📧 Email:</strong> <a href={`mailto:${contact.email}`} style={{ color: '#3b82f6', textDecoration: 'none', fontWeight: '600', wordBreak: 'break-all' }}>{contact.email}</a></p>
               </div>
             ))}
           </div>
@@ -444,25 +457,66 @@ const Parents = () => {
   return (
     <main style={{ padding: isMobile ? '16px' : '28px', maxWidth: '1240px', margin: '0 auto', color: '#1f2937', background: 'linear-gradient(to bottom, #f0f9ff 0%, #f9fafb 100%)', minHeight: 'calc(100vh - 100px)' }}>
       <section>
-        <h2 style={{ fontSize: '1.8rem', color: '#1e40af', fontWeight: '700', marginBottom: '8px' }}>👨‍👩‍👧 Parents Portal - SMT School, Thane</h2>
-        <p style={{ color: '#475569', marginTop: '8px', fontSize: '1rem', fontWeight: '500' }}>
-          📊 Access your child's academic information, attendance, fees, and school updates.
-        </p>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '16px' }}>
+          <div>
+            <h2 style={{ fontSize: isMobile ? '1.4rem' : '1.8rem', color: '#1e40af', fontWeight: '700', marginBottom: '8px' }}>👨‍👩‍👧 Parents Portal</h2>
+            <p style={{ color: '#475569', marginTop: '8px', fontSize: isMobile ? '0.9rem' : '1rem', fontWeight: '500' }}>
+              📊 SMT School, Thane
+            </p>
+          </div>
+          {isMobile && (
+            <button onClick={() => setIsMenuOpen(!isMenuOpen)} style={{ background: '#1e40af', color: '#fff', border: 'none', padding: '12px 14px', borderRadius: '8px', cursor: 'pointer', fontSize: '1.4rem', minHeight: '48px', minWidth: '48px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              {isMenuOpen ? '✕' : '☰'}
+            </button>
+          )}
+        </div>
       </section>
-      <nav style={{ display: 'flex', gap: '8px', marginBottom: '24px', flexWrap: 'nowrap', overflowX: 'auto', paddingBottom: '8px' }}>
+
+      {/* Navigation */}
+      <nav style={{
+        display: isMobile ? (isMenuOpen ? 'grid' : 'none') : 'flex',
+        gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : undefined,
+        gap: isMobile ? '8px' : '8px',
+        marginBottom: '24px',
+        flexWrap: isMobile ? 'wrap' : 'nowrap',
+        overflowX: isMobile ? 'visible' : 'auto',
+        paddingBottom: isMobile ? '0' : '8px',
+      }}>
         {[
-          { key: 'profile', label: '👤 Student Profile' },
-          { key: 'parent-profile', label: '👨‍💼 Parent Profile' },
+          { key: 'profile', label: '👤 Profile' },
+          { key: 'parent-profile', label: '👨‍💼 Parent' },
           { key: 'attendance', label: '📅 Attendance' },
           { key: 'timetable', label: '⏰ Timetable' },
           { key: 'events', label: '🎉 Events' },
           { key: 'activities', label: '📚 Activities' },
           { key: 'gallery', label: '🖼️ Gallery' },
           { key: 'fees', label: '💳 Fees' },
-          { key: 'report', label: '📑 Report Card' },
+          { key: 'report', label: '📑 Report' },
           { key: 'contact', label: '📞 Contact' },
         ].map(module => (
-          <button key={module.key} onClick={() => setActiveModule(module.key)} style={{ padding: '10px 14px', borderRadius: '8px', border: '2px solid #cbd5e1', background: activeModule === module.key ? '#1e40af' : '#fff', color: activeModule === module.key ? '#fff' : '#1f2937', cursor: 'pointer', whiteSpace: 'nowrap', fontWeight: '600', transition: 'all 0.3s', boxShadow: activeModule === module.key ? '0 4px 12px rgba(30, 64, 175, 0.3)' : 'none' }}>
+          <button 
+            key={module.key} 
+            onClick={() => {
+              setActiveModule(module.key);
+              if (isMobile) setIsMenuOpen(false);
+            }} 
+            style={{
+              padding: isMobile ? '12px 10px' : '10px 14px',
+              borderRadius: '8px',
+              border: '2px solid #cbd5e1',
+              background: activeModule === module.key ? '#1e40af' : '#fff',
+              color: activeModule === module.key ? '#fff' : '#1f2937',
+              cursor: 'pointer',
+              whiteSpace: 'nowrap',
+              fontWeight: '600',
+              fontSize: isMobile ? '0.85rem' : '0.95rem',
+              transition: 'all 0.3s',
+              boxShadow: activeModule === module.key ? '0 4px 12px rgba(30, 64, 175, 0.3)' : 'none',
+              minHeight: isMobile ? '44px' : 'auto',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}>
             {module.label}
           </button>
         ))}
