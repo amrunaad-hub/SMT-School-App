@@ -88,7 +88,12 @@ app.use('/api/attachments', attachmentRoutes);
 
 // Health check endpoint - must be before static files and wildcard
 app.get('/api/health', (req, res) => {
-    res.json({ status: 'ok', timestamp: new Date().toISOString() });
+    res.json({
+        status: 'ok',
+        timestamp: new Date().toISOString(),
+        mongoConnected,
+        commit: process.env.RAILWAY_GIT_COMMIT_SHA || 'unknown',
+    });
 });
 
 // Serve static files
