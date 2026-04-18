@@ -40,18 +40,16 @@ const HR = () => {
   }, [staffQuery]);
 
   const stats = useMemo(() => {
-    const teachingMaharashtrian = TEACHING_FACULTY.filter((staff) => staff.isMaharashtrian).length;
-    const teachingBrahminWithinMaharashtrian = TEACHING_FACULTY.filter((staff) => staff.isMaharashtrian && staff.isBrahmin).length;
-    const maharashtrianShare = Math.round((teachingMaharashtrian / TEACHING_FACULTY.length) * 100);
-    const brahminShareWithinMaharashtrian = Math.round((teachingBrahminWithinMaharashtrian / teachingMaharashtrian) * 100);
+    const teachingShare = Math.round((TEACHING_FACULTY.length / ALL_STAFF.length) * 100);
+    const womenTeachingShare = Math.round((TEACHING_FACULTY.filter((staff) => staff.gender === 'Female').length / TEACHING_FACULTY.length) * 100);
 
     return {
       total: ALL_STAFF.length,
       teaching: TEACHING_FACULTY.length,
       nonTeaching: NON_TEACHING_STAFF.length,
       active: ALL_STAFF.filter((staff) => staff.status === 'Active').length,
-      maharashtrianShare,
-      brahminShareWithinMaharashtrian,
+      teachingShare,
+      womenTeachingShare,
     };
   }, []);
 
@@ -158,12 +156,12 @@ const HR = () => {
             <strong style={{ fontSize: '1.2rem', color: '#0f766e' }}>{stats.active}</strong>
           </div>
           <div style={summaryCardStyle}>
-            <p style={{ margin: 0, color: '#64748b' }}>Maharashtrian (Teaching)</p>
-            <strong style={{ fontSize: '1.2rem', color: '#7c3aed' }}>{stats.maharashtrianShare}%</strong>
+            <p style={{ margin: 0, color: '#64748b' }}>Teaching Share</p>
+            <strong style={{ fontSize: '1.2rem', color: '#7c3aed' }}>{stats.teachingShare}%</strong>
           </div>
           <div style={summaryCardStyle}>
-            <p style={{ margin: 0, color: '#64748b' }}>Brahmin Within Maharashtrian</p>
-            <strong style={{ fontSize: '1.2rem', color: '#0ea5e9' }}>{stats.brahminShareWithinMaharashtrian}%</strong>
+            <p style={{ margin: 0, color: '#64748b' }}>Women Faculty Share</p>
+            <strong style={{ fontSize: '1.2rem', color: '#0ea5e9' }}>{stats.womenTeachingShare}%</strong>
           </div>
         </div>
       </section>
