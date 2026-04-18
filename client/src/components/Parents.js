@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useMemo } from 'react';
+import { jsPDF } from 'jspdf';
 
 const Parents = () => {
   const [activeModule, setActiveModule] = useState('profile');
@@ -177,32 +178,65 @@ const Parents = () => {
 
   const formatCurrency = (amount) => `Rs. ${amount.toLocaleString('en-IN')}`;
 
-  const downloadReceipt = (instalment) => {
-    const receiptText = [
-      'SMT SCHOOL FEE RECEIPT',
-      '----------------------',
+  const addReceiptPageToDoc = (doc, student, instalment, pageIndex) => {
+    if (pageIndex > 0) {
+      doc.addPage();
+    }
+
+    let y = 20;
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(16);
+    doc.text('SMT SCHOOL - FEE PAYMENT RECEIPT', 14, y);
+
+    y += 8;
+    doc.setDrawColor(16, 185, 129);
+    doc.setLineWidth(0.6);
+    doc.line(14, y, 196, y);
+
+    y += 10;
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(11);
+
+    const lines = [
       `Receipt No: ${instalment.id}`,
-      `Student: ${currentStudent.name}`,
-      `Grade/Division: ${currentStudent.grade} ${currentStudent.division}`,
-      `Roll No: ${currentStudent.rollNo}`,
-      `Amount: ${formatCurrency(instalment.amount)}`,
+      `Student Name: ${student.name}`,
+      `Grade / Division: ${student.grade} ${student.division}`,
+      `Roll No: ${student.rollNo}`,
+      `Amount Paid: ${formatCurrency(instalment.amount)}`,
       `Payment Date: ${instalment.paidOn || 'N/A'}`,
       `Payment Mode: ${instalment.mode || 'N/A'}`,
       `Installment Due Date: ${instalment.dueDate}`,
       `Generated On: ${new Date().toLocaleString('en-IN')}`,
-      '',
-      'This is a system-generated receipt.',
-    ].join('\n');
+    ];
 
-    const blob = new Blob([receiptText], { type: 'text/plain;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `${instalment.id}-${currentStudent.rollNo}.txt`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+    lines.forEach((line) => {
+      doc.text(line, 14, y);
+      y += 8;
+    });
+
+    y += 8;
+    doc.setFontSize(10);
+    doc.text('This is a system-generated receipt and does not require a signature.', 14, y);
+  };
+
+  const downloadReceipt = (instalment) => {
+    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+    addReceiptPageToDoc(doc, currentStudent, instalment, 0);
+    doc.save(`${instalment.id}-${currentStudent.rollNo}.pdf`);
+  };
+
+  const downloadAllPaidReceipts = () => {
+    const paidInstalments = currentFeeDetails.instalments.filter((instalment) => instalment.status === 'paid');
+    if (!paidInstalments.length) {
+      return;
+    }
+
+    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+    paidInstalments.forEach((instalment, index) => {
+      addReceiptPageToDoc(doc, currentStudent, instalment, index);
+    });
+
+    doc.save(`${currentStudent.rollNo}-all-paid-receipts.pdf`);
   };
 
   const reportCard = {
@@ -493,6 +527,9 @@ const Parents = () => {
           </div>
         );
       case 'fees':
+        {
+          const paidInstalments = currentFeeDetails.instalments.filter((instalment) => instalment.status === 'paid');
+
         return (
           <div style={{ padding: isMobile ? '16px' : '24px', borderRadius: '16px', background: 'linear-gradient(135deg, #dcfce7 0%, #f0fdf4 100%)', border: '2px solid #10b981', boxShadow: '0 4px 16px rgba(16, 185, 129, 0.1)' }}>
             <h3 style={{ color: '#166534', fontSize: isMobile ? '1.2rem' : '1.4rem', fontWeight: '700', marginBottom: '16px' }}>💳 Fee Details</h3>
@@ -512,14 +549,33 @@ const Parents = () => {
                 <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
                   <span style={{ background: inst.status === 'paid' ? '#10b981' : '#f59e0b', color: '#fff', padding: isMobile ? '4px 8px' : '6px 12px', borderRadius: '4px', fontWeight: '600', fontSize: isMobile ? '0.75rem' : '0.85rem', whiteSpace: 'nowrap' }}>{inst.status.toUpperCase()}</span>
                   {inst.status === 'paid' && (
-                    <button onClick={() => downloadReceipt(inst)} style={{ padding: isMobile ? '7px 10px' : '8px 12px', borderRadius: '6px', border: '1px solid #059669', background: '#ecfdf5', color: '#065f46', fontWeight: 700, cursor: 'pointer', minHeight: '36px' }}>⬇ Receipt</button>
+                    <button onClick={() => downloadReceipt(inst)} style={{ padding: isMobile ? '7px 10px' : '8px 12px', borderRadius: '6px', border: '1px solid #059669', background: '#ecfdf5', color: '#065f46', fontWeight: 700, cursor: 'pointer', minHeight: '36px' }}>⬇ PDF Receipt</button>
                   )}
                 </div>
               </div>
             ))}
+            <button
+              onClick={downloadAllPaidReceipts}
+              disabled={!paidInstalments.length}
+              style={{
+                padding: isMobile ? '10px 14px' : '11px 18px',
+                borderRadius: '8px',
+                border: '1px solid #0f766e',
+                background: paidInstalments.length ? '#ccfbf1' : '#e5e7eb',
+                color: paidInstalments.length ? '#115e59' : '#6b7280',
+                fontWeight: 700,
+                cursor: paidInstalments.length ? 'pointer' : 'not-allowed',
+                marginTop: '8px',
+                width: isMobile ? '100%' : 'auto',
+                minHeight: '42px',
+              }}
+            >
+              ⬇ Download All Paid Receipts (PDF)
+            </button>
             <button style={{ padding: isMobile ? '10px 16px' : '12px 24px', background: '#10b981', color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '700', fontSize: isMobile ? '0.9rem' : '1rem', marginTop: '16px', boxShadow: '0 4px 12px rgba(16, 185, 129, 0.3)', width: isMobile ? '100%' : 'auto', minHeight: '44px' }}>💳 Pay Now</button>
           </div>
         );
+        }
       case 'report':
         return (
           <div style={{ padding: isMobile ? '16px' : '24px', borderRadius: '16px', background: 'linear-gradient(135deg, #fef3c7 0%, #fef9e7 100%)', border: '2px solid #fbbf24', boxShadow: '0 4px 16px rgba(251, 191, 36, 0.1)' }}>
