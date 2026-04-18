@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 
-const Header = () => {
+const Header = ({ role = 'admin', onLogout, homePath = '/' }) => {
     const [isMobile, setIsMobile] = useState(() => window.innerWidth < 900);
     const [openGroup, setOpenGroup] = useState(null);
     const closeTimer = useRef(null);
@@ -84,63 +84,83 @@ const Header = () => {
     };
 
     const mobileNavItemStyle = isMobile ? { flex: '1 1 calc(50% - 10px)', minWidth: '140px' } : {};
+    const isAdmin = role === 'admin';
 
     return (
         <header style={{ background: 'linear-gradient(135deg, #1e40af 0%, #1e3a8a 100%)', color: 'white', padding: isMobile ? '14px 12px' : '20px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px', boxShadow: '0 4px 16px rgba(0, 0, 0, 0.15)', position: 'relative', zIndex: 50 }}>
-            <Link to="/" style={{ display: 'flex', alignItems: 'center', gap: '12px', width: isMobile ? '100%' : 'auto', textDecoration: 'none', color: 'inherit' }}>
+            <Link to={homePath} style={{ display: 'flex', alignItems: 'center', gap: '12px', width: isMobile ? '100%' : 'auto', textDecoration: 'none', color: 'inherit' }}>
                 <img src="https://static.wixstatic.com/media/a4fde5_f372ba74431941a685e117d2257b701f~mv2.png/v1/fill/w_308,h_324,al_c,lg_1,q_85,enc_avif,quality_auto/a4fde5_f372ba74431941a685e117d2257b701f~mv2.png" alt="SMT English Medium School Logo" style={{ height: isMobile ? '42px' : '60px', width: 'auto', borderRadius: '6px' }} />
                 <div>
                     <h1 style={{ margin: 0, fontSize: isMobile ? '1.05rem' : '1.6rem', fontWeight: '700' }}>📚 School ERP</h1>
-                    <p style={{ margin: '6px 0 0', color: '#dbeafe', fontSize: isMobile ? '0.82rem' : '1rem', fontWeight: '500' }}>Professional Educational Administration System</p>
+                    <p style={{ margin: '6px 0 0', color: '#dbeafe', fontSize: isMobile ? '0.82rem' : '1rem', fontWeight: '500' }}>Professional Educational Administration System • {role.toUpperCase()} ACCESS</p>
                 </div>
             </Link>
             <nav style={{ width: isMobile ? '100%' : 'auto', overflow: 'visible' }}>
                 <ul style={{ display: 'flex', gap: '10px', listStyle: 'none', margin: 0, padding: 0, flexWrap: isMobile ? 'wrap' : 'nowrap', overflow: 'visible', scrollbarWidth: 'thin' }}>
-                    <li style={mobileNavItemStyle}>
-                        <Link style={{ ...topLinkStyle, width: isMobile ? '100%' : 'auto', textAlign: 'center', background: 'rgba(16,185,129,0.25)', border: '2px solid rgba(16,185,129,0.55)' }} to="/">🏠 Home</Link>
-                    </li>
-                    <li style={mobileNavItemStyle}>
-                        <Link style={{ ...topLinkStyle, width: isMobile ? '100%' : 'auto', textAlign: 'center' }} to="/command-center">🎛️ Command</Link>
-                    </li>
-                    {groupedNav.map((group) => {
-                        const isOpen = openGroup === group.key;
-                        return (
-                            <li
-                                key={group.key}
-                                style={{ ...mobileNavItemStyle, position: 'relative' }}
-                                onMouseEnter={() => { if (!isMobile) { cancelClose(); openDropdown(group.key); } }}
-                                onMouseLeave={() => { if (!isMobile) scheduleClose(); }}
-                            >
-                                <button
-                                    type="button"
-                                    onClick={() => setOpenGroup(isOpen ? null : group.key)}
-                                    style={{ ...topLinkStyle, width: isMobile ? '100%' : 'auto', textAlign: 'center', fontFamily: 'inherit' }}
-                                >
-                                    {group.label} ▾
-                                </button>
-                                {isOpen && (
-                                    <div
-                                        onMouseEnter={cancelClose}
-                                        onMouseLeave={scheduleClose}
-                                        style={{ position: isMobile ? 'static' : 'absolute', top: isMobile ? 'auto' : '100%', left: 0, paddingTop: isMobile ? '8px' : '6px', minWidth: isMobile ? '100%' : '220px', width: isMobile ? '100%' : 'auto', zIndex: 30 }}
-                                    >
-                                        <div style={{ background: '#f8fafc', border: '1px solid #bfdbfe', borderRadius: '10px', padding: '8px', boxShadow: '0 12px 24px rgba(15, 23, 42, 0.2)' }}>
-                                            {group.items.map((item) => (
-                                                <Link
-                                                    key={item.to}
-                                                    to={item.to}
-                                                    onClick={() => setOpenGroup(null)}
-                                                    style={dropdownItemStyle}
-                                                >
-                                                    {item.label}
-                                                </Link>
-                                            ))}
-                                        </div>
-                                    </div>
-                                )}
+                    {isAdmin ? (
+                        <>
+                            <li style={mobileNavItemStyle}>
+                                <Link style={{ ...topLinkStyle, width: isMobile ? '100%' : 'auto', textAlign: 'center', background: 'rgba(16,185,129,0.25)', border: '2px solid rgba(16,185,129,0.55)' }} to="/">🏠 Home</Link>
                             </li>
-                        );
-                    })}
+                            <li style={mobileNavItemStyle}>
+                                <Link style={{ ...topLinkStyle, width: isMobile ? '100%' : 'auto', textAlign: 'center' }} to="/command-center">🎛️ Command</Link>
+                            </li>
+                            {groupedNav.map((group) => {
+                                const isOpen = openGroup === group.key;
+                                return (
+                                    <li
+                                        key={group.key}
+                                        style={{ ...mobileNavItemStyle, position: 'relative' }}
+                                        onMouseEnter={() => { if (!isMobile) { cancelClose(); openDropdown(group.key); } }}
+                                        onMouseLeave={() => { if (!isMobile) scheduleClose(); }}
+                                    >
+                                        <button
+                                            type="button"
+                                            onClick={() => setOpenGroup(isOpen ? null : group.key)}
+                                            style={{ ...topLinkStyle, width: isMobile ? '100%' : 'auto', textAlign: 'center', fontFamily: 'inherit' }}
+                                        >
+                                            {group.label} ▾
+                                        </button>
+                                        {isOpen && (
+                                            <div
+                                                onMouseEnter={cancelClose}
+                                                onMouseLeave={scheduleClose}
+                                                style={{ position: isMobile ? 'static' : 'absolute', top: isMobile ? 'auto' : '100%', left: 0, paddingTop: isMobile ? '8px' : '6px', minWidth: isMobile ? '100%' : '220px', width: isMobile ? '100%' : 'auto', zIndex: 30 }}
+                                            >
+                                                <div style={{ background: '#f8fafc', border: '1px solid #bfdbfe', borderRadius: '10px', padding: '8px', boxShadow: '0 12px 24px rgba(15, 23, 42, 0.2)' }}>
+                                                    {group.items.map((item) => (
+                                                        <Link
+                                                            key={item.to}
+                                                            to={item.to}
+                                                            onClick={() => setOpenGroup(null)}
+                                                            style={dropdownItemStyle}
+                                                        >
+                                                            {item.label}
+                                                        </Link>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
+                                    </li>
+                                );
+                            })}
+                        </>
+                    ) : (
+                        <li style={{ ...mobileNavItemStyle, minWidth: '220px' }}>
+                            <Link style={{ ...topLinkStyle, width: '100%', textAlign: 'center', background: 'rgba(16,185,129,0.25)', border: '2px solid rgba(16,185,129,0.55)' }} to={role === 'teacher' ? '/teachers' : '/parents'}>
+                                {role === 'teacher' ? '👩‍🏫 Teachers Portal' : '👨‍👩‍👧 Parents Portal'}
+                            </Link>
+                        </li>
+                    )}
+                    <li style={mobileNavItemStyle}>
+                        <button
+                            type="button"
+                            onClick={onLogout}
+                            style={{ ...topLinkStyle, width: isMobile ? '100%' : 'auto', textAlign: 'center', border: '2px solid rgba(248,113,113,0.8)', background: 'rgba(239,68,68,0.25)', fontFamily: 'inherit' }}
+                        >
+                            🔒 Logout
+                        </button>
+                    </li>
                 </ul>
             </nav>
         </header>
