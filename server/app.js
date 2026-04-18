@@ -49,16 +49,33 @@ app.use((req, res, next) => {
 app.use(express.json());
 
 // Database connection
+let mongoConnected = false;
+
 mongoose.connect(MONGODB_URI, {
     useNewUrlParser: true,
     useUnifiedTopology: true,
 })
 .then(async () => {
+    mongoConnected = true;
     console.log('MongoDB connected');
     await ensureDefaultUsers();
     console.log('Default role users ensured');
 })
-.catch(err => console.error('MongoDB connection error:', err));
+.catch(err => {
+    mongoConnected = false;
+    console.error('MongoDB connection error:', err.message);
+    console.error('MONGODB_URI:', MONGODB_URI);
+});
+
+// Middleware to check MongoDB connection
+app.use((req, res, next) => {
+    if (!req.path.startsWith('/api/health')) {
+        if (!mongoConnected) {
+            return res.status(503).json({ message: 'Service temporarily unavailable. Database connection failed. Check MongoDB configuration.' });
+        }
+    }
+    next();
+});
 
 // Routes
 app.use('/api/auth', authRoutes);
