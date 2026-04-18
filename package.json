@@ -4,11 +4,11 @@
   "description": "A school ERP system built with React and Express.",
   "main": "server/app.js",
   "scripts": {
-    "start": "node server/app.js",
+    "start": "npm run build --prefix client && node server/app.js",
     "client": "npm start --prefix client",
     "server": "node server/app.js",
     "dev": "concurrently \"npm run server\" \"npm run client\"",
-    "postinstall": "npm install --prefix client",
+    "postinstall": "npm install --prefix client && npm run build --prefix client",
     "install-all": "npm install && npm install --prefix client",
     "build": "npm run build --prefix client"
   },
