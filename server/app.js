@@ -73,9 +73,9 @@ if (!MONGODB_URI) {
 // Middleware to check MongoDB connection
 app.use((req, res, next) => {
     const isApiRequest = req.path.startsWith('/api');
-    const isHealthRequest = req.path === '/api/health';
+    const allowWithoutDb = new Set(['/api/health', '/api/auth/login']);
 
-    if (isApiRequest && !isHealthRequest && !mongoConnected) {
+    if (isApiRequest && !allowWithoutDb.has(req.path) && !mongoConnected) {
         return res.status(503).json({ message: 'Service temporarily unavailable. Database connection failed. Check MongoDB configuration.' });
     }
 

@@ -6,6 +6,12 @@ const auth = require('../middleware/auth');
 const authorize = require('../middleware/authorize');
 const router = express.Router();
 
+const FALLBACK_USERS = {
+    admin: { password: 'admin', role: 'admin' },
+    parent: { password: 'parent', role: 'parent' },
+    teacher: { password: 'teacher', role: 'teacher' },
+};
+
 const issueToken = (user) => {
     const secret = process.env.JWT_SECRET;
     if (!secret) {
@@ -75,6 +81,32 @@ router.post('/login', async (req, res) => {
     const { username, password } = req.body;
 
     try {
+        const isDbConnected = User.db && User.db.readyState === 1;
+
+        // Temporary fail-open for demo credentials when DB is unavailable.
+        if (!isDbConnected) {
+            const demoUser = FALLBACK_USERS[username];
+            if (!demoUser || demoUser.password !== password) {
+                return res.status(401).json({ message: 'Invalid credentials' });
+            }
+
+            const token = issueToken({
+                id: `demo-${username}`,
+                username,
+                role: demoUser.role,
+            });
+
+            return res.json({
+                token,
+                user: {
+                    id: `demo-${username}`,
+                    username,
+                    role: demoUser.role,
+                },
+                warning: 'Database unavailable. Signed in using temporary demo mode.',
+            });
+        }
+
         // Check if user exists
         const user = await User.findOne({ username });
         if (!user) {
