@@ -18,6 +18,10 @@ const Parents = () => {
   const [currentMonth, setCurrentMonth] = useState(new Date(2026, 3, 1));
   const [receiptPreview, setReceiptPreview] = useState(null);
   const [attachmentPreview, setAttachmentPreview] = useState(null);
+  const [attachmentMap, setAttachmentMap] = useState({});
+  const [expandedCards, setExpandedCards] = useState({});
+
+  const apiBase = process.env.REACT_APP_API_BASE_URL || '';
 
   useEffect(() => {
     const onResize = () => setIsMobile(window.innerWidth < 900);
@@ -28,6 +32,38 @@ const Parents = () => {
   useEffect(() => {
     setSelectedStudent(null);
   }, [selectedChildId]);
+
+  useEffect(() => {
+    let isCancelled = false;
+
+    const loadAttachments = async () => {
+      try {
+        const response = await fetch(`${apiBase}/api/attachments`);
+        if (!response.ok) {
+          return;
+        }
+
+        const data = await response.json();
+        if (isCancelled || !data || !Array.isArray(data.attachments)) {
+          return;
+        }
+
+        const map = data.attachments.reduce((acc, item) => {
+          acc[item.id] = item;
+          return acc;
+        }, {});
+
+        setAttachmentMap(map);
+      } catch (error) {
+        // Keep UI functional even if attachment API is temporarily unavailable.
+      }
+    };
+
+    loadAttachments();
+    return () => {
+      isCancelled = true;
+    };
+  }, [apiBase]);
 
   // Parent login linked to multiple children
   const linkedStudents = useMemo(() => [
@@ -483,7 +519,37 @@ const Parents = () => {
     if (!attachments || !attachments.length) {
       return;
     }
-    setAttachmentPreview({ title, attachments });
+
+    const resolvedAttachments = attachments.map((attachmentId) => {
+      if (attachmentMap[attachmentId]) {
+        return attachmentMap[attachmentId];
+      }
+
+      const encodedId = encodeURIComponent(attachmentId);
+      return {
+        id: attachmentId,
+        fileName: attachmentId,
+        title: attachmentId,
+        previewUrl: `${apiBase}/api/attachments/${encodedId}/preview`,
+        downloadUrl: `${apiBase}/api/attachments/${encodedId}/download`,
+      };
+    });
+
+    setAttachmentPreview({ title, attachments: resolvedAttachments });
+  };
+
+  const toggleAccordion = (cardId) => {
+    setExpandedCards((previous) => ({
+      ...previous,
+      [cardId]: !previous[cardId],
+    }));
+  };
+
+  const isAccordionOpen = (cardId, index) => {
+    if (expandedCards[cardId] === undefined) {
+      return index === 0;
+    }
+    return expandedCards[cardId];
   };
 
   const portalModules = [
@@ -501,7 +567,9 @@ const Parents = () => {
     { key: 'contact', label: 'Contact Us', icon: '📞' },
   ];
 
-  const primaryQuickModules = portalModules.filter((module) => ['profile', 'parent-profile', 'attendance', 'timetable', 'activities', 'circular', 'message', 'fees'].includes(module.key));
+  const primaryQuickModules = isMobile
+    ? portalModules.filter((module) => ['profile', 'parent-profile', 'attendance', 'timetable', 'activities', 'circular', 'message', 'fees'].includes(module.key))
+    : portalModules;
 
   const renderModule = () => {
     switch (activeModule) {
@@ -674,6 +742,8 @@ const Parents = () => {
                       padding: '6px 2px',
                       cursor: 'pointer',
                       minHeight: '54px',
+                      transition: 'all 180ms ease',
+                      transform: isSameDate(date, selectedTimetableDate) ? 'scale(1.02)' : 'scale(1)',
                     }}
                   >
                     <div style={{ fontSize: '0.68rem', fontWeight: 700 }}>{date.toLocaleDateString('en-IN', { weekday: 'short' })}</div>
@@ -682,16 +752,33 @@ const Parents = () => {
                 ))}
               </div>
             </div>
-            {selectedTimetableEntries.length ? selectedTimetableEntries.map((entry) => (
-              <div key={`${entry.date}-${entry.period}-${entry.time}`} style={{ marginBottom: '10px', background: '#fff', padding: isMobile ? '12px' : '14px', borderRadius: '12px', border: '1px solid #fcd34d' }}>
-                <p style={{ margin: '0 0 6px', color: '#92400e', fontWeight: 800, fontSize: isMobile ? '0.9rem' : '0.95rem' }}>{entry.period} • {entry.subject}</p>
-                <p style={{ margin: 0, color: '#7c2d12', fontSize: isMobile ? '0.8rem' : '0.88rem' }}>{entry.time} • {entry.teacher}</p>
-                <p style={{ margin: '8px 0 0', color: '#374151', fontSize: isMobile ? '0.82rem' : '0.9rem' }}>{entry.details}</p>
-                {entry.attachments.length > 0 && (
-                  <button onClick={() => openAttachmentPreview(`${entry.period} Attachment`, entry.attachments)} style={{ marginTop: '8px', border: '1px solid #f59e0b', background: '#fff7ed', color: '#9a3412', borderRadius: '999px', padding: '6px 10px', fontWeight: 700, cursor: 'pointer' }}>📎 {entry.attachments.length} Attachment</button>
-                )}
-              </div>
-            )) : (
+            {selectedTimetableEntries.length ? selectedTimetableEntries.map((entry, index) => {
+              const cardId = `timetable-${entry.date}-${entry.period}-${entry.time}`;
+              const isOpen = isAccordionOpen(cardId, index);
+
+              return (
+                <div key={cardId} style={{ marginBottom: '10px', background: '#fff', borderRadius: '12px', border: '1px solid #fcd34d', overflow: 'hidden' }}>
+                  <button
+                    onClick={() => toggleAccordion(cardId)}
+                    style={{ width: '100%', border: 'none', background: '#fff', padding: isMobile ? '12px' : '14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px', cursor: 'pointer' }}
+                  >
+                    <div style={{ textAlign: 'left' }}>
+                      <p style={{ margin: 0, color: '#92400e', fontWeight: 800, fontSize: isMobile ? '0.9rem' : '0.95rem' }}>{entry.period} • {entry.subject}</p>
+                      <p style={{ margin: '5px 0 0', color: '#7c2d12', fontSize: isMobile ? '0.78rem' : '0.86rem' }}>{entry.time} • {entry.teacher}</p>
+                    </div>
+                    <span style={{ color: '#9a3412', fontWeight: 800, fontSize: '1rem', transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 180ms ease' }}>⌃</span>
+                  </button>
+                  <div style={{ maxHeight: isOpen ? '220px' : '0px', opacity: isOpen ? 1 : 0, overflow: 'hidden', transition: 'max-height 240ms ease, opacity 220ms ease' }}>
+                    <div style={{ padding: isMobile ? '0 12px 12px' : '0 14px 14px', borderTop: '1px solid #ffedd5' }}>
+                      <p style={{ margin: '10px 0 0', color: '#374151', fontSize: isMobile ? '0.82rem' : '0.9rem' }}>{entry.details}</p>
+                      {entry.attachments.length > 0 && (
+                        <button onClick={() => openAttachmentPreview(`${entry.period} Attachment`, entry.attachments)} style={{ marginTop: '8px', border: '1px solid #f59e0b', background: '#fff7ed', color: '#9a3412', borderRadius: '999px', padding: '6px 10px', fontWeight: 700, cursor: 'pointer' }}>📎 {entry.attachments.length} Attachment</button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            }) : (
               <div style={{ background: '#fff', padding: isMobile ? '14px' : '18px', borderRadius: '12px', border: '1px dashed #fbbf24', color: '#92400e', fontWeight: 600 }}>No timetable entries for selected date.</div>
             )}
           </div>
@@ -741,6 +828,8 @@ const Parents = () => {
                       padding: '6px 2px',
                       cursor: 'pointer',
                       minHeight: '54px',
+                      transition: 'all 180ms ease',
+                      transform: isSameDate(date, selectedActivityDate) ? 'scale(1.02)' : 'scale(1)',
                     }}
                   >
                     <div style={{ fontSize: '0.68rem', fontWeight: 700 }}>{date.toLocaleDateString('en-IN', { weekday: 'short' })}</div>
@@ -759,16 +848,31 @@ const Parents = () => {
                 <button onClick={() => setActivityView('homework')} style={{ border: 'none', background: activityView === 'homework' ? '#4f46e5' : '#eef2ff', color: activityView === 'homework' ? '#fff' : '#3730a3', fontWeight: 700, padding: '9px 10px', cursor: 'pointer' }}>Home Work</button>
               </div>
             </div>
-            {selectedActivityEntries.length ? selectedActivityEntries.map((activity) => (
-              <div key={`${activity.date}-${activity.period}`} style={{ marginBottom: '10px', padding: isMobile ? '10px' : '12px', background: '#fff', borderRadius: '10px', border: '1px solid #a5b4fc', boxShadow: '0 2px 6px rgba(99, 102, 241, 0.1)' }}>
-                <p style={{ margin: 0, color: '#3730a3', fontWeight: 800, fontSize: isMobile ? '0.9rem' : '0.95rem' }}>{activity.period}</p>
-                <p style={{ margin: '6px 0 0', color: '#374151', fontSize: isMobile ? '0.82rem' : '0.9rem' }}>{activityView === 'classwork' ? activity.classwork : activity.homework}</p>
-                <p style={{ margin: '8px 0 0', color: '#6366f1', fontSize: isMobile ? '0.78rem' : '0.85rem', fontWeight: 700 }}>👩‍🏫 {activity.teacher}</p>
-                {activity.attachments.length > 0 && (
-                  <button onClick={() => openAttachmentPreview(`${activity.period} Attachment`, activity.attachments)} style={{ marginTop: '8px', border: '1px solid #6366f1', background: '#eef2ff', color: '#3730a3', borderRadius: '999px', padding: '6px 10px', fontWeight: 700, cursor: 'pointer' }}>📎 {activity.attachments.length} Attachment</button>
-                )}
-              </div>
-            )) : (
+            {selectedActivityEntries.length ? selectedActivityEntries.map((activity, index) => {
+              const cardId = `activity-${activity.date}-${activity.period}`;
+              const isOpen = isAccordionOpen(cardId, index);
+
+              return (
+                <div key={cardId} style={{ marginBottom: '10px', background: '#fff', borderRadius: '10px', border: '1px solid #a5b4fc', boxShadow: '0 2px 6px rgba(99, 102, 241, 0.1)', overflow: 'hidden' }}>
+                  <button
+                    onClick={() => toggleAccordion(cardId)}
+                    style={{ width: '100%', border: 'none', background: '#fff', padding: isMobile ? '10px 12px' : '12px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px', cursor: 'pointer' }}
+                  >
+                    <p style={{ margin: 0, color: '#3730a3', fontWeight: 800, fontSize: isMobile ? '0.9rem' : '0.95rem', textAlign: 'left' }}>{activity.period}</p>
+                    <span style={{ color: '#3730a3', fontWeight: 800, fontSize: '1rem', transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 180ms ease' }}>⌃</span>
+                  </button>
+                  <div style={{ maxHeight: isOpen ? '240px' : '0px', opacity: isOpen ? 1 : 0, overflow: 'hidden', transition: 'max-height 240ms ease, opacity 220ms ease' }}>
+                    <div style={{ padding: isMobile ? '0 12px 12px' : '0 14px 14px', borderTop: '1px solid #e0e7ff' }}>
+                      <p style={{ margin: '10px 0 0', color: '#374151', fontSize: isMobile ? '0.82rem' : '0.9rem' }}>{activityView === 'classwork' ? activity.classwork : activity.homework}</p>
+                      <p style={{ margin: '8px 0 0', color: '#6366f1', fontSize: isMobile ? '0.78rem' : '0.85rem', fontWeight: 700 }}>👩‍🏫 {activity.teacher}</p>
+                      {activity.attachments.length > 0 && (
+                        <button onClick={() => openAttachmentPreview(`${activity.period} Attachment`, activity.attachments)} style={{ marginTop: '8px', border: '1px solid #6366f1', background: '#eef2ff', color: '#3730a3', borderRadius: '999px', padding: '6px 10px', fontWeight: 700, cursor: 'pointer' }}>📎 {activity.attachments.length} Attachment</button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            }) : (
               <div style={{ background: '#fff', padding: isMobile ? '14px' : '18px', borderRadius: '12px', border: '1px dashed #6366f1', color: '#3730a3', fontWeight: 600 }}>No activities found for selected date/search.</div>
             )}
           </div>
@@ -783,16 +887,30 @@ const Parents = () => {
               placeholder="Search circulars"
               style={{ width: '100%', minHeight: '40px', border: '1px solid #fda4af', borderRadius: '999px', padding: '0 14px', fontSize: isMobile ? '0.85rem' : '0.9rem', outline: 'none', marginBottom: '12px' }}
             />
-            {filteredCircularNotices.length ? filteredCircularNotices.map((notice) => (
-              <div key={`${notice.date}-${notice.title}`} style={{ marginBottom: '10px', background: '#fff', borderRadius: '12px', border: '1px solid #fecdd3', padding: isMobile ? '12px' : '14px' }}>
-                <p style={{ margin: 0, color: '#9f1239', fontWeight: 800, fontSize: isMobile ? '0.95rem' : '1rem' }}>{notice.title}</p>
-                <p style={{ margin: '4px 0 0', color: '#be123c', fontWeight: 700, fontSize: isMobile ? '0.75rem' : '0.82rem' }}>{new Date(notice.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</p>
-                <p style={{ margin: '8px 0 0', color: '#374151', fontSize: isMobile ? '0.82rem' : '0.9rem', lineHeight: 1.5 }}>{notice.body}</p>
-                {notice.attachments.length > 0 && (
-                  <button onClick={() => openAttachmentPreview(notice.title, notice.attachments)} style={{ marginTop: '8px', border: '1px solid #fb7185', background: '#fff1f2', color: '#9f1239', borderRadius: '999px', padding: '6px 10px', fontWeight: 700, cursor: 'pointer' }}>📎 {notice.attachments.length} Attachment</button>
-                )}
-              </div>
-            )) : (
+            {filteredCircularNotices.length ? filteredCircularNotices.map((notice, index) => {
+              const cardId = `circular-${notice.date}-${notice.title}`;
+              const isOpen = isAccordionOpen(cardId, index);
+
+              return (
+                <div key={cardId} style={{ marginBottom: '10px', background: '#fff', borderRadius: '12px', border: '1px solid #fecdd3', overflow: 'hidden' }}>
+                  <button onClick={() => toggleAccordion(cardId)} style={{ width: '100%', border: 'none', background: '#fff', padding: isMobile ? '12px' : '14px', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div style={{ textAlign: 'left' }}>
+                      <p style={{ margin: 0, color: '#9f1239', fontWeight: 800, fontSize: isMobile ? '0.95rem' : '1rem' }}>{notice.title}</p>
+                      <p style={{ margin: '4px 0 0', color: '#be123c', fontWeight: 700, fontSize: isMobile ? '0.75rem' : '0.82rem' }}>{new Date(notice.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</p>
+                    </div>
+                    <span style={{ color: '#9f1239', fontWeight: 800, fontSize: '1rem', transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 180ms ease' }}>⌃</span>
+                  </button>
+                  <div style={{ maxHeight: isOpen ? '320px' : '0px', opacity: isOpen ? 1 : 0, overflow: 'hidden', transition: 'max-height 240ms ease, opacity 220ms ease' }}>
+                    <div style={{ padding: isMobile ? '0 12px 12px' : '0 14px 14px', borderTop: '1px solid #ffe4e6' }}>
+                      <p style={{ margin: '10px 0 0', color: '#374151', fontSize: isMobile ? '0.82rem' : '0.9rem', lineHeight: 1.5 }}>{notice.body}</p>
+                      {notice.attachments.length > 0 && (
+                        <button onClick={() => openAttachmentPreview(notice.title, notice.attachments)} style={{ marginTop: '8px', border: '1px solid #fb7185', background: '#fff1f2', color: '#9f1239', borderRadius: '999px', padding: '6px 10px', fontWeight: 700, cursor: 'pointer' }}>📎 {notice.attachments.length} Attachment</button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            }) : (
               <div style={{ background: '#fff', padding: isMobile ? '14px' : '18px', borderRadius: '12px', border: '1px dashed #fb7185', color: '#9f1239', fontWeight: 600 }}>No circulars found for this search.</div>
             )}
           </div>
@@ -807,16 +925,30 @@ const Parents = () => {
               placeholder="Search messages"
               style={{ width: '100%', minHeight: '40px', border: '1px solid #fda4af', borderRadius: '999px', padding: '0 14px', fontSize: isMobile ? '0.85rem' : '0.9rem', outline: 'none', marginBottom: '12px' }}
             />
-            {filteredCampusMessages.length ? filteredCampusMessages.map((message) => (
-              <div key={`${message.date}-${message.title}`} style={{ marginBottom: '10px', background: '#fff', borderRadius: '12px', border: '1px solid #fecdd3', padding: isMobile ? '12px' : '14px' }}>
-                <p style={{ margin: 0, color: '#9f1239', fontWeight: 800, fontSize: isMobile ? '0.95rem' : '1rem' }}>{message.title}</p>
-                <p style={{ margin: '4px 0 0', color: '#be123c', fontWeight: 700, fontSize: isMobile ? '0.75rem' : '0.82rem' }}>{new Date(message.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</p>
-                <p style={{ margin: '8px 0 0', color: '#374151', fontSize: isMobile ? '0.82rem' : '0.9rem', lineHeight: 1.5 }}>{message.body}</p>
-                {message.attachments.length > 0 && (
-                  <button onClick={() => openAttachmentPreview(message.title, message.attachments)} style={{ marginTop: '8px', border: '1px solid #fb7185', background: '#fff1f2', color: '#9f1239', borderRadius: '999px', padding: '6px 10px', fontWeight: 700, cursor: 'pointer' }}>📎 {message.attachments.length} Attachment</button>
-                )}
-              </div>
-            )) : (
+            {filteredCampusMessages.length ? filteredCampusMessages.map((message, index) => {
+              const cardId = `message-${message.date}-${message.title}`;
+              const isOpen = isAccordionOpen(cardId, index);
+
+              return (
+                <div key={cardId} style={{ marginBottom: '10px', background: '#fff', borderRadius: '12px', border: '1px solid #fecdd3', overflow: 'hidden' }}>
+                  <button onClick={() => toggleAccordion(cardId)} style={{ width: '100%', border: 'none', background: '#fff', padding: isMobile ? '12px' : '14px', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div style={{ textAlign: 'left' }}>
+                      <p style={{ margin: 0, color: '#9f1239', fontWeight: 800, fontSize: isMobile ? '0.95rem' : '1rem' }}>{message.title}</p>
+                      <p style={{ margin: '4px 0 0', color: '#be123c', fontWeight: 700, fontSize: isMobile ? '0.75rem' : '0.82rem' }}>{new Date(message.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</p>
+                    </div>
+                    <span style={{ color: '#9f1239', fontWeight: 800, fontSize: '1rem', transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 180ms ease' }}>⌃</span>
+                  </button>
+                  <div style={{ maxHeight: isOpen ? '320px' : '0px', opacity: isOpen ? 1 : 0, overflow: 'hidden', transition: 'max-height 240ms ease, opacity 220ms ease' }}>
+                    <div style={{ padding: isMobile ? '0 12px 12px' : '0 14px 14px', borderTop: '1px solid #ffe4e6' }}>
+                      <p style={{ margin: '10px 0 0', color: '#374151', fontSize: isMobile ? '0.82rem' : '0.9rem', lineHeight: 1.5 }}>{message.body}</p>
+                      {message.attachments.length > 0 && (
+                        <button onClick={() => openAttachmentPreview(message.title, message.attachments)} style={{ marginTop: '8px', border: '1px solid #fb7185', background: '#fff1f2', color: '#9f1239', borderRadius: '999px', padding: '6px 10px', fontWeight: 700, cursor: 'pointer' }}>📎 {message.attachments.length} Attachment</button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            }) : (
               <div style={{ background: '#fff', padding: isMobile ? '14px' : '18px', borderRadius: '12px', border: '1px dashed #fb7185', color: '#9f1239', fontWeight: 600 }}>No messages found for this search.</div>
             )}
           </div>
@@ -1015,33 +1147,6 @@ const Parents = () => {
         </div>
       </section>
 
-      {!isMobile && (
-        <nav style={{
-          display: 'flex',
-          gap: '8px',
-          marginBottom: '20px',
-          flexWrap: 'wrap',
-        }}>
-          {portalModules.map((module) => (
-            <button
-              key={module.key}
-              onClick={() => setActiveModule(module.key)}
-              style={{
-                padding: '10px 14px',
-                borderRadius: '999px',
-                border: `1px solid ${activeModule === module.key ? '#e11d48' : '#fda4af'}`,
-                background: activeModule === module.key ? '#e11d48' : '#fff',
-                color: activeModule === module.key ? '#fff' : '#881337',
-                cursor: 'pointer',
-                fontWeight: 700,
-                fontSize: '0.9rem',
-              }}
-            >
-              {module.icon} {module.label}
-            </button>
-          ))}
-        </nav>
-      )}
       {renderModule()}
 
       {isMobile && (
@@ -1067,41 +1172,65 @@ const Parents = () => {
           >
             {isMenuOpen ? '✕' : '☰'}
           </button>
-          {isMenuOpen && (
-            <div style={{ position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.35)', zIndex: 1090 }} onClick={() => setIsMenuOpen(false)}>
-              <div onClick={(e) => e.stopPropagation()} style={{ position: 'absolute', left: 0, right: 0, bottom: 0, background: '#fff', borderTopLeftRadius: '18px', borderTopRightRadius: '18px', padding: '12px 14px 18px', boxShadow: '0 -10px 24px rgba(15, 23, 42, 0.25)' }}>
-                <div style={{ width: '52px', height: '5px', borderRadius: '8px', background: '#e5e7eb', margin: '0 auto 12px' }} />
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px' }}>
-                  {portalModules.map((module) => (
-                    <button
-                      key={module.key}
-                      onClick={() => {
-                        setActiveModule(module.key);
-                        setIsMenuOpen(false);
-                      }}
-                      style={{
-                        border: `1px solid ${activeModule === module.key ? '#fb7185' : '#fecdd3'}`,
-                        background: activeModule === module.key ? '#ffe4e6' : '#fff',
-                        borderRadius: '12px',
-                        padding: '10px 8px',
-                        minHeight: '78px',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        gap: '4px',
-                        color: '#881337',
-                        cursor: 'pointer',
-                      }}
-                    >
-                      <span style={{ fontSize: '1.12rem' }}>{module.icon}</span>
-                      <span style={{ fontSize: '0.69rem', fontWeight: 700, textAlign: 'center', lineHeight: 1.2 }}>{module.label}</span>
-                    </button>
-                  ))}
-                </div>
+          <div
+            style={{
+              position: 'fixed',
+              inset: 0,
+              background: 'rgba(15, 23, 42, 0.35)',
+              zIndex: 1090,
+              opacity: isMenuOpen ? 1 : 0,
+              pointerEvents: isMenuOpen ? 'auto' : 'none',
+              transition: 'opacity 180ms ease',
+            }}
+            onClick={() => setIsMenuOpen(false)}
+          >
+            <div
+              onClick={(e) => e.stopPropagation()}
+              style={{
+                position: 'absolute',
+                left: 0,
+                right: 0,
+                bottom: 0,
+                background: '#fff',
+                borderTopLeftRadius: '18px',
+                borderTopRightRadius: '18px',
+                padding: '12px 14px 18px',
+                boxShadow: '0 -10px 24px rgba(15, 23, 42, 0.25)',
+                transform: isMenuOpen ? 'translateY(0)' : 'translateY(100%)',
+                transition: 'transform 220ms ease',
+              }}
+            >
+              <div style={{ width: '52px', height: '5px', borderRadius: '8px', background: '#e5e7eb', margin: '0 auto 12px' }} />
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px' }}>
+                {portalModules.map((module) => (
+                  <button
+                    key={module.key}
+                    onClick={() => {
+                      setActiveModule(module.key);
+                      setIsMenuOpen(false);
+                    }}
+                    style={{
+                      border: `1px solid ${activeModule === module.key ? '#fb7185' : '#fecdd3'}`,
+                      background: activeModule === module.key ? '#ffe4e6' : '#fff',
+                      borderRadius: '12px',
+                      padding: '10px 8px',
+                      minHeight: '78px',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '4px',
+                      color: '#881337',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    <span style={{ fontSize: '1.12rem' }}>{module.icon}</span>
+                    <span style={{ fontSize: '0.69rem', fontWeight: 700, textAlign: 'center', lineHeight: 1.2 }}>{module.label}</span>
+                  </button>
+                ))}
               </div>
             </div>
-          )}
+          </div>
         </>
       )}
 
@@ -1115,10 +1244,13 @@ const Parents = () => {
             <div style={{ padding: isMobile ? '14px' : '16px' }}>
               <p style={{ margin: '0 0 10px', color: '#9f1239', fontWeight: 700 }}>{attachmentPreview.title}</p>
               <div style={{ border: '1px solid #fecdd3', borderRadius: '10px', overflow: 'hidden' }}>
-                {attachmentPreview.attachments.map((fileName, index) => (
-                  <div key={`${fileName}-${index}`} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', padding: '10px 12px', borderBottom: index === attachmentPreview.attachments.length - 1 ? 'none' : '1px solid #ffe4e6' }}>
-                    <span style={{ color: '#334155', fontSize: isMobile ? '0.82rem' : '0.9rem', wordBreak: 'break-all' }}>{fileName}</span>
-                    <button onClick={() => alert(`Downloading ${fileName}`)} style={{ border: '1px solid #fb7185', background: '#fff1f2', color: '#9f1239', borderRadius: '999px', padding: '5px 10px', fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}>Download</button>
+                {attachmentPreview.attachments.map((fileItem, index) => (
+                  <div key={`${fileItem.id}-${index}`} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', padding: '10px 12px', borderBottom: index === attachmentPreview.attachments.length - 1 ? 'none' : '1px solid #ffe4e6' }}>
+                    <span style={{ color: '#334155', fontSize: isMobile ? '0.82rem' : '0.9rem', wordBreak: 'break-all' }}>{fileItem.fileName}</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <a href={fileItem.previewUrl} target="_blank" rel="noreferrer" style={{ textDecoration: 'none', border: '1px solid #fb7185', background: '#fff', color: '#9f1239', borderRadius: '999px', padding: '5px 10px', fontWeight: 700, whiteSpace: 'nowrap', fontSize: isMobile ? '0.75rem' : '0.8rem' }}>Preview</a>
+                      <a href={fileItem.downloadUrl} style={{ textDecoration: 'none', border: '1px solid #fb7185', background: '#fff1f2', color: '#9f1239', borderRadius: '999px', padding: '5px 10px', fontWeight: 700, whiteSpace: 'nowrap', fontSize: isMobile ? '0.75rem' : '0.8rem' }}>Download</a>
+                    </div>
                   </div>
                 ))}
               </div>

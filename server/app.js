@@ -4,6 +4,7 @@ const cors = require('cors');
 const path = require('path');
 require('dotenv').config();
 const authRoutes = require('./routes/auth');
+const attachmentRoutes = require('./routes/attachments');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -26,6 +27,7 @@ mongoose.connect(MONGODB_URI, {
 
 // Routes
 app.use('/api/auth', authRoutes);
+app.use('/api/attachments', attachmentRoutes);
 
 if (process.env.NODE_ENV === 'production') {
     const clientBuildPath = path.join(__dirname, '../client/build');
