@@ -191,24 +191,24 @@ const Timetable = () => {
   };
 
   return (
-    <main style={{ padding: isMobile ? '16px' : '24px', maxWidth: '1600px', margin: '0 auto' }}>
+    <main style={{ padding: isMobile ? '16px' : '24px', maxWidth: '1600px', margin: '0 auto', background: 'linear-gradient(to bottom, #f0f9ff 0%, #f9fafb 100%)', minHeight: 'calc(100vh - 100px)' }}>
       <section>
-        <h2>School Timetable</h2>
-        <p style={{ color: '#4b5563', marginBottom: '20px' }}>
-          Consolidated daily timetable for Grades 1-4. Click on any period for details.
+        <h2 style={{ fontSize: '1.8rem', color: '#1e40af', fontWeight: '700', marginBottom: '8px' }}>⏰ School Timetable</h2>
+        <p style={{ color: '#475569', marginBottom: '20px', fontSize: '1rem', fontWeight: '500' }}>
+          📅 Consolidated daily timetable for Grades 1-4. Click on any period for details.
         </p>
 
         {isMobile ? (
           <section>
             <div style={{ marginBottom: '14px' }}>
-              <label htmlFor="class-picker" style={{ display: 'block', marginBottom: '8px', fontWeight: 600, color: '#0f172a' }}>
-                Select Class
+              <label htmlFor="class-picker" style={{ display: 'block', marginBottom: '8px', fontWeight: 600, color: '#1e40af', fontSize: '1rem' }}>
+                📚 Select Class Division
               </label>
               <select
                 id="class-picker"
                 value={selectedClass}
                 onChange={(e) => setSelectedClass(e.target.value)}
-                style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid #cbd5e1', fontSize: '1rem' }}
+                style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '2px solid #3b82f6', fontSize: '1rem', background: '#fff', color: '#1f2937', fontWeight: '600' }}
               >
                 {classNames.map((name) => (
                   <option key={name} value={name}>{name}</option>
@@ -223,45 +223,45 @@ const Timetable = () => {
                   to={`/timetable/period/${period.id}`}
                   style={{ color: 'inherit', textDecoration: 'none' }}
                 >
-                  <article style={{ ...mobileCardStyle, ...getCellStyle(period.type) }}>
+                  <article style={{ ...mobileCardStyle, ...getCellStyle(period.type), boxShadow: '0 2px 8px rgba(0,0,0,0.08)', border: `2px solid ${period.type.includes('Break') ? '#fbbf24' : period.type === 'Prayer & Assembly' ? '#0ea5e9' : '#93c5fd'}`, transition: 'all 0.3s', ':hover': { transform: 'translateY(-2px)' } }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px' }}>
-                      <strong style={{ color: '#0f172a' }}>{period.subject}</strong>
-                      <span style={{ fontSize: '0.78rem', color: '#475569' }}>{period.time}</span>
+                      <strong style={{ color: '#0f172a', fontSize: '1.05rem' }}>📖 {period.subject}</strong>
+                      <span style={{ fontSize: '0.78rem', color: '#475569', background: '#f3f4f6', padding: '4px 8px', borderRadius: '4px', fontWeight: '600' }}>⏱️ {period.time}</span>
                     </div>
-                    <p style={{ marginTop: '6px', color: '#334155', fontSize: '0.86rem' }}>{period.type}</p>
-                    <p style={{ marginTop: '4px', color: '#64748b', fontSize: '0.82rem' }}>{period.teacher}</p>
-                    <p style={{ marginTop: '2px', color: '#64748b', fontSize: '0.82rem' }}>Room: {period.room}</p>
+                    <p style={{ marginTop: '6px', color: '#334155', fontSize: '0.86rem', fontWeight: '500' }}>🏫 {period.type}</p>
+                    <p style={{ marginTop: '4px', color: '#64748b', fontSize: '0.82rem' }}>👨‍🏫 {period.teacher}</p>
+                    <p style={{ marginTop: '2px', color: '#64748b', fontSize: '0.82rem' }}>🚪 Room {period.room}</p>
                   </article>
                 </Link>
               ))}
             </div>
           </section>
         ) : (
-          <div style={{ overflowX: 'auto' }}>
+          <div style={{ overflowX: 'auto', background: '#fff', borderRadius: '16px', padding: '16px', border: '2px solid #e5e7eb', boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }}>
             <table style={tableStyle}>
               <thead>
                 <tr>
-                  <th style={{ ...thStyle, width: '120px', position: 'sticky', left: 0, background: '#f8fafc', zIndex: 10 }}>Class</th>
+                  <th style={{ ...thStyle, width: '120px', position: 'sticky', left: 0, background: 'linear-gradient(135deg, #1e40af 0%, #1e3a8a 100%)', color: '#fff', zIndex: 10, fontWeight: '700' }}>📚 Class</th>
                   {timeSlots.map(timeSlot => (
-                    <th key={timeSlot} style={thStyle}>{timeSlot}</th>
+                    <th key={timeSlot} style={{ ...thStyle, background: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)', color: '#fff', fontWeight: '700' }}>⏰ {timeSlot}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {Object.entries(timetable).map(([className, periods]) => (
                   <tr key={className}>
-                    <td style={{ ...tdStyle, ...classRowStyle, position: 'sticky', left: 0, background: '#f1f5f9', zIndex: 5 }}>
+                    <td style={{ ...tdStyle, ...classRowStyle, position: 'sticky', left: 0, background: 'linear-gradient(135deg, #f0f9ff 0%, #eff6ff 100%)', zIndex: 5, border: '2px solid #3b82f6', fontWeight: '700', color: '#1e40af' }}>
                       {className}
                     </td>
                     {periods.map((period) => (
-                      <td key={period.id} style={{ ...tdStyle, ...getCellStyle(period.type) }}>
+                      <td key={period.id} style={{ ...tdStyle, ...getCellStyle(period.type), transition: 'all 0.2s' }}>
                         <Link
                           to={`/timetable/period/${period.id}`}
                           style={{ color: 'inherit', textDecoration: 'none', display: 'block', height: '100%' }}
                         >
-                          <div style={{ fontWeight: '600', marginBottom: '2px' }}>{period.subject}</div>
-                          <div style={{ fontSize: '0.7rem', color: '#6b7280' }}>{period.teacher}</div>
-                          <div style={{ fontSize: '0.7rem', color: '#6b7280' }}>{period.room}</div>
+                          <div style={{ fontWeight: '700', marginBottom: '2px', color: '#1f2937' }}>{period.subject}</div>
+                          <div style={{ fontSize: '0.7rem', color: '#4b5563', fontWeight: '500' }}>👨‍🏫 {period.teacher}</div>
+                          <div style={{ fontSize: '0.7rem', color: '#4b5563', fontWeight: '500' }}>🚪 {period.room}</div>
                         </Link>
                       </td>
                     ))}
@@ -272,13 +272,13 @@ const Timetable = () => {
           </div>
         )}
 
-        <div style={navStyle}>
-          <button style={buttonStyle} onClick={() => navigateDate(-1)}>
-            Previous Day
+        <div style={{ ...navStyle, background: 'linear-gradient(135deg, #f0f9ff 0%, #f3f4f6 100%)', border: '2px solid #3b82f6' }}>
+          <button style={{ ...buttonStyle, background: 'linear-gradient(135deg, #1e40af 0%, #1e3a8a 100%)', fontWeight: '700', boxShadow: '0 4px 12px rgba(30, 64, 175, 0.3)' }} onClick={() => navigateDate(-1)}>
+            ⬅️ Previous Day
           </button>
-          <h3 style={{ margin: 0, fontSize: isMobile ? '1rem' : '1.1rem' }}>{formatDate(currentDate)}</h3>
-          <button style={buttonStyle} onClick={() => navigateDate(1)}>
-            Next Day
+          <h3 style={{ margin: 0, fontSize: isMobile ? '1rem' : '1.1rem', color: '#1e40af', fontWeight: '700' }}>📅 {formatDate(currentDate)}</h3>
+          <button style={{ ...buttonStyle, background: 'linear-gradient(135deg, #1e40af 0%, #1e3a8a 100%)', fontWeight: '700', boxShadow: '0 4px 12px rgba(30, 64, 175, 0.3)' }} onClick={() => navigateDate(1)}>
+            Next Day ➡️
           </button>
         </div>
       </section>

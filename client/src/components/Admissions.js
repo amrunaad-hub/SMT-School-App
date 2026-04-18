@@ -93,41 +93,41 @@ const Admissions = () => {
   );
 
   return (
-    <main style={{ padding: isMobile ? '16px' : '28px', maxWidth: '1240px', margin: '0 auto', color: '#0f172a' }}>
+    <main style={{ padding: isMobile ? '16px' : '28px', maxWidth: '1240px', margin: '0 auto', color: '#0f172a', background: 'linear-gradient(to bottom, #f0f9ff 0%, #f9fafb 100%)', minHeight: 'calc(100vh - 100px)' }}>
       <section>
-        <h2>Admissions Dashboards</h2>
-        <p style={{ color: '#475569', marginTop: '8px' }}>
-          Track enquiries, applications in process, confirmed admits, and rejected applications with reasons.
+        <h2 style={{ fontSize: '1.8rem', color: '#dc2626', fontWeight: '700', marginBottom: '8px' }}>📝 Admissions Dashboard</h2>
+        <p style={{ color: '#475569', marginTop: '8px', fontSize: '1rem', fontWeight: '500' }}>
+          📊 Track enquiries, applications in process, confirmed admits, and rejected applications with reasons.
         </p>
       </section>
 
-      <section style={{ ...sectionStyle, marginTop: '20px', padding: isMobile ? '16px' : sectionStyle.padding }}>
+      <section style={{ ...sectionStyle, marginTop: '20px', padding: isMobile ? '16px' : sectionStyle.padding, background: 'linear-gradient(135deg, #fff5f5 0%, #fee2e2 100%)', border: '2px solid #fecaca' }}>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '18px' }}>
-          <div style={cardStyle}>
-            <h3 style={{ marginBottom: '10px' }}>Total Enquiries</h3>
-            <p style={{ margin: 0, fontSize: '1.8rem', fontWeight: 700 }}>152</p>
-            <p style={{ marginTop: '8px', color: '#64748b' }}>New admission and transfer enquiries received.</p>
+          <div style={{ ...cardStyle, background: 'linear-gradient(135deg, #fef2f2 0%, #fef9f8 100%)', border: '2px solid #dc2626', boxShadow: '0 4px 12px rgba(220, 38, 38, 0.15)' }}>
+            <h3 style={{ marginBottom: '10px', color: '#991b1b', fontWeight: '700' }}>📧 Total Enquiries</h3>
+            <p style={{ margin: 0, fontSize: '1.8rem', fontWeight: 700, color: '#dc2626' }}>152</p>
+            <p style={{ marginTop: '8px', color: '#7f1d1d' }}>New admission and transfer enquiries received.</p>
           </div>
-          <div style={cardStyle}>
-            <h3 style={{ marginBottom: '10px' }}>Applications in Process</h3>
-            <p style={{ margin: 0, fontSize: '1.8rem', fontWeight: 700 }}>50</p>
-            <p style={{ marginTop: '8px', color: '#64748b' }}>Applications pending document verification or interview.</p>
+          <div style={{ ...cardStyle, background: 'linear-gradient(135deg, #fef3c7 0%, #fef9e7 100%)', border: '2px solid #f59e0b', boxShadow: '0 4px 12px rgba(245, 158, 11, 0.15)' }}>
+            <h3 style={{ marginBottom: '10px', color: '#92400e', fontWeight: '700' }}>⏳ In Process</h3>
+            <p style={{ margin: 0, fontSize: '1.8rem', fontWeight: 700, color: '#f59e0b' }}>50</p>
+            <p style={{ marginTop: '8px', color: '#7c2d12' }}>Applications pending document verification or interview.</p>
           </div>
-          <div style={cardStyle}>
-            <h3 style={{ marginBottom: '10px' }}>Confirmed Admissions</h3>
-            <p style={{ margin: 0, fontSize: '1.8rem', fontWeight: 700 }}>36</p>
-            <p style={{ marginTop: '8px', color: '#64748b' }}>Students whose admission has been finalized.</p>
+          <div style={{ ...cardStyle, background: 'linear-gradient(135deg, #f0fdf4 0%, #f7fee7 100%)', border: '2px solid #10b981', boxShadow: '0 4px 12px rgba(16, 185, 129, 0.15)' }}>
+            <h3 style={{ marginBottom: '10px', color: '#166534', fontWeight: '700' }}>✅ Confirmed</h3>
+            <p style={{ margin: 0, fontSize: '1.8rem', fontWeight: 700, color: '#10b981' }}>36</p>
+            <p style={{ marginTop: '8px', color: '#3f6319' }}>Students whose admission has been finalized.</p>
           </div>
-          <div style={cardStyle}>
-            <h3 style={{ marginBottom: '10px' }}>Rejected Applications</h3>
-            <p style={{ margin: 0, fontSize: '1.8rem', fontWeight: 700 }}>9</p>
-            <p style={{ marginTop: '8px', color: '#64748b' }}>Applications rejected with detailed reasons.</p>
+          <div style={{ ...cardStyle, background: 'linear-gradient(135deg, #f3f4f6 0%, #f9fafb 100%)', border: '2px solid #6b7280', boxShadow: '0 4px 12px rgba(107, 114, 128, 0.15)' }}>
+            <h3 style={{ marginBottom: '10px', color: '#374151', fontWeight: '700' }}>❌ Rejected</h3>
+            <p style={{ margin: 0, fontSize: '1.8rem', fontWeight: 700, color: '#6b7280' }}>9</p>
+            <p style={{ marginTop: '8px', color: '#4b5563' }}>Applications rejected with detailed reasons.</p>
           </div>
         </div>
       </section>
 
-      <section style={{ ...sectionStyle, padding: isMobile ? '16px' : sectionStyle.padding }}>
-        <h3 style={{ marginBottom: '18px' }}>Grade-wise Admission Funnel</h3>
+      <section style={{ ...sectionStyle, padding: isMobile ? '16px' : sectionStyle.padding, background: 'linear-gradient(135deg, #fff9f0 0%, #fef3e2 100%)', border: '2px solid #fed7aa' }}>
+        <h3 style={{ marginBottom: '18px', fontSize: '1.3rem', color: '#ea580c', fontWeight: '700' }}>📊 Grade-wise Admission Funnel</h3>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '18px' }}>
           {gradeStats.map((stat) => (
             <div
@@ -137,16 +137,20 @@ const Admissions = () => {
                 ...cardStyle,
                 minHeight: '220px',
                 cursor: 'pointer',
-                background: selectedGrade === stat.grade ? '#e0f2fe' : cardStyle.background,
-                borderColor: selectedGrade === stat.grade ? '#38bdf8' : cardStyle.border,
+                background: selectedGrade === stat.grade ? 'linear-gradient(135deg, #fff9f0 0%, #fed7aa 100%)' : cardStyle.background,
+                borderColor: selectedGrade === stat.grade ? '#ea580c' : cardStyle.border,
+                border: selectedGrade === stat.grade ? '2px solid #ea580c' : '1px solid #e2e8f0',
+                transition: 'all 0.3s',
+                transform: selectedGrade === stat.grade ? 'translateY(-2px)' : 'translateY(0)',
+                boxShadow: selectedGrade === stat.grade ? '0 4px 12px rgba(234, 88, 12, 0.2)' : 'none'
               }}
             >
-              <h4 style={{ margin: 0 }}>{stat.grade}</h4>
+              <h4 style={{ margin: 0, color: '#ea580c', fontWeight: '700' }}>📚 {stat.grade}</h4>
               <p style={{ margin: '10px 0 16px', color: '#64748b' }}>Enquiries · In process · Confirmed · Rejected</p>
               <div style={{ display: 'grid', gap: '10px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span>Enquiries</span>
-                  <strong>{stat.enquiries}</strong>
+                  <span style={{ fontWeight: '600' }}>📧 Enquiries</span>
+                  <strong style={{ color: '#dc2626' }}>{stat.enquiries}</strong>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                   <span>In process</span>

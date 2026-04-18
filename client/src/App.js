@@ -22,7 +22,7 @@ import Parents from './components/Parents';
 function App() {
   return (
     <Router>
-      <div className="App" style={{ background: '#f5f7fb', minHeight: '100vh', color: '#1f2937' }}>
+      <div className="App" style={{ background: 'linear-gradient(135deg, #f0f9ff 0%, #f3f4f6 50%, #faf5ff 100%)', minHeight: '100vh', color: '#1f2937', fontFamily: 'system-ui, -apple-system, sans-serif' }}>
         <Header />
         <Routes>
           <Route path="/" element={<Dashboard />} />
