@@ -8,6 +8,7 @@
     "client": "npm start --prefix client",
     "server": "node server/app.js",
     "dev": "concurrently \"npm run server\" \"npm run client\"",
+    "postinstall": "npm install --prefix client",
     "install-all": "npm install && npm install --prefix client",
     "build": "npm run build --prefix client"
   },
