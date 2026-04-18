@@ -71,18 +71,18 @@ const Parents = () => {
 
   const timetable = [
     { day: 'Monday', periods: [
-      { time: '8:00-9:00', subject: 'English', teacher: 'Ms. Patel', details: 'Grammar and comprehension' },
-      { time: '9:00-10:00', subject: 'Mathematics', teacher: 'Mr. Kumar', details: 'Algebra equations' },
-      { time: '10:00-11:00', subject: 'Science', teacher: 'Ms. Singh', details: 'Physics - Motion' },
-      { time: '11:00-12:00', subject: 'Social Studies', teacher: 'Mr. Rao', details: 'Indian History' },
-      { time: '12:00-1:00', subject: 'Hindi', teacher: 'Ms. Gupta', details: 'Literature' },
+      { time: '8:00-9:00', subject: 'English', teacher: 'Ms. Anuja Kulkarni', details: 'Grammar and comprehension' },
+      { time: '9:00-10:00', subject: 'Mathematics', teacher: 'Mr. Shrirang Joshi', details: 'Algebra equations' },
+      { time: '10:00-11:00', subject: 'Science', teacher: 'Ms. Nandini Ranade', details: 'Physics - Motion' },
+      { time: '11:00-12:00', subject: 'Social Studies', teacher: 'Mr. Akshay Deshmukh', details: 'Indian History' },
+      { time: '12:00-1:00', subject: 'Hindi', teacher: 'Ms. Revati Apte', details: 'Literature' },
     ]},
     { day: 'Tuesday', periods: [
-      { time: '8:00-9:00', subject: 'Mathematics', teacher: 'Mr. Kumar', details: 'Geometry' },
-      { time: '9:00-10:00', subject: 'Science', teacher: 'Ms. Singh', details: 'Chemistry - Acids' },
-      { time: '10:00-11:00', subject: 'English', teacher: 'Ms. Patel', details: 'Writing skills' },
-      { time: '11:00-12:00', subject: 'Hindi', teacher: 'Ms. Gupta', details: 'Poetry' },
-      { time: '12:00-1:00', subject: 'Social Studies', teacher: 'Mr. Rao', details: 'Geography' },
+      { time: '8:00-9:00', subject: 'Mathematics', teacher: 'Mr. Shrirang Joshi', details: 'Geometry' },
+      { time: '9:00-10:00', subject: 'Science', teacher: 'Ms. Nandini Ranade', details: 'Chemistry - Acids' },
+      { time: '10:00-11:00', subject: 'English', teacher: 'Ms. Anuja Kulkarni', details: 'Writing skills' },
+      { time: '11:00-12:00', subject: 'Hindi', teacher: 'Ms. Revati Apte', details: 'Poetry' },
+      { time: '12:00-1:00', subject: 'Social Studies', teacher: 'Mr. Akshay Deshmukh', details: 'Geography' },
     ]},
   ];
 

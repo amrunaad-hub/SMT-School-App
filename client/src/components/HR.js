@@ -1,37 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import SearchBar from './SearchBar';
-
-const teachingSubjects = [
-  'Mathematics', 'English', 'Hindi', 'Science', 'EVS', 'Social Studies',
-  'Computer Science', 'Art', 'Music', 'Physical Education',
-];
-
-const firstNames = [
-  'Aarav', 'Ishaan', 'Vihaan', 'Aditya', 'Krish', 'Arjun', 'Kabir', 'Rohan', 'Dev', 'Nikhil',
-  'Anaya', 'Diya', 'Mira', 'Riya', 'Saanvi', 'Aditi', 'Kavya', 'Pooja', 'Ira', 'Tara',
-];
-
-const lastNames = [
-  'Sharma', 'Patel', 'Kulkarni', 'Iyer', 'Reddy', 'Naik', 'Joshi', 'Kapoor', 'Saxena', 'Mehta',
-  'Bose', 'Mishra', 'Singh', 'Chavan', 'Deshmukh', 'Gupta', 'Verma', 'Nair', 'Jain', 'Pillai',
-];
-
-const nonTeachingRoles = [
-  'Principal',
-  'Vice Principal',
-  'Admin Officer',
-  'Accountant',
-  'Librarian',
-  'Counselor',
-  'Nurse',
-  'Lab Assistant',
-  'Transport Coordinator',
-  'IT Support Executive',
-];
-
-const makeEmail = (name, code) => {
-  return `${name.toLowerCase().replace(/\s+/g, '.')}+${code.toLowerCase()}@smtschool.edu.in`;
-};
+import { ALL_STAFF, NON_TEACHING_STAFF, SUBJECTS_G1_G4, TEACHING_FACULTY } from '../data/facultyScheduler';
 
 const HR = () => {
   const [isMobile, setIsMobile] = useState(() => window.innerWidth < 920);
@@ -53,196 +22,150 @@ const HR = () => {
 
   const academicYear = useMemo(() => getAcademicYearLabel(new Date()), []);
 
-  const teachingStaff = useMemo(() => {
-    return Array.from({ length: 50 }, (_, index) => {
-      const id = index + 1;
-      const code = `TCH${String(id).padStart(3, '0')}`;
-      const fullName = `${index % 2 === 0 ? 'Mr.' : 'Ms.'} ${firstNames[index % firstNames.length]} ${lastNames[(index * 3) % lastNames.length]}`;
-      const currentSchoolExperienceYears = 2 + (index % 8);
-      const priorExperienceYears = 1 + (index % 11);
-      const joiningYear = 2026 - currentSchoolExperienceYears;
-      const classesTakenTotal = 2200 + index * 37;
-      const classesTakenYTD = 110 + ((index * 9) % 180);
-      const subject = teachingSubjects[index % teachingSubjects.length];
-
-      return {
-        id: code,
-        name: fullName,
-        category: 'Teaching',
-        role: `${subject} Teacher`,
-        department: 'Academics',
-        qualification: index % 3 === 0 ? 'M.Ed, B.Ed' : index % 3 === 1 ? 'M.A, B.Ed' : 'M.Sc, B.Ed',
-        priorExperienceYears,
-        currentSchoolExperienceYears,
-        classesTakenTotal,
-        classesTakenYTD,
-        joiningDate: `15-06-${joiningYear}`,
-        phone: `+91 98${String(10000000 + index * 137).slice(-8)}`,
-        email: makeEmail(fullName.replace('Mr. ', '').replace('Ms. ', ''), code),
-        status: index % 9 === 0 ? 'On Leave' : 'Active',
-      };
-    });
-  }, []);
-
-  const nonTeachingStaff = useMemo(() => {
-    return nonTeachingRoles.map((role, index) => {
-      const id = index + 1;
-      const code = `NTS${String(id).padStart(3, '0')}`;
-      const fullName = `${index % 2 === 0 ? 'Mr.' : 'Ms.'} ${firstNames[(index + 6) % firstNames.length]} ${lastNames[(index + 11) % lastNames.length]}`;
-      const currentSchoolExperienceYears = 3 + (index % 7);
-      const priorExperienceYears = 2 + (index % 10);
-      const joiningYear = 2026 - currentSchoolExperienceYears;
-
-      return {
-        id: code,
-        name: fullName,
-        category: 'Non-Teaching',
-        role,
-        department: role.includes('Principal') || role.includes('Admin') ? 'Administration' : role.includes('Accountant') ? 'Finance' : role.includes('IT') ? 'Technology' : 'Operations',
-        qualification: role.includes('Principal') ? 'M.Ed, M.A (Education)' : role.includes('Accountant') ? 'B.Com, M.Com' : role.includes('IT') ? 'B.Tech (Computer Science)' : 'Graduate Diploma',
-        priorExperienceYears,
-        currentSchoolExperienceYears,
-        classesTakenTotal: '-',
-        classesTakenYTD: '-',
-        joiningDate: `10-04-${joiningYear}`,
-        phone: `+91 99${String(20000000 + index * 211).slice(-8)}`,
-        email: makeEmail(fullName.replace('Mr. ', '').replace('Ms. ', ''), code),
-        status: index === 3 ? 'On Leave' : 'Active',
-      };
-    });
-  }, []);
-
-  const staffMasterList = useMemo(() => [...teachingStaff, ...nonTeachingStaff], [teachingStaff, nonTeachingStaff]);
-
-  const stats = useMemo(() => {
-    const activeCount = staffMasterList.filter((member) => member.status === 'Active').length;
-    return {
-      total: staffMasterList.length,
-      teaching: teachingStaff.length,
-      nonTeaching: nonTeachingStaff.length,
-      active: activeCount,
-    };
-  }, [staffMasterList, teachingStaff, nonTeachingStaff]);
-
   const filteredStaff = useMemo(() => {
     const query = staffQuery.trim().toLowerCase();
-    if (!query) return staffMasterList;
-    return staffMasterList.filter((member) => {
+    if (!query) return ALL_STAFF;
+
+    return ALL_STAFF.filter((member) => {
       return member.name.toLowerCase().includes(query)
-        || member.id.toLowerCase().includes(query)
+        || member.code.toLowerCase().includes(query)
         || member.role.toLowerCase().includes(query)
         || member.department.toLowerCase().includes(query)
-        || member.category.toLowerCase().includes(query);
+        || member.category.toLowerCase().includes(query)
+        || member.assignedSubjects?.join(', ').toLowerCase().includes(query);
     });
-  }, [staffMasterList, staffQuery]);
+  }, [staffQuery]);
 
-  const cardStyle = {
-    padding: '18px',
-    border: '1px solid #dbeafe',
+  const stats = useMemo(() => {
+    const teachingMaharashtrian = TEACHING_FACULTY.filter((staff) => staff.isMaharashtrian).length;
+    const teachingBrahminWithinMaharashtrian = TEACHING_FACULTY.filter((staff) => staff.isMaharashtrian && staff.isBrahmin).length;
+    const maharashtrianShare = Math.round((teachingMaharashtrian / TEACHING_FACULTY.length) * 100);
+    const brahminShareWithinMaharashtrian = Math.round((teachingBrahminWithinMaharashtrian / teachingMaharashtrian) * 100);
+
+    return {
+      total: ALL_STAFF.length,
+      teaching: TEACHING_FACULTY.length,
+      nonTeaching: NON_TEACHING_STAFF.length,
+      active: ALL_STAFF.filter((staff) => staff.status === 'Active').length,
+      maharashtrianShare,
+      brahminShareWithinMaharashtrian,
+    };
+  }, []);
+
+  const summaryCardStyle = {
+    padding: '14px',
     borderRadius: '14px',
+    border: '1px solid #bfdbfe',
     background: '#ffffff',
-    boxShadow: '0 8px 20px rgba(15, 23, 42, 0.06)',
+    boxShadow: '0 6px 18px rgba(15, 23, 42, 0.06)',
   };
 
   return (
     <main style={{ padding: isMobile ? '16px' : '24px', maxWidth: '1400px', margin: '0 auto', background: 'linear-gradient(180deg, #f0f9ff 0%, #f8fafc 100%)', minHeight: 'calc(100vh - 100px)' }}>
       <section>
-        <h2 style={{ marginBottom: '8px', color: '#0f172a' }}>Human Resources (HR) Master List</h2>
+        <h2 style={{ marginBottom: '8px', color: '#0f172a' }}>Human Resources (HR) Master Faculty Grid</h2>
         <p style={{ color: '#475569', marginTop: 0 }}>
-          Teaching and non-teaching profile records with qualifications, experience, and workload metrics. Academic Year {academicYear} (April to March).
+          Unified staff roster with compensation details and faculty mapping used across timetable modules. Academic Year {academicYear} (April to March).
+        </p>
+        <p style={{ color: '#475569', marginTop: '6px', marginBottom: '14px', fontSize: '0.93rem' }}>
+          Grade 1-4 subject basket: {SUBJECTS_G1_G4.join(', ')}.
         </p>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: '12px', marginTop: '18px' }}>
-          <div style={cardStyle}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '10px' }}>
+          <div style={summaryCardStyle}>
             <p style={{ margin: 0, color: '#64748b' }}>Total Staff</p>
-            <h3 style={{ margin: '8px 0 0', color: '#1d4ed8' }}>{stats.total}</h3>
+            <strong style={{ fontSize: '1.2rem', color: '#1d4ed8' }}>{stats.total}</strong>
           </div>
-          <div style={cardStyle}>
-            <p style={{ margin: 0, color: '#64748b' }}>Teaching Staff</p>
-            <h3 style={{ margin: '8px 0 0', color: '#16a34a' }}>{stats.teaching}</h3>
+          <div style={summaryCardStyle}>
+            <p style={{ margin: 0, color: '#64748b' }}>Teaching</p>
+            <strong style={{ fontSize: '1.2rem', color: '#16a34a' }}>{stats.teaching}</strong>
           </div>
-          <div style={cardStyle}>
-            <p style={{ margin: 0, color: '#64748b' }}>Non-Teaching Staff</p>
-            <h3 style={{ margin: '8px 0 0', color: '#ea580c' }}>{stats.nonTeaching}</h3>
+          <div style={summaryCardStyle}>
+            <p style={{ margin: 0, color: '#64748b' }}>Non-Teaching</p>
+            <strong style={{ fontSize: '1.2rem', color: '#ea580c' }}>{stats.nonTeaching}</strong>
           </div>
-          <div style={cardStyle}>
-            <p style={{ margin: 0, color: '#64748b' }}>Currently Active</p>
-            <h3 style={{ margin: '8px 0 0', color: '#0f766e' }}>{stats.active}</h3>
+          <div style={summaryCardStyle}>
+            <p style={{ margin: 0, color: '#64748b' }}>Active</p>
+            <strong style={{ fontSize: '1.2rem', color: '#0f766e' }}>{stats.active}</strong>
+          </div>
+          <div style={summaryCardStyle}>
+            <p style={{ margin: 0, color: '#64748b' }}>Maharashtrian (Teaching)</p>
+            <strong style={{ fontSize: '1.2rem', color: '#7c3aed' }}>{stats.maharashtrianShare}%</strong>
+          </div>
+          <div style={summaryCardStyle}>
+            <p style={{ margin: 0, color: '#64748b' }}>Brahmin Within Maharashtrian</p>
+            <strong style={{ fontSize: '1.2rem', color: '#0ea5e9' }}>{stats.brahminShareWithinMaharashtrian}%</strong>
           </div>
         </div>
       </section>
 
-      <section style={{ marginTop: '24px' }}>
+      <section style={{ marginTop: '20px' }}>
         <h3 style={{ marginBottom: '12px', color: '#0f172a' }}>Staff Profiles</h3>
         <SearchBar
           value={staffQuery}
           onChange={(e) => setStaffQuery(e.target.value)}
-          placeholder="Search staff by name, role, employee code, category or department"
-          maxWidth="620px"
+          placeholder="Search by name, faculty code, role, subject, department or category"
+          maxWidth="680px"
           containerStyle={{ marginBottom: '12px' }}
           inputStyle={{ border: '1px solid #bfdbfe' }}
         />
-        <p style={{ color: '#64748b', marginTop: 0 }}>Showing {filteredStaff.length} of {staffMasterList.length} profiles.</p>
-        {isMobile ? (
-          <div style={{ display: 'grid', gap: '10px' }}>
-            {filteredStaff.map((person) => (
-              <article key={person.id} style={{ ...cardStyle, borderColor: person.category === 'Teaching' ? '#86efac' : '#fed7aa' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', gap: '10px', alignItems: 'center' }}>
-                  <strong style={{ color: '#0f172a' }}>{person.name}</strong>
-                  <span style={{ fontSize: '0.78rem', background: person.category === 'Teaching' ? '#dcfce7' : '#ffedd5', color: '#334155', padding: '3px 8px', borderRadius: '999px' }}>{person.id}</span>
+        <p style={{ color: '#64748b', marginTop: 0, marginBottom: '12px' }}>Showing {filteredStaff.length} of {ALL_STAFF.length} staff members.</p>
+
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(1, minmax(0, 1fr))' : 'repeat(auto-fit, minmax(290px, 1fr))', gap: '12px' }}>
+          {filteredStaff.map((person) => (
+            <article
+              key={person.code}
+              style={{
+                border: `1px solid ${person.category === 'Teaching' ? '#86efac' : '#fed7aa'}`,
+                borderRadius: '16px',
+                background: '#fff',
+                boxShadow: '0 8px 20px rgba(15, 23, 42, 0.07)',
+                padding: '14px',
+              }}
+            >
+              <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                <img
+                  src={person.photo}
+                  alt={`${person.name} avatar`}
+                  style={{ width: '74px', height: '74px', borderRadius: '12px', border: '1px solid #dbeafe', background: '#f8fafc' }}
+                />
+                <div>
+                  <h4 style={{ margin: 0, color: '#0f172a' }}>{person.name}</h4>
+                  <p style={{ margin: '4px 0 0', color: '#334155', fontSize: '0.9rem' }}>{person.role}</p>
+                  <p style={{ margin: '4px 0 0', color: '#64748b', fontSize: '0.82rem' }}>{person.code} • {person.category}</p>
                 </div>
-                <p style={{ margin: '6px 0 0', color: '#334155' }}>{person.role} ({person.category})</p>
-                <p style={{ margin: '4px 0 0', color: '#64748b', fontSize: '0.88rem' }}>Qualification: {person.qualification}</p>
-                <p style={{ margin: '4px 0 0', color: '#64748b', fontSize: '0.88rem' }}>Experience: {person.priorExperienceYears} yrs prior, {person.currentSchoolExperienceYears} yrs in current school</p>
-                <p style={{ margin: '4px 0 0', color: '#64748b', fontSize: '0.88rem' }}>Classes: {person.classesTakenTotal} total, {person.classesTakenYTD} this year</p>
-                <p style={{ margin: '4px 0 0', color: '#64748b', fontSize: '0.88rem' }}>Department: {person.department} | Status: {person.status}</p>
-              </article>
-            ))}
-          </div>
-        ) : (
-          <div style={{ overflowX: 'auto', background: '#fff', border: '1px solid #dbeafe', borderRadius: '14px' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '1500px' }}>
-              <thead>
-                <tr style={{ background: 'linear-gradient(135deg, #1d4ed8 0%, #1e40af 100%)', color: '#fff' }}>
-                  <th style={{ padding: '11px 10px', textAlign: 'left' }}>Emp Code</th>
-                  <th style={{ padding: '11px 10px', textAlign: 'left' }}>Name</th>
-                  <th style={{ padding: '11px 10px', textAlign: 'left' }}>Category</th>
-                  <th style={{ padding: '11px 10px', textAlign: 'left' }}>Role</th>
-                  <th style={{ padding: '11px 10px', textAlign: 'left' }}>Department</th>
-                  <th style={{ padding: '11px 10px', textAlign: 'left' }}>Qualification</th>
-                  <th style={{ padding: '11px 10px', textAlign: 'left' }}>Prior Exp (Yrs)</th>
-                  <th style={{ padding: '11px 10px', textAlign: 'left' }}>Current School Exp (Yrs)</th>
-                  <th style={{ padding: '11px 10px', textAlign: 'left' }}>Classes Taken So Far</th>
-                  <th style={{ padding: '11px 10px', textAlign: 'left' }}>Classes This Year</th>
-                  <th style={{ padding: '11px 10px', textAlign: 'left' }}>Joining Date</th>
-                  <th style={{ padding: '11px 10px', textAlign: 'left' }}>Phone</th>
-                  <th style={{ padding: '11px 10px', textAlign: 'left' }}>Email</th>
-                  <th style={{ padding: '11px 10px', textAlign: 'left' }}>Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredStaff.map((person, index) => (
-                  <tr key={person.id} style={{ borderBottom: '1px solid #e2e8f0', background: index % 2 === 0 ? '#ffffff' : '#f8fafc' }}>
-                    <td style={{ padding: '10px' }}>{person.id}</td>
-                    <td style={{ padding: '10px', fontWeight: 600 }}>{person.name}</td>
-                    <td style={{ padding: '10px' }}>{person.category}</td>
-                    <td style={{ padding: '10px' }}>{person.role}</td>
-                    <td style={{ padding: '10px' }}>{person.department}</td>
-                    <td style={{ padding: '10px' }}>{person.qualification}</td>
-                    <td style={{ padding: '10px' }}>{person.priorExperienceYears}</td>
-                    <td style={{ padding: '10px' }}>{person.currentSchoolExperienceYears}</td>
-                    <td style={{ padding: '10px' }}>{person.classesTakenTotal}</td>
-                    <td style={{ padding: '10px' }}>{person.classesTakenYTD}</td>
-                    <td style={{ padding: '10px' }}>{person.joiningDate}</td>
-                    <td style={{ padding: '10px' }}>{person.phone}</td>
-                    <td style={{ padding: '10px' }}>{person.email}</td>
-                    <td style={{ padding: '10px', color: person.status === 'Active' ? '#15803d' : '#b45309', fontWeight: 600 }}>{person.status}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+              </div>
+
+              <div style={{ marginTop: '10px', display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0,1fr))', gap: '6px', fontSize: '0.83rem', color: '#475569' }}>
+                <span><strong>Department:</strong> {person.department}</span>
+                <span><strong>Status:</strong> {person.status}</span>
+                <span><strong>Qualification:</strong> {person.qualification}</span>
+                <span><strong>Prior Exp:</strong> {person.experienceYearsPrior} yrs</span>
+                <span><strong>Current School:</strong> {person.experienceYearsCurrentSchool} yrs</span>
+                <span><strong>Joining:</strong> {person.joiningDate}</span>
+                <span><strong>Phone:</strong> {person.phone}</span>
+                <span><strong>Email:</strong> {person.email}</span>
+                <span><strong>Classes Total:</strong> {person.classesTakenTotal}</span>
+                <span><strong>Classes YTD:</strong> {person.classesTakenYtd}</span>
+              </div>
+
+              {person.assignedSubjects ? (
+                <p style={{ marginTop: '8px', marginBottom: 0, color: '#475569', fontSize: '0.85rem' }}>
+                  <strong>Assigned Subjects:</strong> {person.assignedSubjects.join(', ')}
+                </p>
+              ) : null}
+
+              <div style={{ marginTop: '10px', padding: '10px', borderRadius: '10px', background: '#f8fafc', border: '1px solid #e2e8f0' }}>
+                <p style={{ margin: 0, color: '#1f2937', fontSize: '0.85rem' }}>
+                  <strong>Compensation:</strong> Base Rs. {person.compensation.basePay.toLocaleString('en-IN')} + HRA Rs. {person.compensation.hra.toLocaleString('en-IN')} + Academic Allowance Rs. {person.compensation.academicAllowance.toLocaleString('en-IN')}
+                </p>
+                <p style={{ margin: '6px 0 0', color: '#1f2937', fontSize: '0.85rem' }}>
+                  <strong>Monthly Gross:</strong> Rs. {person.compensation.monthlyGross.toLocaleString('en-IN')} | <strong>Bonus:</strong> Rs. {person.compensation.performanceBonus.toLocaleString('en-IN')} | <strong>Annual CTC:</strong> Rs. {person.compensation.annualCtc.toLocaleString('en-IN')}
+                </p>
+              </div>
+            </article>
+          ))}
+        </div>
       </section>
     </main>
   );

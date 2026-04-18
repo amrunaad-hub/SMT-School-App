@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { buildConsolidatedTimetable, SUBJECTS_G1_G4 } from '../data/facultyScheduler';
 
 const formatDateLabel = (date) => {
   return date.toLocaleDateString('en-IN', {
@@ -72,88 +73,7 @@ const Timetable = () => {
     setCurrentDate(newDate);
   };
 
-  // Generate consolidated timetable data
-  const generateConsolidatedTimetable = () => {
-    const subjects = [
-      'English', 'Hindi', 'Mathematics', 'EVS', 'Art Education', 'Music', 'Physical Education',
-      'Computer Science', 'Moral Science', 'General Knowledge'
-    ];
-
-    const teachers = [
-      'Mrs. Sunita Patel', 'Mr. Rajesh Kumar', 'Ms. Priya Sharma', 'Mr. Amit Desai',
-      'Mrs. Meera Singh', 'Mr. Vikram Joshi', 'Ms. Anjali Rao', 'Mr. Rohan Gupta'
-    ];
-
-    const rooms = ['101', '102', '103', '104', '105', '106', '107', '108', 'Auditorium', 'Playground'];
-
-    const timeSlots = [
-      '1:00-1:30', '1:30-2:00', '2:00-2:30', '2:30-3:00', '3:00-3:20', '3:20-3:50',
-      '3:50-4:20', '4:20-4:30', '4:30-5:00', '5:00-5:30', '5:30-5:45'
-    ];
-
-    const periodTypes = [
-      'Prayer & Assembly', 'Period 1', 'Period 2', 'Period 3', 'Long Break', 'Period 4',
-      'Period 5', 'Short Break', 'Period 6', 'Period 7', 'Period 8'
-    ];
-
-    const grades = [1, 2, 3, 4];
-    const divisions = ['Alpha', 'Beta', 'Gamma'];
-
-    const shuffleArray = (array, seed) => {
-      const shuffled = [...array];
-      for (let i = shuffled.length - 1; i > 0; i--) {
-        seed = (seed * 1664525 + 1013904223) % 4294967296;
-        const j = seed % (i + 1);
-        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
-      }
-      return shuffled;
-    };
-
-    const timetable = {};
-
-    grades.forEach(grade => {
-      divisions.forEach(division => {
-        const classKey = `Grade ${grade} ${division}`;
-        const classSeed = grade * 100 + divisions.indexOf(division) * 13;
-        const shuffledSubjects = shuffleArray(subjects, classSeed);
-        let lessonCount = 0;
-
-        timetable[classKey] = timeSlots.map((timeSlot, index) => {
-          const periodType = periodTypes[index];
-
-          if (periodType.includes('Break') || periodType === 'Prayer & Assembly') {
-            return {
-              time: timeSlot,
-              type: periodType,
-              subject: periodType === 'Prayer & Assembly' ? 'Assembly' : 'Break',
-              teacher: periodType === 'Prayer & Assembly' ? 'All Staff' : '-',
-              room: periodType === 'Prayer & Assembly' ? 'Auditorium' : '-',
-              id: `${grade}-${division.toLowerCase()}-${index}`
-            };
-          }
-
-          const seed = grade * 1000 + divisions.indexOf(division) * 100 + index;
-          const teacherIndex = (seed * 11 + 17) % teachers.length;
-          const roomIndex = (seed * 5 + 23) % rooms.length;
-          const subject = shuffledSubjects[lessonCount % shuffledSubjects.length];
-          lessonCount += 1;
-
-          return {
-            time: timeSlot,
-            type: periodType,
-            subject,
-            teacher: teachers[teacherIndex],
-            room: rooms[roomIndex],
-            id: `${grade}-${division.toLowerCase()}-${index}`
-          };
-        });
-      });
-    });
-
-    return { timetable, timeSlots };
-  };
-
-  const { timetable, timeSlots } = useMemo(() => generateConsolidatedTimetable(), []);
+  const { timetable, timeSlots } = useMemo(() => buildConsolidatedTimetable(), []);
   const classNames = Object.keys(timetable);
   const [selectedClass, setSelectedClass] = useState(classNames[0]);
   const operationalDayStatus = useMemo(() => getOperationalDayStatus(currentDate), [currentDate]);
@@ -250,6 +170,9 @@ const Timetable = () => {
         <h2 style={{ fontSize: '1.8rem', color: '#1e40af', fontWeight: '700', marginBottom: '8px' }}>⏰ School Timetable</h2>
         <p style={{ color: '#475569', marginBottom: '20px', fontSize: '1rem', fontWeight: '500' }}>
           📅 Consolidated daily timetable for Grades 1-4. Academic Year {academicYearLabel} (April to March).
+        </p>
+        <p style={{ marginTop: '-8px', marginBottom: '18px', color: '#475569', fontSize: '0.92rem' }}>
+          Subjects covered: {SUBJECTS_G1_G4.join(', ')}.
         </p>
 
         <div style={{ marginBottom: '18px', padding: isMobile ? '12px' : '14px 16px', borderRadius: '12px', border: `2px solid ${operationalDayStatus.isWorkingDay ? '#16a34a' : '#f59e0b'}`, background: operationalDayStatus.isWorkingDay ? '#f0fdf4' : '#fffbeb' }}>
