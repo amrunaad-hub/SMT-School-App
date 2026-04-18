@@ -18,6 +18,7 @@ import Transport from './components/Transport';
 import Inventory from './components/Inventory';
 import Communication from './components/Communication';
 import Parents from './components/Parents';
+import Teachers from './components/Teachers';
 
 function App() {
   return (
@@ -42,6 +43,7 @@ function App() {
           <Route path="/inventory" element={<Inventory />} />
           <Route path="/communication" element={<Communication />} />
           <Route path="/parents" element={<Parents />} />
+          <Route path="/teachers" element={<Teachers />} />
         </Routes>
       </div>
     </Router>
