@@ -3,6 +3,7 @@ import React, { useEffect, useState, useMemo } from 'react';
 const Parents = () => {
   const [activeModule, setActiveModule] = useState('profile');
   const [selectedStudent, setSelectedStudent] = useState(null);
+  const [selectedChildId, setSelectedChildId] = useState('S-7A-15');
   const [selectedWeek, setSelectedWeek] = useState(new Date());
   const [selectedDay, setSelectedDay] = useState(null);
   const [isMobile, setIsMobile] = useState(() => window.innerWidth < 900);
@@ -15,24 +16,60 @@ const Parents = () => {
     return () => window.removeEventListener('resize', onResize);
   }, []);
 
-  // Dummy data for Thane, Maharashtra CBSE school
-  const studentProfile = {
-    name: 'Aarav Sharma',
-    grade: 'Grade 7',
-    division: 'Alpha',
-    rollNo: '7A-15',
-    dob: '2015-03-15',
-    address: 'Flat 203, Rose Garden Apartments, Thane West, Maharashtra - 400601',
-    phone: '+91 98765 43210',
-    email: 'aarav.sharma@email.com',
-    bloodGroup: 'O+',
-    emergencyContact: 'Mrs. Priya Sharma (Mother) - +91 98765 43211',
-    photo: 'https://via.placeholder.com/150', // Placeholder image
-    admissionDate: '2020-06-01',
-    fatherName: 'Mr. Rajesh Sharma',
-    motherName: 'Mrs. Priya Sharma',
-    siblings: ['Sister: Ananya Sharma (Grade 5)'],
-  };
+  useEffect(() => {
+    setSelectedStudent(null);
+  }, [selectedChildId]);
+
+  // Parent login linked to multiple children
+  const linkedStudents = useMemo(() => [
+    {
+      id: 'S-7A-15',
+      name: 'Aarav Sharma',
+      grade: 'Grade 7',
+      division: 'Alpha',
+      rollNo: '7A-15',
+      dob: '2015-03-15',
+      address: 'Flat 203, Rose Garden Apartments, Thane West, Maharashtra - 400601',
+      phone: '+91 98765 43210',
+      email: 'aarav.sharma@email.com',
+      bloodGroup: 'O+',
+      emergencyContact: 'Mrs. Priya Sharma (Mother) - +91 98765 43211',
+      photo: 'https://api.dicebear.com/7.x/adventurer/svg?seed=Aarav-Sharma',
+      admissionDate: '2020-06-01',
+    },
+    {
+      id: 'S-5B-08',
+      name: 'Ananya Sharma',
+      grade: 'Grade 5',
+      division: 'Beta',
+      rollNo: '5B-08',
+      dob: '2017-09-22',
+      address: 'Flat 203, Rose Garden Apartments, Thane West, Maharashtra - 400601',
+      phone: '+91 98765 43212',
+      email: 'ananya.sharma@email.com',
+      bloodGroup: 'A+',
+      emergencyContact: 'Mr. Rajesh Sharma (Father) - +91 98765 43211',
+      photo: 'https://api.dicebear.com/7.x/lorelei/svg?seed=Ananya-Sharma',
+      admissionDate: '2022-06-01',
+    },
+    {
+      id: 'S-3A-21',
+      name: 'Vihaan Sharma',
+      grade: 'Grade 3',
+      division: 'Alpha',
+      rollNo: '3A-21',
+      dob: '2019-01-11',
+      address: 'Flat 203, Rose Garden Apartments, Thane West, Maharashtra - 400601',
+      phone: '+91 98765 43213',
+      email: 'vihaan.sharma@email.com',
+      bloodGroup: 'B+',
+      emergencyContact: 'Mrs. Priya Sharma (Mother) - +91 98765 43211',
+      photo: 'https://api.dicebear.com/7.x/adventurer/svg?seed=Vihaan-Sharma',
+      admissionDate: '2024-06-01',
+    },
+  ], []);
+
+  const currentStudent = linkedStudents.find((child) => child.id === selectedChildId) || linkedStudents[0];
 
   const parentProfile = {
     name: 'Mr. Rajesh Sharma',
@@ -42,7 +79,7 @@ const Parents = () => {
     occupation: 'Software Engineer',
     company: 'Tech Solutions Pvt Ltd, Thane',
     address: 'Flat 203, Rose Garden Apartments, Thane West, Maharashtra - 400601',
-    photo: 'https://via.placeholder.com/150',
+    photo: 'https://api.dicebear.com/7.x/adventurer/svg?seed=Rajesh-Sharma',
   };
 
   // Extended attendance data (memoized to prevent dependency issues)
@@ -103,15 +140,69 @@ const Parents = () => {
     { event: 'Annual Day 2025', photos: ['annual1.jpg', 'annual2.jpg', 'annual3.jpg'] },
   ];
 
-  const feeDetails = {
-    totalFee: 90000,
-    instalments: [
-      { dueDate: '2026-04-01', amount: 30000, status: 'paid' },
-      { dueDate: '2026-07-01', amount: 30000, status: 'pending' },
-      { dueDate: '2026-11-01', amount: 30000, status: 'pending' },
-    ],
-    paid: 30000,
-    balance: 60000,
+  const feeDetailsByStudent = useMemo(() => ({
+    'S-7A-15': {
+      totalFee: 90000,
+      instalments: [
+        { id: 'RCP-7A-APR', dueDate: '2026-04-01', amount: 30000, status: 'paid', paidOn: '2026-03-29', mode: 'UPI' },
+        { id: 'RCP-7A-JUL', dueDate: '2026-07-01', amount: 30000, status: 'pending' },
+        { id: 'RCP-7A-NOV', dueDate: '2026-11-01', amount: 30000, status: 'pending' },
+      ],
+      paid: 30000,
+      balance: 60000,
+    },
+    'S-5B-08': {
+      totalFee: 78000,
+      instalments: [
+        { id: 'RCP-5B-APR', dueDate: '2026-04-01', amount: 26000, status: 'paid', paidOn: '2026-03-30', mode: 'NetBanking' },
+        { id: 'RCP-5B-JUL', dueDate: '2026-07-01', amount: 26000, status: 'pending' },
+        { id: 'RCP-5B-NOV', dueDate: '2026-11-01', amount: 26000, status: 'pending' },
+      ],
+      paid: 26000,
+      balance: 52000,
+    },
+    'S-3A-21': {
+      totalFee: 72000,
+      instalments: [
+        { id: 'RCP-3A-APR', dueDate: '2026-04-01', amount: 24000, status: 'paid', paidOn: '2026-03-31', mode: 'Card' },
+        { id: 'RCP-3A-JUL', dueDate: '2026-07-01', amount: 24000, status: 'pending' },
+        { id: 'RCP-3A-NOV', dueDate: '2026-11-01', amount: 24000, status: 'pending' },
+      ],
+      paid: 24000,
+      balance: 48000,
+    },
+  }), []);
+
+  const currentFeeDetails = feeDetailsByStudent[currentStudent.id] || feeDetailsByStudent['S-7A-15'];
+
+  const formatCurrency = (amount) => `Rs. ${amount.toLocaleString('en-IN')}`;
+
+  const downloadReceipt = (instalment) => {
+    const receiptText = [
+      'SMT SCHOOL FEE RECEIPT',
+      '----------------------',
+      `Receipt No: ${instalment.id}`,
+      `Student: ${currentStudent.name}`,
+      `Grade/Division: ${currentStudent.grade} ${currentStudent.division}`,
+      `Roll No: ${currentStudent.rollNo}`,
+      `Amount: ${formatCurrency(instalment.amount)}`,
+      `Payment Date: ${instalment.paidOn || 'N/A'}`,
+      `Payment Mode: ${instalment.mode || 'N/A'}`,
+      `Installment Due Date: ${instalment.dueDate}`,
+      `Generated On: ${new Date().toLocaleString('en-IN')}`,
+      '',
+      'This is a system-generated receipt.',
+    ].join('\n');
+
+    const blob = new Blob([receiptText], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${instalment.id}-${currentStudent.rollNo}.txt`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   };
 
   const reportCard = {
@@ -178,11 +269,11 @@ const Parents = () => {
           <div style={{ padding: isMobile ? '16px' : '24px', borderRadius: '16px', background: 'linear-gradient(135deg, #f0f9ff 0%, #eff6ff 100%)', border: '2px solid #0ea5e9', boxShadow: '0 4px 16px rgba(6, 182, 212, 0.1)' }}>
             <h3 style={{ color: '#0369a1', fontSize: isMobile ? '1.2rem' : '1.4rem', fontWeight: '700', marginBottom: '16px' }}>👤 Student Profile</h3>
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: isMobile ? 'center' : 'flex-start', gap: '16px' }}>
-              <img src={studentProfile.photo} alt="Student" onClick={() => setSelectedStudent(studentProfile)} style={{ cursor: 'pointer', borderRadius: '12px', width: isMobile ? '100px' : '120px', height: isMobile ? '100px' : '120px', border: '4px solid #0ea5e9', boxShadow: '0 4px 12px rgba(6, 182, 212, 0.2)' }} />
+              <img src={currentStudent.photo} alt="Student" onClick={() => setSelectedStudent(currentStudent)} style={{ cursor: 'pointer', borderRadius: '12px', width: isMobile ? '100px' : '120px', height: isMobile ? '100px' : '120px', border: '4px solid #0ea5e9', boxShadow: '0 4px 12px rgba(6, 182, 212, 0.2)' }} />
               <div style={{ width: '100%', textAlign: isMobile ? 'center' : 'left' }}>
-                <p style={{ fontSize: isMobile ? '0.95rem' : '1.1rem', marginBottom: '8px' }}><strong>👨 Name:</strong> {studentProfile.name}</p>
-                <p style={{ fontSize: isMobile ? '0.9rem' : '1rem', marginBottom: '8px' }}><strong>📚 Grade:</strong> {studentProfile.grade} {studentProfile.division}</p>
-                <p style={{ fontSize: isMobile ? '0.9rem' : '1rem', marginBottom: '8px' }}><strong>🎫 Roll No:</strong> {studentProfile.rollNo}</p>
+                <p style={{ fontSize: isMobile ? '0.95rem' : '1.1rem', marginBottom: '8px' }}><strong>👨 Name:</strong> {currentStudent.name}</p>
+                <p style={{ fontSize: isMobile ? '0.9rem' : '1rem', marginBottom: '8px' }}><strong>📚 Grade:</strong> {currentStudent.grade} {currentStudent.division}</p>
+                <p style={{ fontSize: isMobile ? '0.9rem' : '1rem', marginBottom: '8px' }}><strong>🎫 Roll No:</strong> {currentStudent.rollNo}</p>
               </div>
             </div>
             {selectedStudent && (
@@ -405,16 +496,25 @@ const Parents = () => {
         return (
           <div style={{ padding: isMobile ? '16px' : '24px', borderRadius: '16px', background: 'linear-gradient(135deg, #dcfce7 0%, #f0fdf4 100%)', border: '2px solid #10b981', boxShadow: '0 4px 16px rgba(16, 185, 129, 0.1)' }}>
             <h3 style={{ color: '#166534', fontSize: isMobile ? '1.2rem' : '1.4rem', fontWeight: '700', marginBottom: '16px' }}>💳 Fee Details</h3>
+            <p style={{ marginTop: '-6px', marginBottom: '12px', color: '#166534', fontWeight: 600, fontSize: isMobile ? '0.88rem' : '0.95rem' }}>Student: {currentStudent.name} ({currentStudent.rollNo})</p>
             <div style={{ background: '#fff', padding: isMobile ? '12px' : '16px', borderRadius: '12px', border: '1px solid #dcfce7', marginBottom: '16px' }}>
-              <p style={{ fontSize: isMobile ? '0.95rem' : '1.1rem', marginBottom: '10px' }}><strong>💰 Total Fee:</strong> ₹{feeDetails.totalFee.toLocaleString()}</p>
-              <p style={{ fontSize: isMobile ? '0.95rem' : '1.1rem', marginBottom: '10px', color: '#10b981' }}><strong>✓ Paid:</strong> ₹{feeDetails.paid.toLocaleString()}</p>
-              <p style={{ fontSize: isMobile ? '0.95rem' : '1.1rem', color: '#ef4444' }}><strong>⏳ Balance:</strong> ₹{feeDetails.balance.toLocaleString()}</p>
+              <p style={{ fontSize: isMobile ? '0.95rem' : '1.1rem', marginBottom: '10px' }}><strong>💰 Total Fee:</strong> {formatCurrency(currentFeeDetails.totalFee)}</p>
+              <p style={{ fontSize: isMobile ? '0.95rem' : '1.1rem', marginBottom: '10px', color: '#10b981' }}><strong>✓ Paid:</strong> {formatCurrency(currentFeeDetails.paid)}</p>
+              <p style={{ fontSize: isMobile ? '0.95rem' : '1.1rem', color: '#ef4444' }}><strong>⏳ Balance:</strong> {formatCurrency(currentFeeDetails.balance)}</p>
             </div>
             <h4 style={{ color: '#166534', fontWeight: '700', marginBottom: '10px', fontSize: isMobile ? '1.05rem' : '1.1rem' }}>📅 Instalments</h4>
-            {feeDetails.instalments.map((inst, index) => (
+            {currentFeeDetails.instalments.map((inst, index) => (
               <div key={index} style={{ background: '#fff', padding: isMobile ? '10px' : '12px', borderRadius: '8px', marginBottom: '8px', border: `2px solid ${inst.status === 'paid' ? '#dcfce7' : '#fef3c7'}`, minHeight: isMobile ? '44px' : 'auto', display: 'flex', flexDirection: isMobile ? 'column' : 'row', justifyContent: 'space-between', alignItems: isMobile ? 'flex-start' : 'center', gap: '8px' }}>
-                <p style={{ margin: 0, fontSize: isMobile ? '0.85rem' : '0.95rem' }}><strong>{inst.dueDate}:</strong> ₹{inst.amount.toLocaleString()}</p>
-                <span style={{ background: inst.status === 'paid' ? '#10b981' : '#f59e0b', color: '#fff', padding: isMobile ? '4px 8px' : '6px 12px', borderRadius: '4px', fontWeight: '600', fontSize: isMobile ? '0.75rem' : '0.85rem', whiteSpace: 'nowrap' }}>{inst.status.toUpperCase()}</span>
+                <div>
+                  <p style={{ margin: 0, fontSize: isMobile ? '0.85rem' : '0.95rem' }}><strong>{inst.dueDate}:</strong> {formatCurrency(inst.amount)}</p>
+                  {inst.status === 'paid' && <p style={{ margin: '4px 0 0', fontSize: isMobile ? '0.75rem' : '0.82rem', color: '#166534' }}>Paid on {inst.paidOn} via {inst.mode}</p>}
+                </div>
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+                  <span style={{ background: inst.status === 'paid' ? '#10b981' : '#f59e0b', color: '#fff', padding: isMobile ? '4px 8px' : '6px 12px', borderRadius: '4px', fontWeight: '600', fontSize: isMobile ? '0.75rem' : '0.85rem', whiteSpace: 'nowrap' }}>{inst.status.toUpperCase()}</span>
+                  {inst.status === 'paid' && (
+                    <button onClick={() => downloadReceipt(inst)} style={{ padding: isMobile ? '7px 10px' : '8px 12px', borderRadius: '6px', border: '1px solid #059669', background: '#ecfdf5', color: '#065f46', fontWeight: 700, cursor: 'pointer', minHeight: '36px' }}>⬇ Receipt</button>
+                  )}
+                </div>
               </div>
             ))}
             <button style={{ padding: isMobile ? '10px 16px' : '12px 24px', background: '#10b981', color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '700', fontSize: isMobile ? '0.9rem' : '1rem', marginTop: '16px', boxShadow: '0 4px 12px rgba(16, 185, 129, 0.3)', width: isMobile ? '100%' : 'auto', minHeight: '44px' }}>💳 Pay Now</button>
@@ -460,7 +560,7 @@ const Parents = () => {
           <div>
             <h2 style={{ fontSize: isMobile ? '1.4rem' : '1.8rem', color: '#1e40af', fontWeight: '700', marginBottom: '8px' }}>👨‍👩‍👧 Parents Portal</h2>
             <p style={{ color: '#475569', marginTop: '8px', fontSize: isMobile ? '0.9rem' : '1rem', fontWeight: '500' }}>
-              📊 SMT School, Thane
+              📊 SMT School, Thane • Linked Students: {linkedStudents.length}
             </p>
           </div>
           {isMobile && (
@@ -468,6 +568,17 @@ const Parents = () => {
               {isMenuOpen ? '✕' : '☰'}
             </button>
           )}
+        </div>
+
+        <div style={{ marginTop: '12px', marginBottom: '18px', padding: '10px', borderRadius: '10px', background: '#eff6ff', border: '1px solid #bfdbfe' }}>
+          <p style={{ margin: '0 0 8px', color: '#1e3a8a', fontWeight: 700, fontSize: isMobile ? '0.85rem' : '0.92rem' }}>Switch Student (Parent Single Login)</p>
+          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+            {linkedStudents.map((child) => (
+              <button key={child.id} onClick={() => setSelectedChildId(child.id)} style={{ padding: '8px 10px', borderRadius: '8px', border: `1px solid ${selectedChildId === child.id ? '#1d4ed8' : '#93c5fd'}`, background: selectedChildId === child.id ? '#1d4ed8' : '#fff', color: selectedChildId === child.id ? '#fff' : '#1e3a8a', fontWeight: 600, cursor: 'pointer', minHeight: '38px' }}>
+                {child.name} ({child.rollNo})
+              </button>
+            ))}
+          </div>
         </div>
       </section>
 

@@ -27,7 +27,7 @@ const DIVISION_LABEL = {
   gamma: 'Gamma',
 };
 
-const divisionSubjectTeacherCodes = {
+const DIVISION_SUBJECT_TEACHER_CODES = {
   alpha: {
     'English': 'TCH001',
     'Library': 'TCH001',
@@ -250,7 +250,7 @@ const getTeacherByCode = (code) => {
 
 const getTeacherForSubject = (division, subject) => {
   const divisionKey = String(division || '').toLowerCase();
-  const teacherCode = divisionSubjectTeacherCodes[divisionKey]?.[subject];
+  const teacherCode = DIVISION_SUBJECT_TEACHER_CODES[divisionKey]?.[subject];
   return getTeacherByCode(teacherCode);
 };
 
@@ -342,6 +342,7 @@ const getPeriodById = (id) => {
 
 export {
   ALL_STAFF,
+  DIVISION_SUBJECT_TEACHER_CODES,
   DIVISION_ORDER,
   NON_TEACHING_STAFF,
   PERIOD_TYPES,

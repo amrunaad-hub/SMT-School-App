@@ -1,10 +1,13 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import SearchBar from './SearchBar';
-import { ALL_STAFF, NON_TEACHING_STAFF, SUBJECTS_G1_G4, TEACHING_FACULTY } from '../data/facultyScheduler';
+import { ALL_STAFF, DIVISION_SUBJECT_TEACHER_CODES, NON_TEACHING_STAFF, SUBJECTS_G1_G4, TEACHING_FACULTY } from '../data/facultyScheduler';
 
 const HR = () => {
   const [isMobile, setIsMobile] = useState(() => window.innerWidth < 920);
   const [staffQuery, setStaffQuery] = useState('');
+  const [selectedSubject, setSelectedSubject] = useState('all');
+  const [selectedDivision, setSelectedDivision] = useState('all');
+  const [selectedPayBand, setSelectedPayBand] = useState('all');
 
   useEffect(() => {
     const onResize = () => setIsMobile(window.innerWidth < 920);
@@ -51,6 +54,72 @@ const HR = () => {
       brahminShareWithinMaharashtrian,
     };
   }, []);
+
+  const teacherDivisionAssignments = useMemo(() => {
+    const map = {};
+    Object.entries(DIVISION_SUBJECT_TEACHER_CODES).forEach(([division, subjectMap]) => {
+      Object.entries(subjectMap).forEach(([subject, teacherCode]) => {
+        if (!map[teacherCode]) {
+          map[teacherCode] = {
+            divisions: new Set(),
+            subjects: new Set(),
+          };
+        }
+        map[teacherCode].divisions.add(division);
+        map[teacherCode].subjects.add(subject);
+      });
+    });
+    return map;
+  }, []);
+
+  const getPayBand = (monthlyGross) => {
+    if (monthlyGross >= 65000) return '65k+';
+    if (monthlyGross >= 55000) return '55k-64k';
+    return 'below-55k';
+  };
+
+  const filteredTeachingAnalytics = useMemo(() => {
+    return TEACHING_FACULTY.filter((teacher) => {
+      const assignment = teacherDivisionAssignments[teacher.code] || { divisions: new Set(), subjects: new Set() };
+
+      const subjectMatch = selectedSubject === 'all'
+        ? true
+        : assignment.subjects.has(selectedSubject) || teacher.assignedSubjects?.includes(selectedSubject);
+
+      const divisionMatch = selectedDivision === 'all'
+        ? true
+        : assignment.divisions.has(selectedDivision);
+
+      const payBandMatch = selectedPayBand === 'all'
+        ? true
+        : getPayBand(teacher.compensation.monthlyGross) === selectedPayBand;
+
+      return subjectMatch && divisionMatch && payBandMatch;
+    });
+  }, [selectedSubject, selectedDivision, selectedPayBand, teacherDivisionAssignments]);
+
+  const analyticsSummary = useMemo(() => {
+    if (filteredTeachingAnalytics.length === 0) {
+      return {
+        avgMonthlyGross: 0,
+        avgAnnualCtc: 0,
+        avgClassesYtd: 0,
+      };
+    }
+
+    const totals = filteredTeachingAnalytics.reduce((acc, teacher) => {
+      acc.monthly += teacher.compensation.monthlyGross;
+      acc.annual += teacher.compensation.annualCtc;
+      acc.classesYtd += teacher.classesTakenYtd;
+      return acc;
+    }, { monthly: 0, annual: 0, classesYtd: 0 });
+
+    return {
+      avgMonthlyGross: Math.round(totals.monthly / filteredTeachingAnalytics.length),
+      avgAnnualCtc: Math.round(totals.annual / filteredTeachingAnalytics.length),
+      avgClassesYtd: Math.round(totals.classesYtd / filteredTeachingAnalytics.length),
+    };
+  }, [filteredTeachingAnalytics]);
 
   const summaryCardStyle = {
     padding: '14px',
@@ -100,6 +169,48 @@ const HR = () => {
       </section>
 
       <section style={{ marginTop: '20px' }}>
+        <div style={{ marginBottom: '14px', padding: '14px', border: '1px solid #bfdbfe', borderRadius: '14px', background: '#ffffff' }}>
+          <h3 style={{ marginTop: 0, marginBottom: '10px', color: '#0f172a' }}>Faculty Workload & Compensation Analytics</h3>
+          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(3, minmax(180px, 1fr))', gap: '10px' }}>
+            <select value={selectedSubject} onChange={(e) => setSelectedSubject(e.target.value)} style={{ padding: '10px', borderRadius: '10px', border: '1px solid #cbd5e1' }}>
+              <option value="all">All Subjects</option>
+              {SUBJECTS_G1_G4.map((subject) => (
+                <option key={subject} value={subject}>{subject}</option>
+              ))}
+            </select>
+            <select value={selectedDivision} onChange={(e) => setSelectedDivision(e.target.value)} style={{ padding: '10px', borderRadius: '10px', border: '1px solid #cbd5e1' }}>
+              <option value="all">All Divisions</option>
+              <option value="alpha">Alpha</option>
+              <option value="beta">Beta</option>
+              <option value="gamma">Gamma</option>
+            </select>
+            <select value={selectedPayBand} onChange={(e) => setSelectedPayBand(e.target.value)} style={{ padding: '10px', borderRadius: '10px', border: '1px solid #cbd5e1' }}>
+              <option value="all">All Pay Bands</option>
+              <option value="below-55k">Below Rs. 55,000</option>
+              <option value="55k-64k">Rs. 55,000 - Rs. 64,999</option>
+              <option value="65k+">Rs. 65,000 and above</option>
+            </select>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(4, minmax(130px, 1fr))', gap: '10px', marginTop: '12px' }}>
+            <div style={{ padding: '10px', borderRadius: '10px', background: '#f8fafc', border: '1px solid #e2e8f0' }}>
+              <p style={{ margin: 0, color: '#64748b', fontSize: '0.8rem' }}>Matched Faculty</p>
+              <strong>{filteredTeachingAnalytics.length}</strong>
+            </div>
+            <div style={{ padding: '10px', borderRadius: '10px', background: '#f8fafc', border: '1px solid #e2e8f0' }}>
+              <p style={{ margin: 0, color: '#64748b', fontSize: '0.8rem' }}>Avg Monthly Gross</p>
+              <strong>Rs. {analyticsSummary.avgMonthlyGross.toLocaleString('en-IN')}</strong>
+            </div>
+            <div style={{ padding: '10px', borderRadius: '10px', background: '#f8fafc', border: '1px solid #e2e8f0' }}>
+              <p style={{ margin: 0, color: '#64748b', fontSize: '0.8rem' }}>Avg Annual CTC</p>
+              <strong>Rs. {analyticsSummary.avgAnnualCtc.toLocaleString('en-IN')}</strong>
+            </div>
+            <div style={{ padding: '10px', borderRadius: '10px', background: '#f8fafc', border: '1px solid #e2e8f0' }}>
+              <p style={{ margin: 0, color: '#64748b', fontSize: '0.8rem' }}>Avg Classes YTD</p>
+              <strong>{analyticsSummary.avgClassesYtd}</strong>
+            </div>
+          </div>
+        </div>
+
         <h3 style={{ marginBottom: '12px', color: '#0f172a' }}>Staff Profiles</h3>
         <SearchBar
           value={staffQuery}
