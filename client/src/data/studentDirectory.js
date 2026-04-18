@@ -44,46 +44,44 @@ const shuffle = (items) => {
 };
 
 const buildRandomNamePool = () => {
+  const firstNameSlots = [];
+  const surnameSlots = [];
+
+  const firstBase = Math.floor(TOTAL_STUDENTS / ALL_FIRST_NAMES.length);
+  const firstRemainder = TOTAL_STUDENTS % ALL_FIRST_NAMES.length;
+  ALL_FIRST_NAMES.forEach((firstName, index) => {
+    const count = firstBase + (index < firstRemainder ? 1 : 0);
+    for (let i = 0; i < Math.min(count, MAX_FIRST_NAME_REPEAT); i += 1) {
+      firstNameSlots.push(firstName);
+    }
+  });
+
+  const surnameBase = Math.floor(TOTAL_STUDENTS / ALL_SURNAMES.length);
+  const surnameRemainder = TOTAL_STUDENTS % ALL_SURNAMES.length;
+  ALL_SURNAMES.forEach((surname, index) => {
+    const count = surnameBase + (index < surnameRemainder ? 1 : 0);
+    for (let i = 0; i < Math.min(count, MAX_SURNAME_REPEAT); i += 1) {
+      surnameSlots.push(surname);
+    }
+  });
+
+  const shuffledFirstNames = shuffle(firstNameSlots).slice(0, TOTAL_STUDENTS);
+  const shuffledSurnames = shuffle(surnameSlots).slice(0, TOTAL_STUDENTS);
+
   const namePool = [];
-  const usedFullNames = new Set();
-  const firstNameUsage = new Map();
-  const surnameUsage = new Map();
-  let attempts = 0;
-  const maxAttempts = TOTAL_STUDENTS * 120;
+  for (let i = 0; i < TOTAL_STUDENTS; i += 1) {
+    const firstName = shuffledFirstNames[i];
+    const surname = shuffledSurnames[i];
 
-  while (namePool.length < TOTAL_STUDENTS && attempts < maxAttempts) {
-    attempts += 1;
-
-    const firstName = ALL_FIRST_NAMES[Math.floor(Math.random() * ALL_FIRST_NAMES.length)];
-    const surname = ALL_SURNAMES[Math.floor(Math.random() * ALL_SURNAMES.length)];
-    const fullName = `${firstName} ${surname}`;
-    const firstCount = firstNameUsage.get(firstName) || 0;
-    const surnameCount = surnameUsage.get(surname) || 0;
-
-    if (usedFullNames.has(fullName)) {
-      continue;
-    }
-
-    if (firstCount >= MAX_FIRST_NAME_REPEAT || surnameCount >= MAX_SURNAME_REPEAT) {
-      continue;
-    }
-
-    usedFullNames.add(fullName);
-    firstNameUsage.set(firstName, firstCount + 1);
-    surnameUsage.set(surname, surnameCount + 1);
     namePool.push({
-      fullName,
+      fullName: `${firstName} ${surname}`,
       firstName,
       surname,
       isMaharashtrian: MAHARASHTRIAN_SURNAMES.includes(surname),
     });
   }
 
-  if (namePool.length < TOTAL_STUDENTS) {
-    throw new Error('Unable to build balanced student name pool with current constraints.');
-  }
-
-  return shuffle(namePool);
+  return namePool;
 };
 
 const buildStudentDirectory = () => {
