@@ -4,13 +4,16 @@ const Login = ({ onLogin }) => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleSubmit = (event) => {
+  const handleSubmit = async (event) => {
     event.preventDefault();
-    const ok = onLogin(username.trim().toLowerCase(), password.trim());
+    setIsSubmitting(true);
+    const ok = await onLogin(username.trim().toLowerCase(), password.trim());
+    setIsSubmitting(false);
 
     if (!ok) {
-      setError('Invalid credentials. Use the provided role-based username and password.');
+      setError('Invalid credentials or server unavailable. Check username/password and try again.');
       return;
     }
 
@@ -52,9 +55,10 @@ const Login = ({ onLogin }) => {
 
           <button
             type="submit"
+            disabled={isSubmitting}
             style={{ width: '100%', minHeight: '44px', border: 'none', borderRadius: '10px', background: 'linear-gradient(135deg, #1d4ed8 0%, #7e22ce 100%)', color: '#fff', fontWeight: 700, cursor: 'pointer', fontSize: '0.95rem' }}
           >
-            Login
+            {isSubmitting ? 'Signing in...' : 'Login'}
           </button>
         </form>
       </section>

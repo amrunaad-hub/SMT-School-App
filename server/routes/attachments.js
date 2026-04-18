@@ -1,4 +1,6 @@
 const express = require('express');
+const auth = require('../middleware/auth');
+const authorize = require('../middleware/authorize');
 
 const router = express.Router();
 
@@ -63,7 +65,9 @@ const ATTACHMENTS = [
 
 const toPayload = (req, attachment) => {
     const encoded = encodeURIComponent(attachment.id);
-    const base = `${req.protocol}://${req.get('host')}`;
+    const forwardedProto = req.get('x-forwarded-proto');
+    const protocol = forwardedProto || req.protocol;
+    const base = `${protocol}://${req.get('host')}`;
 
     return {
         id: attachment.id,
@@ -75,6 +79,9 @@ const toPayload = (req, attachment) => {
 };
 
 const findAttachment = (id) => ATTACHMENTS.find((attachment) => attachment.id === id);
+
+router.use(auth);
+router.use(authorize(['admin', 'parent', 'teacher']));
 
 router.get('/', (req, res) => {
     const ids = (req.query.ids || '')

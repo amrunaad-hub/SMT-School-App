@@ -2,33 +2,71 @@ const express = require('express');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
+const auth = require('../middleware/auth');
+const authorize = require('../middleware/authorize');
 const router = express.Router();
 
+const issueToken = (user) => {
+    const secret = process.env.JWT_SECRET;
+    if (!secret) {
+        throw new Error('JWT secret is missing');
+    }
+
+    return jwt.sign(
+        {
+            sub: user.id,
+            role: user.role,
+            username: user.username,
+        },
+        secret,
+        {
+            expiresIn: process.env.JWT_EXPIRES_IN || '8h',
+            issuer: process.env.JWT_ISSUER || 'smt-school-erp',
+            audience: process.env.JWT_AUDIENCE || 'smt-school-clients',
+        }
+    );
+};
+
 // Register route
-router.post('/register', async (req, res) => {
-    const { username, password } = req.body;
+router.post('/register', auth, authorize(['admin']), async (req, res) => {
+    const { username, password, role = 'parent', email = '' } = req.body;
 
     try {
+        if (!username || !password) {
+            return res.status(400).json({ message: 'Username and password are required.' });
+        }
+
+        if (!['admin', 'parent', 'teacher'].includes(role)) {
+            return res.status(400).json({ message: 'Invalid role.' });
+        }
+
         // Check if user already exists
         let user = await User.findOne({ username });
         if (user) {
-            return res.status(400).json({ msg: 'User already exists' });
+            return res.status(400).json({ message: 'User already exists' });
         }
 
         // Create new user
         user = new User({
             username,
-            password: await bcrypt.hash(password, 10)
+            role,
+            password: await bcrypt.hash(password, 12)
         });
+        user.setEmail(email);
 
         await user.save();
 
-        // Create and return JWT
-        const token = jwt.sign({ id: user.id }, 'your_jwt_secret', { expiresIn: '1h' });
-        res.json({ token });
+        return res.status(201).json({
+            message: 'User registered successfully.',
+            user: {
+                id: user.id,
+                username: user.username,
+                role: user.role,
+            },
+        });
     } catch (err) {
-        console.error(err.message);
-        res.status(500).send('Server error');
+        console.error('Register error:', err.message);
+        return res.status(500).json({ message: 'Server error' });
     }
 });
 
@@ -40,21 +78,48 @@ router.post('/login', async (req, res) => {
         // Check if user exists
         const user = await User.findOne({ username });
         if (!user) {
-            return res.status(400).json({ msg: 'Invalid credentials' });
+            return res.status(401).json({ message: 'Invalid credentials' });
         }
 
         // Check password
         const isMatch = await bcrypt.compare(password, user.password);
         if (!isMatch) {
-            return res.status(400).json({ msg: 'Invalid credentials' });
+            return res.status(401).json({ message: 'Invalid credentials' });
         }
 
-        // Create and return JWT
-        const token = jwt.sign({ id: user.id }, 'your_jwt_secret', { expiresIn: '1h' });
-        res.json({ token });
+        const token = issueToken(user);
+        return res.json({
+            token,
+            user: {
+                id: user.id,
+                username: user.username,
+                role: user.role,
+            },
+        });
     } catch (err) {
-        console.error(err.message);
-        res.status(500).send('Server error');
+        console.error('Login error:', err.message);
+        return res.status(500).json({ message: 'Server error' });
+    }
+});
+
+router.get('/me', auth, async (req, res) => {
+    try {
+        const user = await User.findById(req.user.id);
+        if (!user) {
+            return res.status(404).json({ message: 'User not found.' });
+        }
+
+        return res.json({
+            user: {
+                id: user.id,
+                username: user.username,
+                role: user.role,
+                email: user.getEmail(),
+            },
+        });
+    } catch (err) {
+        console.error('Profile fetch error:', err.message);
+        return res.status(500).json({ message: 'Server error' });
     }
 });
 

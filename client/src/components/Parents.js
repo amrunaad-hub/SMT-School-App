@@ -38,7 +38,16 @@ const Parents = () => {
 
     const loadAttachments = async () => {
       try {
-        const response = await fetch(`${apiBase}/api/attachments`);
+        const token = window.localStorage.getItem('smt-school-token');
+        if (!token) {
+          return;
+        }
+
+        const response = await fetch(`${apiBase}/api/attachments`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
         if (!response.ok) {
           return;
         }
@@ -1244,15 +1253,19 @@ const Parents = () => {
             <div style={{ padding: isMobile ? '14px' : '16px' }}>
               <p style={{ margin: '0 0 10px', color: '#9f1239', fontWeight: 700 }}>{attachmentPreview.title}</p>
               <div style={{ border: '1px solid #fecdd3', borderRadius: '10px', overflow: 'hidden' }}>
-                {attachmentPreview.attachments.map((fileItem, index) => (
+                {attachmentPreview.attachments.map((fileItem, index) => {
+                  const token = window.localStorage.getItem('smt-school-token') || '';
+                  const tokenQuery = token ? `?access_token=${encodeURIComponent(token)}` : '';
+
+                  return (
                   <div key={`${fileItem.id}-${index}`} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', padding: '10px 12px', borderBottom: index === attachmentPreview.attachments.length - 1 ? 'none' : '1px solid #ffe4e6' }}>
                     <span style={{ color: '#334155', fontSize: isMobile ? '0.82rem' : '0.9rem', wordBreak: 'break-all' }}>{fileItem.fileName}</span>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <a href={fileItem.previewUrl} target="_blank" rel="noreferrer" style={{ textDecoration: 'none', border: '1px solid #fb7185', background: '#fff', color: '#9f1239', borderRadius: '999px', padding: '5px 10px', fontWeight: 700, whiteSpace: 'nowrap', fontSize: isMobile ? '0.75rem' : '0.8rem' }}>Preview</a>
-                      <a href={fileItem.downloadUrl} style={{ textDecoration: 'none', border: '1px solid #fb7185', background: '#fff1f2', color: '#9f1239', borderRadius: '999px', padding: '5px 10px', fontWeight: 700, whiteSpace: 'nowrap', fontSize: isMobile ? '0.75rem' : '0.8rem' }}>Download</a>
+                      <a href={`${fileItem.previewUrl}${tokenQuery}`} target="_blank" rel="noreferrer" style={{ textDecoration: 'none', border: '1px solid #fb7185', background: '#fff', color: '#9f1239', borderRadius: '999px', padding: '5px 10px', fontWeight: 700, whiteSpace: 'nowrap', fontSize: isMobile ? '0.75rem' : '0.8rem' }}>Preview</a>
+                      <a href={`${fileItem.downloadUrl}${tokenQuery}`} style={{ textDecoration: 'none', border: '1px solid #fb7185', background: '#fff1f2', color: '#9f1239', borderRadius: '999px', padding: '5px 10px', fontWeight: 700, whiteSpace: 'nowrap', fontSize: isMobile ? '0.75rem' : '0.8rem' }}>Download</a>
                     </div>
                   </div>
-                ))}
+                );})}
               </div>
             </div>
           </div>

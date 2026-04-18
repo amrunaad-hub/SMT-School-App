@@ -21,12 +21,6 @@ import Parents from './components/Parents';
 import Teachers from './components/Teachers';
 import Login from './components/Login';
 
-const CREDENTIALS = {
-  admin: 'admin',
-  parent: 'parent',
-  teacher: 'teacher',
-};
-
 const getHomePath = (role) => {
   if (role === 'parent') return '/parents';
   if (role === 'teacher') return '/teachers';
@@ -48,22 +42,42 @@ const ProtectedRoute = ({ authRole, allowedRoles, children }) => {
 function App() {
   const [authRole, setAuthRole] = useState(() => {
     const savedRole = window.localStorage.getItem('smt-school-role');
-    return CREDENTIALS[savedRole] ? savedRole : '';
+    const savedToken = window.localStorage.getItem('smt-school-token');
+    return savedRole && savedToken ? savedRole : '';
   });
 
-  const handleLogin = (username, password) => {
-    if (!CREDENTIALS[username] || CREDENTIALS[username] !== password) {
+  const handleLogin = async (username, password) => {
+    try {
+      const response = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ username, password }),
+      });
+
+      if (!response.ok) {
+        return false;
+      }
+
+      const payload = await response.json();
+      if (!payload || !payload.token || !payload.user || !payload.user.role) {
+        return false;
+      }
+
+      setAuthRole(payload.user.role);
+      window.localStorage.setItem('smt-school-role', payload.user.role);
+      window.localStorage.setItem('smt-school-token', payload.token);
+      return true;
+    } catch (error) {
       return false;
     }
-
-    setAuthRole(username);
-    window.localStorage.setItem('smt-school-role', username);
-    return true;
   };
 
   const handleLogout = () => {
     setAuthRole('');
     window.localStorage.removeItem('smt-school-role');
+    window.localStorage.removeItem('smt-school-token');
   };
 
   return (
