@@ -1,0 +1,27 @@
+{
+  "name": "school-erp",
+  "version": "1.0.0",
+  "description": "A school ERP system built with React and Express.",
+  "main": "server/app.js",
+  "scripts": {
+    "start": "node server/app.js",
+    "client": "npm start --prefix client",
+    "server": "node server/app.js",
+    "dev": "concurrently \"npm run server\" \"npm run client\"",
+    "install-all": "npm install && npm install --prefix client",
+    "build": "npm run build --prefix client"
+  },
+  "dependencies": {
+    "express": "^4.17.1",
+    "mongoose": "^5.10.9",
+    "bcryptjs": "^2.4.3",
+    "jsonwebtoken": "^8.5.1",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5"
+  },
+  "devDependencies": {
+    "concurrently": "^5.3.0"
+  },
+  "author": "",
+  "license": "ISC"
+}
