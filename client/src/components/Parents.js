@@ -3,7 +3,6 @@ import React, { useEffect, useState, useMemo } from 'react';
 const Parents = () => {
   const [activeModule, setActiveModule] = useState('profile');
   const [selectedStudent, setSelectedStudent] = useState(null);
-  const [selectedDate, setSelectedDate] = useState(new Date());
   const [selectedWeek, setSelectedWeek] = useState(new Date());
   const [selectedDay, setSelectedDay] = useState(null);
   const [isMobile, setIsMobile] = useState(() => window.innerWidth < 900);
@@ -68,7 +67,7 @@ const Parents = () => {
   // Get last 10 days of attendance
   const last10DaysAttendance = useMemo(() => {
     return fullAttendanceData.slice(-10);
-  }, []);
+  }, [fullAttendanceData]);
 
   const timetable = [
     { day: 'Monday', periods: [
