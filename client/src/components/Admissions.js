@@ -1,4 +1,4 @@
-﻿import React, { useMemo, useRef, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 
 const Admissions = () => {
   const [selectedGrade, setSelectedGrade] = useState(null);
@@ -11,7 +11,7 @@ const Admissions = () => {
     { grade: 'Grade 4', enquiries: 28, inProcess: 8, confirmed: 6, rejected: 1 },
   ];
 
-  const enquiryDetails = [
+  const enquiryDetails = useMemo(() => [
     {
       id: 1,
       name: 'Aanya Roy',
@@ -52,7 +52,7 @@ const Admissions = () => {
       followUp: 'Parent wants school tour',
       source: 'Walk-in',
     },
-  ];
+  ], []);
 
   const rejectedApplications = [
     { id: 1, name: 'Tanya Bhat', grade: 'Grade 1', reason: 'Incomplete documents', status: 'Rejected' },
@@ -82,7 +82,7 @@ const Admissions = () => {
 
   const displayedEnquiries = useMemo(
     () => (selectedGrade ? enquiryDetails.filter((detail) => detail.grade === selectedGrade) : enquiryDetails),
-    [selectedGrade]
+    [selectedGrade, enquiryDetails]
   );
 
   return (

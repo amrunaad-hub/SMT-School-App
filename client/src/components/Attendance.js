@@ -1,4 +1,4 @@
-﻿import React, { useMemo, useRef, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 
 const Attendance = () => {
   const [selectedGrade, setSelectedGrade] = useState(null);
@@ -6,7 +6,7 @@ const Attendance = () => {
   const [selectedDate, setSelectedDate] = useState('2026-04-18');
   const detailsRef = useRef(null);
 
-  const gradeStats = [
+  const gradeStats = useMemo(() => [
     {
       grade: 'Grade 1',
       present: 38,
@@ -42,9 +42,9 @@ const Attendance = () => {
         { division: 'B', present: 16, absent: 3, attendancePercent: 84 },
       ],
     },
-  ];
+  ], []);
 
-  const dailyAttendance = [
+  const dailyAttendance = useMemo(() => [
     {
       date: '2026-04-18',
       grade: 'Grade 1',
@@ -91,7 +91,7 @@ const Attendance = () => {
         { name: 'Kabir Saini', status: 'Present' },
       ],
     },
-  ];
+  ], []);
 
   const leaveApplications = [
     { id: 1, student: 'Nisha Bhatia', grade: 'Grade 1', date: '2026-04-16', type: 'Medical leave', notice: '3 days in advance' },
@@ -131,7 +131,7 @@ const Attendance = () => {
   const filteredDivisions = useMemo(() => {
     if (!selectedGrade) return [];
     return gradeStats.find((item) => item.grade === selectedGrade)?.divisions || [];
-  }, [selectedGrade]);
+  }, [selectedGrade, gradeStats]);
 
   const filteredDailyRecords = useMemo(() => {
     return dailyAttendance.filter((record) => {
@@ -140,7 +140,7 @@ const Attendance = () => {
       const dateMatch = selectedDate ? record.date === selectedDate : true;
       return gradeMatch && divisionMatch && dateMatch;
     });
-  }, [selectedGrade, selectedDivision, selectedDate]);
+  }, [selectedGrade, selectedDivision, selectedDate, dailyAttendance]);
 
   const selectedGradeText = selectedGrade ? ` for ${selectedGrade}` : '';
   const selectedDivisionText = selectedDivision ? ` / ${selectedDivision}` : '';
