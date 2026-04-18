@@ -389,6 +389,21 @@ const Parents = () => {
     return fullAttendanceData.find(a => a.date === dateStr);
   };
 
+  const portalModules = [
+    { key: 'profile', label: 'Student Profile', icon: '👤' },
+    { key: 'parent-profile', label: 'Parent Profile', icon: '👨‍👩‍👧' },
+    { key: 'attendance', label: 'Attendance', icon: '📅' },
+    { key: 'timetable', label: 'Timetable', icon: '⏰' },
+    { key: 'events', label: 'Events', icon: '🎉' },
+    { key: 'activities', label: 'Student Activity', icon: '📚' },
+    { key: 'gallery', label: 'Photo Gallery', icon: '🖼️' },
+    { key: 'fees', label: 'Fees', icon: '💳' },
+    { key: 'report', label: 'Report Card', icon: '📑' },
+    { key: 'contact', label: 'Contact Us', icon: '📞' },
+  ];
+
+  const primaryQuickModules = portalModules.slice(0, 8);
+
   const renderModule = () => {
     switch (activeModule) {
       case 'profile':
@@ -722,84 +737,173 @@ const Parents = () => {
   };
 
   return (
-    <main style={{ padding: isMobile ? '16px' : '28px', maxWidth: '1240px', margin: '0 auto', color: '#1f2937', background: 'linear-gradient(to bottom, #f0f9ff 0%, #f9fafb 100%)', minHeight: 'calc(100vh - 100px)' }}>
-      <section>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '16px' }}>
-          <div>
-            <h2 style={{ fontSize: isMobile ? '1.4rem' : '1.8rem', color: '#1e40af', fontWeight: '700', marginBottom: '8px' }}>👨‍👩‍👧 Parents Portal</h2>
-            <p style={{ color: '#475569', marginTop: '8px', fontSize: isMobile ? '0.9rem' : '1rem', fontWeight: '500' }}>
-              📊 SMT School, Thane • Linked Students: {linkedStudents.length}
-            </p>
+    <main style={{ padding: isMobile ? '12px 12px 80px' : '24px', maxWidth: '1240px', margin: '0 auto', color: '#1f2937', background: 'linear-gradient(180deg, #fff1f2 0%, #fff7ed 100%)', minHeight: 'calc(100vh - 100px)' }}>
+      <section style={{ marginBottom: '16px' }}>
+        <div style={{ borderRadius: '18px', overflow: 'hidden', border: '1px solid #fecdd3', boxShadow: '0 12px 28px rgba(244, 63, 94, 0.15)' }}>
+          <div style={{ background: 'linear-gradient(135deg, #ef4444 0%, #e11d48 100%)', color: '#fff', padding: isMobile ? '14px' : '20px' }}>
+            <h2 style={{ margin: 0, fontSize: isMobile ? '1.25rem' : '1.7rem', fontWeight: 800 }}>Parents Portal</h2>
+            <p style={{ margin: '6px 0 0', color: '#ffe4e6', fontWeight: 600, fontSize: isMobile ? '0.84rem' : '0.95rem' }}>SMT School, Thane</p>
           </div>
-          {isMobile && (
-            <button onClick={() => setIsMenuOpen(!isMenuOpen)} style={{ background: '#1e40af', color: '#fff', border: 'none', padding: '12px 14px', borderRadius: '8px', cursor: 'pointer', fontSize: '1.4rem', minHeight: '48px', minWidth: '48px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              {isMenuOpen ? '✕' : '☰'}
-            </button>
-          )}
-        </div>
 
-        <div style={{ marginTop: '12px', marginBottom: '18px', padding: '10px', borderRadius: '10px', background: '#eff6ff', border: '1px solid #bfdbfe' }}>
-          <p style={{ margin: '0 0 8px', color: '#1e3a8a', fontWeight: 700, fontSize: isMobile ? '0.85rem' : '0.92rem' }}>Switch Student (Parent Single Login)</p>
-          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-            {linkedStudents.map((child) => (
-              <button key={child.id} onClick={() => setSelectedChildId(child.id)} style={{ padding: '8px 10px', borderRadius: '8px', border: `1px solid ${selectedChildId === child.id ? '#1d4ed8' : '#93c5fd'}`, background: selectedChildId === child.id ? '#1d4ed8' : '#fff', color: selectedChildId === child.id ? '#fff' : '#1e3a8a', fontWeight: 600, cursor: 'pointer', minHeight: '38px' }}>
-                {child.name} ({child.rollNo})
-              </button>
-            ))}
+          <div style={{ background: '#fff', padding: isMobile ? '12px' : '16px' }}>
+            <div style={{ border: '1px solid #fecdd3', borderRadius: '12px', background: '#fff1f2', padding: isMobile ? '10px' : '12px', marginBottom: '12px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <img src={currentStudent.photo} alt="Current Student" style={{ width: isMobile ? '52px' : '60px', height: isMobile ? '52px' : '60px', borderRadius: '12px', border: '2px solid #fb7185', background: '#fff' }} />
+                <div>
+                  <p style={{ margin: 0, fontWeight: 800, color: '#9f1239', fontSize: isMobile ? '0.95rem' : '1.05rem' }}>{currentStudent.name}</p>
+                  <p style={{ margin: '4px 0 0', color: '#be123c', fontWeight: 600, fontSize: isMobile ? '0.8rem' : '0.9rem' }}>{currentStudent.grade} • {currentStudent.division} • Roll {currentStudent.rollNo}</p>
+                </div>
+              </div>
+            </div>
+
+            <p style={{ margin: '0 0 8px', color: '#9f1239', fontWeight: 700, fontSize: isMobile ? '0.82rem' : '0.9rem' }}>Switch Student</p>
+            <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', paddingBottom: '2px' }}>
+              {linkedStudents.map((child) => (
+                <button
+                  key={child.id}
+                  onClick={() => setSelectedChildId(child.id)}
+                  style={{
+                    padding: '8px 12px',
+                    borderRadius: '999px',
+                    border: `1px solid ${selectedChildId === child.id ? '#e11d48' : '#fda4af'}`,
+                    background: selectedChildId === child.id ? '#e11d48' : '#fff',
+                    color: selectedChildId === child.id ? '#fff' : '#9f1239',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    whiteSpace: 'nowrap',
+                    minHeight: '36px',
+                  }}
+                >
+                  {child.name}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
       </section>
 
-      {/* Navigation */}
-      <nav style={{
-        display: isMobile ? (isMenuOpen ? 'grid' : 'none') : 'flex',
-        gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : undefined,
-        gap: isMobile ? '8px' : '8px',
-        marginBottom: '24px',
-        flexWrap: isMobile ? 'wrap' : 'nowrap',
-        overflowX: isMobile ? 'visible' : 'auto',
-        paddingBottom: isMobile ? '0' : '8px',
-      }}>
-        {[
-          { key: 'profile', label: '👤 Profile' },
-          { key: 'parent-profile', label: '👨‍💼 Parent' },
-          { key: 'attendance', label: '📅 Attendance' },
-          { key: 'timetable', label: '⏰ Timetable' },
-          { key: 'events', label: '🎉 Events' },
-          { key: 'activities', label: '📚 Activities' },
-          { key: 'gallery', label: '🖼️ Gallery' },
-          { key: 'fees', label: '💳 Fees' },
-          { key: 'report', label: '📑 Report' },
-          { key: 'contact', label: '📞 Contact' },
-        ].map(module => (
-          <button 
-            key={module.key} 
-            onClick={() => {
-              setActiveModule(module.key);
-              if (isMobile) setIsMenuOpen(false);
-            }} 
-            style={{
-              padding: isMobile ? '12px 10px' : '10px 14px',
-              borderRadius: '8px',
-              border: '2px solid #cbd5e1',
-              background: activeModule === module.key ? '#1e40af' : '#fff',
-              color: activeModule === module.key ? '#fff' : '#1f2937',
-              cursor: 'pointer',
-              whiteSpace: 'nowrap',
-              fontWeight: '600',
-              fontSize: isMobile ? '0.85rem' : '0.95rem',
-              transition: 'all 0.3s',
-              boxShadow: activeModule === module.key ? '0 4px 12px rgba(30, 64, 175, 0.3)' : 'none',
-              minHeight: isMobile ? '44px' : 'auto',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}>
-            {module.label}
-          </button>
-        ))}
-      </nav>
+      <section style={{ marginBottom: '16px', background: '#fff', border: '1px solid #fecdd3', borderRadius: '16px', padding: isMobile ? '12px' : '16px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
+          <h3 style={{ margin: 0, color: '#9f1239', fontSize: isMobile ? '1rem' : '1.1rem' }}>Quick Access</h3>
+          <span style={{ fontSize: isMobile ? '0.75rem' : '0.82rem', color: '#be123c', fontWeight: 600 }}>Linked Students: {linkedStudents.length}</span>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(4, 1fr)' : 'repeat(8, minmax(95px, 1fr))', gap: '8px' }}>
+          {primaryQuickModules.map((module) => (
+            <button
+              key={module.key}
+              onClick={() => setActiveModule(module.key)}
+              style={{
+                border: `1px solid ${activeModule === module.key ? '#fb7185' : '#fecdd3'}`,
+                background: activeModule === module.key ? '#ffe4e6' : '#fff',
+                borderRadius: '12px',
+                padding: isMobile ? '8px 6px' : '10px 8px',
+                minHeight: isMobile ? '72px' : '82px',
+                cursor: 'pointer',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '4px',
+                color: '#881337',
+              }}
+            >
+              <span style={{ fontSize: isMobile ? '1.05rem' : '1.2rem' }}>{module.icon}</span>
+              <span style={{ fontSize: isMobile ? '0.66rem' : '0.78rem', fontWeight: 700, textAlign: 'center', lineHeight: 1.2 }}>{module.label}</span>
+            </button>
+          ))}
+        </div>
+      </section>
+
+      {!isMobile && (
+        <nav style={{
+          display: 'flex',
+          gap: '8px',
+          marginBottom: '20px',
+          flexWrap: 'wrap',
+        }}>
+          {portalModules.map((module) => (
+            <button
+              key={module.key}
+              onClick={() => setActiveModule(module.key)}
+              style={{
+                padding: '10px 14px',
+                borderRadius: '999px',
+                border: `1px solid ${activeModule === module.key ? '#e11d48' : '#fda4af'}`,
+                background: activeModule === module.key ? '#e11d48' : '#fff',
+                color: activeModule === module.key ? '#fff' : '#881337',
+                cursor: 'pointer',
+                fontWeight: 700,
+                fontSize: '0.9rem',
+              }}
+            >
+              {module.icon} {module.label}
+            </button>
+          ))}
+        </nav>
+      )}
       {renderModule()}
+
+      {isMobile && (
+        <>
+          <button
+            onClick={() => setIsMenuOpen((prev) => !prev)}
+            style={{
+              position: 'fixed',
+              right: '16px',
+              bottom: '16px',
+              width: '58px',
+              height: '58px',
+              borderRadius: '50%',
+              border: 'none',
+              background: '#f43f5e',
+              color: '#fff',
+              fontSize: '1.5rem',
+              fontWeight: 700,
+              boxShadow: '0 12px 26px rgba(244, 63, 94, 0.45)',
+              zIndex: 1100,
+              cursor: 'pointer',
+            }}
+          >
+            {isMenuOpen ? '✕' : '☰'}
+          </button>
+          {isMenuOpen && (
+            <div style={{ position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.35)', zIndex: 1090 }} onClick={() => setIsMenuOpen(false)}>
+              <div onClick={(e) => e.stopPropagation()} style={{ position: 'absolute', left: 0, right: 0, bottom: 0, background: '#fff', borderTopLeftRadius: '18px', borderTopRightRadius: '18px', padding: '12px 14px 18px', boxShadow: '0 -10px 24px rgba(15, 23, 42, 0.25)' }}>
+                <div style={{ width: '52px', height: '5px', borderRadius: '8px', background: '#e5e7eb', margin: '0 auto 12px' }} />
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px' }}>
+                  {portalModules.map((module) => (
+                    <button
+                      key={module.key}
+                      onClick={() => {
+                        setActiveModule(module.key);
+                        setIsMenuOpen(false);
+                      }}
+                      style={{
+                        border: `1px solid ${activeModule === module.key ? '#fb7185' : '#fecdd3'}`,
+                        background: activeModule === module.key ? '#ffe4e6' : '#fff',
+                        borderRadius: '12px',
+                        padding: '10px 8px',
+                        minHeight: '78px',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '4px',
+                        color: '#881337',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      <span style={{ fontSize: '1.12rem' }}>{module.icon}</span>
+                      <span style={{ fontSize: '0.69rem', fontWeight: 700, textAlign: 'center', lineHeight: 1.2 }}>{module.label}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+        </>
+      )}
+
       {receiptPreview && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: isMobile ? '12px' : '20px' }}>
           <div style={{ width: '100%', maxWidth: '560px', background: '#fff', borderRadius: '14px', border: '1px solid #dbeafe', boxShadow: '0 20px 40px rgba(15, 23, 42, 0.3)', overflow: 'hidden' }}>
