@@ -64,6 +64,11 @@ mongoose.connect(MONGODB_URI, {
 app.use('/api/auth', authRoutes);
 app.use('/api/attachments', attachmentRoutes);
 
+// Health check endpoint
+app.get('/api/health', (req, res) => {
+    res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
 // Serve static files and SPA
 const clientBuildPath = path.join(__dirname, '../client/build');
 app.use(express.static(clientBuildPath));
