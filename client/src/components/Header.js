@@ -1,9 +1,23 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 
 const Header = () => {
     const [isMobile, setIsMobile] = useState(() => window.innerWidth < 900);
     const [openGroup, setOpenGroup] = useState(null);
+    const closeTimer = useRef(null);
+
+    const openDropdown = (key) => {
+        if (closeTimer.current) clearTimeout(closeTimer.current);
+        setOpenGroup(key);
+    };
+
+    const scheduleClose = () => {
+        closeTimer.current = setTimeout(() => setOpenGroup(null), 180);
+    };
+
+    const cancelClose = () => {
+        if (closeTimer.current) clearTimeout(closeTimer.current);
+    };
 
     useEffect(() => {
         const onResize = () => setIsMobile(window.innerWidth < 900);
@@ -92,8 +106,8 @@ const Header = () => {
                             <li
                                 key={group.key}
                                 style={{ position: 'relative' }}
-                                onMouseEnter={() => !isMobile && setOpenGroup(group.key)}
-                                onMouseLeave={() => !isMobile && setOpenGroup(null)}
+                                onMouseEnter={() => { if (!isMobile) { cancelClose(); openDropdown(group.key); } }}
+                                onMouseLeave={() => { if (!isMobile) scheduleClose(); }}
                             >
                                 <button
                                     type="button"
@@ -103,7 +117,12 @@ const Header = () => {
                                     {group.label} ▾
                                 </button>
                                 {isOpen && (
-                                    <div style={{ position: 'absolute', top: 'calc(100% + 8px)', left: 0, minWidth: '220px', background: '#f8fafc', border: '1px solid #bfdbfe', borderRadius: '10px', padding: '8px', boxShadow: '0 12px 24px rgba(15, 23, 42, 0.2)', zIndex: 30 }}>
+                                    <div
+                                        onMouseEnter={cancelClose}
+                                        onMouseLeave={scheduleClose}
+                                        style={{ position: 'absolute', top: '100%', left: 0, paddingTop: '6px', minWidth: '220px', zIndex: 30 }}
+                                    >
+                                    <div style={{ background: '#f8fafc', border: '1px solid #bfdbfe', borderRadius: '10px', padding: '8px', boxShadow: '0 12px 24px rgba(15, 23, 42, 0.2)' }}>
                                         {group.items.map((item) => (
                                             <Link
                                                 key={item.to}
@@ -114,8 +133,7 @@ const Header = () => {
                                                 {item.label}
                                             </Link>
                                         ))}
-                                    </div>
-                                )}
+                                    </div>                                    </div>                                )}
                             </li>
                         );
                     })}
