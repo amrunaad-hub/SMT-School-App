@@ -21,7 +21,21 @@ app.use(cors({
     origin: allowedOrigin === '*' ? true : allowedOrigin,
     credentials: false,
 }));
-app.use(helmet());
+app.use(helmet({
+    contentSecurityPolicy: {
+        directives: {
+            defaultSrc: ["'self'"],
+            scriptSrc: ["'self'", "'sha256-nfXs/PmEUs4hjGb0t/9ooCrNLsAQ9wVSXqfYybeGuqc='"],
+            styleSrc: ["'self'", "'unsafe-inline'"],
+            imgSrc: ["'self'", "data:", "blob:"],
+            connectSrc: ["'self'"],
+            fontSrc: ["'self'", "data:"],
+            objectSrc: ["'none'"],
+            mediaSrc: ["'self'"],
+            frameSrc: ["'none'"],
+        },
+    },
+}));
 
 const apiLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
