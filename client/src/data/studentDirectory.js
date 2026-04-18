@@ -27,83 +27,74 @@ const NON_MAHARASHTRIAN_SURNAMES = [
 ];
 
 const TOTAL_STUDENTS = GRADES.length * DIVISIONS.length * STUDENTS_PER_DIVISION;
-const MAHARASHTRIAN_TARGET = Math.floor(TOTAL_STUDENTS * 0.8);
-const MAX_FIRST_NAME_REPEAT = Math.max(2, Math.floor(TOTAL_STUDENTS * 0.02));
+const MAX_SURNAME_REPEAT = Math.max(2, Math.floor(TOTAL_STUDENTS * 0.03));
+const MAX_FIRST_NAME_REPEAT = Math.max(2, Math.floor(TOTAL_STUDENTS * 0.05));
+const ALL_FIRST_NAMES = [...MAHARASHTRIAN_FIRST_NAMES, ...NON_MAHARASHTRIAN_FIRST_NAMES];
+const ALL_SURNAMES = [...MAHARASHTRIAN_SURNAMES, ...NON_MAHARASHTRIAN_SURNAMES];
 
 const formatDivision = (division) => `${division.charAt(0).toUpperCase()}${division.slice(1)}`;
 
-const getComboName = (pointer, firstNamePool, surnamePool) => {
-  const firstIndex = pointer % firstNamePool.length;
-  const surnameIndex = Math.floor(pointer / firstNamePool.length) % surnamePool.length;
-  return {
-    firstName: firstNamePool[firstIndex],
-    surname: surnamePool[surnameIndex],
-  };
+const shuffle = (items) => {
+  const result = [...items];
+  for (let i = result.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [result[i], result[j]] = [result[j], result[i]];
+  }
+  return result;
+};
+
+const buildRandomNamePool = () => {
+  const namePool = [];
+  const usedFullNames = new Set();
+  const firstNameUsage = new Map();
+  const surnameUsage = new Map();
+  let attempts = 0;
+  const maxAttempts = TOTAL_STUDENTS * 120;
+
+  while (namePool.length < TOTAL_STUDENTS && attempts < maxAttempts) {
+    attempts += 1;
+
+    const firstName = ALL_FIRST_NAMES[Math.floor(Math.random() * ALL_FIRST_NAMES.length)];
+    const surname = ALL_SURNAMES[Math.floor(Math.random() * ALL_SURNAMES.length)];
+    const fullName = `${firstName} ${surname}`;
+    const firstCount = firstNameUsage.get(firstName) || 0;
+    const surnameCount = surnameUsage.get(surname) || 0;
+
+    if (usedFullNames.has(fullName)) {
+      continue;
+    }
+
+    if (firstCount >= MAX_FIRST_NAME_REPEAT || surnameCount >= MAX_SURNAME_REPEAT) {
+      continue;
+    }
+
+    usedFullNames.add(fullName);
+    firstNameUsage.set(firstName, firstCount + 1);
+    surnameUsage.set(surname, surnameCount + 1);
+    namePool.push({
+      fullName,
+      firstName,
+      surname,
+      isMaharashtrian: MAHARASHTRIAN_SURNAMES.includes(surname),
+    });
+  }
+
+  if (namePool.length < TOTAL_STUDENTS) {
+    throw new Error('Unable to build balanced student name pool with current constraints.');
+  }
+
+  return shuffle(namePool);
 };
 
 const buildStudentDirectory = () => {
   const students = [];
-  const usedFullNames = new Set();
-  const firstNameUsage = new Map();
-  let maharashtrianPointer = 0;
-  let nonMaharashtrianPointer = 0;
-
-  const pickUniqueName = (isMaharashtrian) => {
-    const firstNamePool = isMaharashtrian ? MAHARASHTRIAN_FIRST_NAMES : NON_MAHARASHTRIAN_FIRST_NAMES;
-    const surnamePool = isMaharashtrian ? MAHARASHTRIAN_SURNAMES : NON_MAHARASHTRIAN_SURNAMES;
-    const poolSize = firstNamePool.length * surnamePool.length;
-
-    for (let attempt = 0; attempt < poolSize; attempt += 1) {
-      const pointer = isMaharashtrian ? maharashtrianPointer + attempt : nonMaharashtrianPointer + attempt;
-      const { firstName, surname } = getComboName(pointer, firstNamePool, surnamePool);
-      const fullName = `${firstName} ${surname}`;
-      const currentUsage = firstNameUsage.get(firstName) || 0;
-
-      if (!usedFullNames.has(fullName) && currentUsage < MAX_FIRST_NAME_REPEAT) {
-        if (isMaharashtrian) {
-          maharashtrianPointer = pointer + 1;
-        } else {
-          nonMaharashtrianPointer = pointer + 1;
-        }
-
-        usedFullNames.add(fullName);
-        firstNameUsage.set(firstName, currentUsage + 1);
-        return { fullName, firstName, surname, isMaharashtrian };
-      }
-    }
-
-    for (let attempt = 0; attempt < poolSize; attempt += 1) {
-      const pointer = isMaharashtrian ? maharashtrianPointer + attempt : nonMaharashtrianPointer + attempt;
-      const { firstName, surname } = getComboName(pointer, firstNamePool, surnamePool);
-      const fullName = `${firstName} ${surname}`;
-
-      if (!usedFullNames.has(fullName)) {
-        if (isMaharashtrian) {
-          maharashtrianPointer = pointer + 1;
-        } else {
-          nonMaharashtrianPointer = pointer + 1;
-        }
-
-        usedFullNames.add(fullName);
-        firstNameUsage.set(firstName, (firstNameUsage.get(firstName) || 0) + 1);
-        return { fullName, firstName, surname, isMaharashtrian };
-      }
-    }
-
-    return null;
-  };
-
+  const randomizedNames = buildRandomNamePool();
   let globalIndex = 0;
 
   GRADES.forEach((grade) => {
     DIVISIONS.forEach((division) => {
       for (let rollNo = 1; rollNo <= STUDENTS_PER_DIVISION; rollNo += 1) {
-        const isMaharashtrian = globalIndex < MAHARASHTRIAN_TARGET;
-        const chosenName = pickUniqueName(isMaharashtrian);
-
-        if (!chosenName) {
-          continue;
-        }
+        const chosenName = randomizedNames[globalIndex];
 
         const id = `${grade}-${division}-${rollNo}`;
         students.push({
