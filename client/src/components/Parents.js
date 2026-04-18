@@ -45,8 +45,8 @@ const Parents = () => {
     photo: 'https://via.placeholder.com/150',
   };
 
-  // Extended attendance data
-  const fullAttendanceData = [
+  // Extended attendance data (memoized to prevent dependency issues)
+  const fullAttendanceData = useMemo(() => [
     { date: '2026-04-01', status: 'present', type: 'regular' },
     { date: '2026-04-02', status: 'present', type: 'regular' },
     { date: '2026-04-03', status: 'absent', type: 'advance', reason: 'Medical leave' },
@@ -62,7 +62,7 @@ const Parents = () => {
     { date: '2026-04-13', status: 'present', type: 'regular' },
     { date: '2026-04-14', status: 'present', type: 'regular' },
     { date: '2026-04-15', status: 'absent', type: 'advance', reason: 'Doctor appointment' },
-  ];
+  ], []);
 
   // Get last 10 days of attendance
   const last10DaysAttendance = useMemo(() => {
