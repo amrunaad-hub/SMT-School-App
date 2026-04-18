@@ -83,6 +83,8 @@ const Header = () => {
         background: '#ffffff',
     };
 
+    const mobileNavItemStyle = isMobile ? { flex: '1 1 calc(50% - 10px)', minWidth: '140px' } : {};
+
     return (
         <header style={{ background: 'linear-gradient(135deg, #1e40af 0%, #1e3a8a 100%)', color: 'white', padding: isMobile ? '14px 12px' : '20px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px', boxShadow: '0 4px 16px rgba(0, 0, 0, 0.15)', position: 'relative', zIndex: 50 }}>
             <Link to="/" style={{ display: 'flex', alignItems: 'center', gap: '12px', width: isMobile ? '100%' : 'auto', textDecoration: 'none', color: 'inherit' }}>
@@ -93,26 +95,26 @@ const Header = () => {
                 </div>
             </Link>
             <nav style={{ width: isMobile ? '100%' : 'auto', overflow: 'visible' }}>
-                <ul style={{ display: 'flex', gap: '10px', listStyle: 'none', margin: 0, padding: 0, flexWrap: 'nowrap', overflow: 'visible', scrollbarWidth: 'thin' }}>
-                    <li>
-                        <Link style={{ ...topLinkStyle, background: 'rgba(16,185,129,0.25)', border: '2px solid rgba(16,185,129,0.55)' }} to="/">🏠 Home</Link>
+                <ul style={{ display: 'flex', gap: '10px', listStyle: 'none', margin: 0, padding: 0, flexWrap: isMobile ? 'wrap' : 'nowrap', overflow: 'visible', scrollbarWidth: 'thin' }}>
+                    <li style={mobileNavItemStyle}>
+                        <Link style={{ ...topLinkStyle, width: isMobile ? '100%' : 'auto', textAlign: 'center', background: 'rgba(16,185,129,0.25)', border: '2px solid rgba(16,185,129,0.55)' }} to="/">🏠 Home</Link>
                     </li>
-                    <li>
-                        <Link style={topLinkStyle} to="/command-center">🎛️ Command</Link>
+                    <li style={mobileNavItemStyle}>
+                        <Link style={{ ...topLinkStyle, width: isMobile ? '100%' : 'auto', textAlign: 'center' }} to="/command-center">🎛️ Command</Link>
                     </li>
                     {groupedNav.map((group) => {
                         const isOpen = openGroup === group.key;
                         return (
                             <li
                                 key={group.key}
-                                style={{ position: 'relative' }}
+                                style={{ ...mobileNavItemStyle, position: 'relative' }}
                                 onMouseEnter={() => { if (!isMobile) { cancelClose(); openDropdown(group.key); } }}
                                 onMouseLeave={() => { if (!isMobile) scheduleClose(); }}
                             >
                                 <button
                                     type="button"
                                     onClick={() => setOpenGroup(isOpen ? null : group.key)}
-                                    style={{ ...topLinkStyle, fontFamily: 'inherit' }}
+                                    style={{ ...topLinkStyle, width: isMobile ? '100%' : 'auto', textAlign: 'center', fontFamily: 'inherit' }}
                                 >
                                     {group.label} ▾
                                 </button>
@@ -120,20 +122,22 @@ const Header = () => {
                                     <div
                                         onMouseEnter={cancelClose}
                                         onMouseLeave={scheduleClose}
-                                        style={{ position: 'absolute', top: '100%', left: 0, paddingTop: '6px', minWidth: '220px', zIndex: 30 }}
+                                        style={{ position: isMobile ? 'static' : 'absolute', top: isMobile ? 'auto' : '100%', left: 0, paddingTop: isMobile ? '8px' : '6px', minWidth: isMobile ? '100%' : '220px', width: isMobile ? '100%' : 'auto', zIndex: 30 }}
                                     >
-                                    <div style={{ background: '#f8fafc', border: '1px solid #bfdbfe', borderRadius: '10px', padding: '8px', boxShadow: '0 12px 24px rgba(15, 23, 42, 0.2)' }}>
-                                        {group.items.map((item) => (
-                                            <Link
-                                                key={item.to}
-                                                to={item.to}
-                                                onClick={() => setOpenGroup(null)}
-                                                style={dropdownItemStyle}
-                                            >
-                                                {item.label}
-                                            </Link>
-                                        ))}
-                                    </div>                                    </div>                                )}
+                                        <div style={{ background: '#f8fafc', border: '1px solid #bfdbfe', borderRadius: '10px', padding: '8px', boxShadow: '0 12px 24px rgba(15, 23, 42, 0.2)' }}>
+                                            {group.items.map((item) => (
+                                                <Link
+                                                    key={item.to}
+                                                    to={item.to}
+                                                    onClick={() => setOpenGroup(null)}
+                                                    style={dropdownItemStyle}
+                                                >
+                                                    {item.label}
+                                                </Link>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
                             </li>
                         );
                     })}
