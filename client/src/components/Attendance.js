@@ -1,11 +1,42 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 
+const getAcademicYearLabel = (date) => {
+  const year = date.getFullYear();
+  const month = date.getMonth();
+  const startYear = month >= 3 ? year : year - 1;
+  const endYear = startYear + 1;
+  return `${startYear}-${String(endYear).slice(-2)}`;
+};
+
+const getSaturdayOccurrence = (date) => {
+  return Math.floor((date.getDate() - 1) / 7) + 1;
+};
+
+const getOperationalDayStatus = (date) => {
+  const day = date.getDay();
+  if (day === 0) {
+    return { isWorkingDay: false, label: 'Sunday Off' };
+  }
+  if (day === 6) {
+    const occurrence = getSaturdayOccurrence(date);
+    if (occurrence === 2 || occurrence === 4) {
+      return { isWorkingDay: false, label: `${occurrence}${occurrence === 2 ? 'nd' : 'th'} Saturday Off` };
+    }
+    return { isWorkingDay: true, label: `${occurrence}${occurrence === 1 ? 'st' : occurrence === 3 ? 'rd' : 'th'} Saturday Working` };
+  }
+  return { isWorkingDay: true, label: 'Regular Working Day' };
+};
+
 const Attendance = () => {
   const [selectedGrade, setSelectedGrade] = useState(null);
   const [selectedDivision, setSelectedDivision] = useState(null);
   const [selectedDate, setSelectedDate] = useState('2026-04-18');
   const [isMobile, setIsMobile] = useState(() => window.innerWidth < 900);
   const detailsRef = useRef(null);
+
+  const selectedDateObject = useMemo(() => new Date(`${selectedDate}T00:00:00`), [selectedDate]);
+  const operationalDayStatus = useMemo(() => getOperationalDayStatus(selectedDateObject), [selectedDateObject]);
+  const academicYearLabel = useMemo(() => getAcademicYearLabel(selectedDateObject), [selectedDateObject]);
 
   useEffect(() => {
     const onResize = () => setIsMobile(window.innerWidth < 900);
@@ -141,13 +172,32 @@ const Attendance = () => {
   }, [selectedGrade, gradeStats]);
 
   const filteredDailyRecords = useMemo(() => {
+    if (!operationalDayStatus.isWorkingDay) {
+      return [];
+    }
     return dailyAttendance.filter((record) => {
       const gradeMatch = selectedGrade ? record.grade === selectedGrade : true;
       const divisionMatch = selectedDivision ? record.division === selectedDivision : true;
       const dateMatch = selectedDate ? record.date === selectedDate : true;
       return gradeMatch && divisionMatch && dateMatch;
     });
-  }, [selectedGrade, selectedDivision, selectedDate, dailyAttendance]);
+  }, [selectedGrade, selectedDivision, selectedDate, dailyAttendance, operationalDayStatus]);
+
+  const totalsForSelectedDate = useMemo(() => {
+    if (!operationalDayStatus.isWorkingDay) {
+      return { present: 0, absent: 0, attendancePercent: 0 };
+    }
+
+    const totals = filteredDailyRecords.reduce((acc, record) => {
+      acc.present += record.present;
+      acc.absent += record.absent;
+      return acc;
+    }, { present: 0, absent: 0 });
+
+    const strength = totals.present + totals.absent;
+    const attendancePercent = strength > 0 ? Math.round((totals.present / strength) * 100) : 0;
+    return { ...totals, attendancePercent };
+  }, [filteredDailyRecords, operationalDayStatus]);
 
   const selectedGradeText = selectedGrade ? ` for ${selectedGrade}` : '';
   const selectedDivisionText = selectedDivision ? ` / ${selectedDivision}` : '';
@@ -173,15 +223,19 @@ const Attendance = () => {
       <section>
         <h2>Attendance Dashboards</h2>
         <p style={{ color: '#475569', marginTop: '8px' }}>
-          Multi-level attendance analytics with grade, division, daily drill-down, leave planning and absentee alerts.
+          Multi-level attendance analytics with grade, division, daily drill-down, leave planning and absentee alerts. Academic Year {academicYearLabel} (April to March).
         </p>
+        <div style={{ marginTop: '14px', padding: '12px 14px', borderRadius: '12px', border: `2px solid ${operationalDayStatus.isWorkingDay ? '#22c55e' : '#f59e0b'}`, background: operationalDayStatus.isWorkingDay ? '#f0fdf4' : '#fffbeb' }}>
+          <strong style={{ color: operationalDayStatus.isWorkingDay ? '#166534' : '#92400e' }}>Attendance Policy Status: {operationalDayStatus.label}</strong>
+          <p style={{ margin: '6px 0 0', color: operationalDayStatus.isWorkingDay ? '#166534' : '#92400e' }}>Working Saturdays: 1st, 3rd, 5th. Holidays: 2nd Saturday, 4th Saturday, and all Sundays.</p>
+        </div>
       </section>
 
       <section style={{ marginTop: '24px', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '18px' }}>
         <div style={cardStyle}>
           <h3 style={{ marginBottom: '10px' }}>Today&apos;s Attendance</h3>
-          <p style={{ margin: 0, fontSize: '1.75rem', fontWeight: 700 }}>97%</p>
-          <p style={{ marginTop: '8px', color: '#64748b' }}>Overall student attendance on {selectedDate}.</p>
+          <p style={{ margin: 0, fontSize: '1.75rem', fontWeight: 700 }}>{totalsForSelectedDate.attendancePercent}%</p>
+          <p style={{ marginTop: '8px', color: '#64748b' }}>{operationalDayStatus.isWorkingDay ? `Overall student attendance on ${selectedDate}.` : `No attendance is recorded because ${operationalDayStatus.label.toLowerCase()}.`}</p>
         </div>
         <div style={cardStyle}>
           <h3 style={{ marginBottom: '10px' }}>Leaves Applied in Advance</h3>
@@ -285,6 +339,16 @@ const Attendance = () => {
             <p style={{ margin: '8px 0 0', color: '#64748b' }}>Date filter and detailed attendance records by grade and division.</p>
           </div>
           <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+            <input
+              type="date"
+              value={selectedDate}
+              onChange={(e) => setSelectedDate(e.target.value)}
+              style={{
+                ...buttonStyle,
+                minWidth: isMobile ? '100%' : '170px',
+                padding: '9px 12px',
+              }}
+            />
             <button type="button" style={buttonStyle} onClick={() => setSelectedDate('2026-04-18')}>
               18 Apr
             </button>
@@ -304,7 +368,7 @@ const Attendance = () => {
                   <p style={{ marginTop: '6px', color: '#64748b', fontSize: '0.85rem' }}>{record.records.map((r) => `${r.name} (${r.status})`).join(', ')}</p>
                 </article>
               )) : (
-                <p style={{ color: '#64748b' }}>No attendance records available for the selected filter.</p>
+                <p style={{ color: '#64748b' }}>{operationalDayStatus.isWorkingDay ? 'No attendance records available for the selected filter.' : `School is off (${operationalDayStatus.label}), so attendance is not applicable for this date.`}</p>
               )}
             </div>
           ) : (
@@ -335,7 +399,7 @@ const Attendance = () => {
                   ) : (
                     <tr>
                       <td colSpan="6" style={{ padding: '18px 16px', color: '#64748b', textAlign: 'center' }}>
-                        No attendance records available for the selected filter.
+                        {operationalDayStatus.isWorkingDay ? 'No attendance records available for the selected filter.' : `School is off (${operationalDayStatus.label}), so attendance is not applicable for this date.`}
                       </td>
                     </tr>
                   )}

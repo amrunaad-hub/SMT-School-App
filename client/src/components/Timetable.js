@@ -1,17 +1,69 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 
+const formatDateLabel = (date) => {
+  return date.toLocaleDateString('en-IN', {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric'
+  });
+};
+
+const getAcademicYearLabel = (date) => {
+  const year = date.getFullYear();
+  const month = date.getMonth();
+  const startYear = month >= 3 ? year : year - 1;
+  const endYear = startYear + 1;
+  return `${startYear}-${String(endYear).slice(-2)}`;
+};
+
+const getSaturdayOccurrence = (date) => {
+  return Math.floor((date.getDate() - 1) / 7) + 1;
+};
+
+const getOperationalDayStatus = (date) => {
+  const day = date.getDay();
+  const monthName = date.toLocaleDateString('en-IN', { month: 'long' });
+
+  if (day === 0) {
+    return {
+      isWorkingDay: false,
+      label: 'Sunday Off',
+      detail: `All Sundays are marked as non-working days. ${formatDateLabel(date)} is a holiday.`,
+    };
+  }
+
+  if (day === 6) {
+    const occurrence = getSaturdayOccurrence(date);
+    if (occurrence === 2 || occurrence === 4) {
+      return {
+        isWorkingDay: false,
+        label: `${occurrence}${occurrence === 2 ? 'nd' : 'th'} Saturday Off`,
+        detail: `${occurrence}${occurrence === 2 ? 'nd' : 'th'} Saturday in ${monthName} is a holiday as per timetable policy.`,
+      };
+    }
+
+    return {
+      isWorkingDay: true,
+      label: `${occurrence}${occurrence === 1 ? 'st' : occurrence === 3 ? 'rd' : 'th'} Saturday Working`,
+      detail: `${occurrence}${occurrence === 1 ? 'st' : occurrence === 3 ? 'rd' : 'th'} Saturday is a full working timetable day.`,
+    };
+  }
+
+  return {
+    isWorkingDay: true,
+    label: 'Regular Working Day',
+    detail: 'Regular weekday timetable is active.',
+  };
+};
+
 const Timetable = () => {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [isMobile, setIsMobile] = useState(() => window.innerWidth < 960);
 
   const formatDate = (date) => {
-    return date.toLocaleDateString('en-IN', {
-      weekday: 'long',
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric'
-    });
+    return formatDateLabel(date);
   };
 
   const navigateDate = (direction) => {
@@ -104,6 +156,8 @@ const Timetable = () => {
   const { timetable, timeSlots } = useMemo(() => generateConsolidatedTimetable(), []);
   const classNames = Object.keys(timetable);
   const [selectedClass, setSelectedClass] = useState(classNames[0]);
+  const operationalDayStatus = useMemo(() => getOperationalDayStatus(currentDate), [currentDate]);
+  const academicYearLabel = useMemo(() => getAcademicYearLabel(currentDate), [currentDate]);
 
   useEffect(() => {
     const onResize = () => setIsMobile(window.innerWidth < 960);
@@ -195,10 +249,20 @@ const Timetable = () => {
       <section>
         <h2 style={{ fontSize: '1.8rem', color: '#1e40af', fontWeight: '700', marginBottom: '8px' }}>⏰ School Timetable</h2>
         <p style={{ color: '#475569', marginBottom: '20px', fontSize: '1rem', fontWeight: '500' }}>
-          📅 Consolidated daily timetable for Grades 1-4. Click on any period for details.
+          📅 Consolidated daily timetable for Grades 1-4. Academic Year {academicYearLabel} (April to March).
         </p>
 
-        {isMobile ? (
+        <div style={{ marginBottom: '18px', padding: isMobile ? '12px' : '14px 16px', borderRadius: '12px', border: `2px solid ${operationalDayStatus.isWorkingDay ? '#16a34a' : '#f59e0b'}`, background: operationalDayStatus.isWorkingDay ? '#f0fdf4' : '#fffbeb' }}>
+          <strong style={{ color: operationalDayStatus.isWorkingDay ? '#166534' : '#92400e' }}>Day Status: {operationalDayStatus.label}</strong>
+          <p style={{ margin: '6px 0 0', color: operationalDayStatus.isWorkingDay ? '#166534' : '#92400e' }}>{operationalDayStatus.detail}</p>
+        </div>
+
+        {!operationalDayStatus.isWorkingDay ? (
+          <section style={{ border: '2px dashed #f59e0b', background: '#fffbeb', borderRadius: '14px', padding: isMobile ? '16px' : '20px' }}>
+            <h3 style={{ margin: 0, color: '#92400e' }}>No Timetable Periods Today</h3>
+            <p style={{ margin: '8px 0 0', color: '#92400e' }}>Classes are not scheduled for this date based on your Saturday/Sunday working policy.</p>
+          </section>
+        ) : isMobile ? (
           <section>
             <div style={{ marginBottom: '14px' }}>
               <label htmlFor="class-picker" style={{ display: 'block', marginBottom: '8px', fontWeight: 600, color: '#1e40af', fontSize: '1rem' }}>
