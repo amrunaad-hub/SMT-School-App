@@ -1,8 +1,15 @@
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 
 const Admissions = () => {
   const [selectedGrade, setSelectedGrade] = useState(null);
+  const [isMobile, setIsMobile] = useState(() => window.innerWidth < 900);
   const detailsRef = useRef(null);
+
+  useEffect(() => {
+    const onResize = () => setIsMobile(window.innerWidth < 900);
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
 
   const gradeStats = [
     { grade: 'Grade 1', enquiries: 48, inProcess: 18, confirmed: 12, rejected: 4 },
@@ -86,7 +93,7 @@ const Admissions = () => {
   );
 
   return (
-    <main style={{ padding: '28px', maxWidth: '1240px', margin: '0 auto', color: '#0f172a' }}>
+    <main style={{ padding: isMobile ? '16px' : '28px', maxWidth: '1240px', margin: '0 auto', color: '#0f172a' }}>
       <section>
         <h2>Admissions Dashboards</h2>
         <p style={{ color: '#475569', marginTop: '8px' }}>
@@ -94,7 +101,7 @@ const Admissions = () => {
         </p>
       </section>
 
-      <section style={{ ...sectionStyle, marginTop: '20px' }}>
+      <section style={{ ...sectionStyle, marginTop: '20px', padding: isMobile ? '16px' : sectionStyle.padding }}>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '18px' }}>
           <div style={cardStyle}>
             <h3 style={{ marginBottom: '10px' }}>Total Enquiries</h3>
@@ -119,7 +126,7 @@ const Admissions = () => {
         </div>
       </section>
 
-      <section style={sectionStyle}>
+      <section style={{ ...sectionStyle, padding: isMobile ? '16px' : sectionStyle.padding }}>
         <h3 style={{ marginBottom: '18px' }}>Grade-wise Admission Funnel</h3>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '18px' }}>
           {gradeStats.map((stat) => (
@@ -162,7 +169,7 @@ const Admissions = () => {
         </div>
       </section>
 
-      <section style={sectionStyle} ref={detailsRef}>
+      <section style={{ ...sectionStyle, padding: isMobile ? '16px' : sectionStyle.padding }} ref={detailsRef}>
         <h3 style={{ marginBottom: '18px' }}>Enquiry Details</h3>
         {selectedGrade && (
           <div style={{ marginBottom: '14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
@@ -185,68 +192,100 @@ const Admissions = () => {
             </button>
           </div>
         )}
-        <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '860px' }}>
-            <thead>
-              <tr style={{ textAlign: 'left', borderBottom: '2px solid #e2e8f0' }}>
-                <th style={{ padding: '12px 16px' }}>Student</th>
-                <th style={{ padding: '12px 16px' }}>Grade</th>
-                <th style={{ padding: '12px 16px' }}>Current School</th>
-                <th style={{ padding: '12px 16px' }}>Reason</th>
-                <th style={{ padding: '12px 16px' }}>Area</th>
-                <th style={{ padding: '12px 16px' }}>Follow-up</th>
-                <th style={{ padding: '12px 16px' }}>Source</th>
-              </tr>
-            </thead>
-            <tbody>
-              {displayedEnquiries.length > 0 ? (
-                displayedEnquiries.map((detail) => (
-                  <tr key={detail.id} style={{ borderBottom: '1px solid #e2e8f0' }}>
-                    <td style={{ padding: '14px 16px' }}>{detail.name}</td>
-                    <td style={{ padding: '14px 16px' }}>{detail.grade}</td>
-                    <td style={{ padding: '14px 16px' }}>{detail.currentSchool}</td>
-                    <td style={{ padding: '14px 16px' }}>{detail.enquiryType}</td>
-                    <td style={{ padding: '14px 16px' }}>{detail.area}</td>
-                    <td style={{ padding: '14px 16px' }}>{detail.followUp}</td>
-                    <td style={{ padding: '14px 16px' }}>{detail.source}</td>
-                  </tr>
-                ))
-              ) : (
-                <tr>
-                  <td colSpan="7" style={{ padding: '18px 16px', color: '#64748b', textAlign: 'center' }}>
-                    No enquiries found for {selectedGrade}.
-                  </td>
+        {isMobile ? (
+          <div style={{ display: 'grid', gap: '12px' }}>
+            {displayedEnquiries.length > 0 ? displayedEnquiries.map((detail) => (
+              <article key={detail.id} style={{ border: '1px solid #e2e8f0', borderRadius: '12px', padding: '12px', background: '#f8fafc' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px' }}>
+                  <strong>{detail.name}</strong>
+                  <span style={{ color: '#475569', fontSize: '0.86rem' }}>{detail.grade}</span>
+                </div>
+                <p style={{ marginTop: '8px', color: '#334155' }}>{detail.currentSchool}</p>
+                <p style={{ marginTop: '6px', color: '#475569', fontSize: '0.9rem' }}>{detail.enquiryType} • {detail.area}</p>
+                <p style={{ marginTop: '6px', color: '#475569', fontSize: '0.88rem' }}>{detail.followUp}</p>
+                <p style={{ marginTop: '6px', color: '#64748b', fontSize: '0.82rem' }}>Source: {detail.source}</p>
+              </article>
+            )) : (
+              <p style={{ color: '#64748b' }}>No enquiries found for {selectedGrade}.</p>
+            )}
+          </div>
+        ) : (
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '860px' }}>
+              <thead>
+                <tr style={{ textAlign: 'left', borderBottom: '2px solid #e2e8f0' }}>
+                  <th style={{ padding: '12px 16px' }}>Student</th>
+                  <th style={{ padding: '12px 16px' }}>Grade</th>
+                  <th style={{ padding: '12px 16px' }}>Current School</th>
+                  <th style={{ padding: '12px 16px' }}>Reason</th>
+                  <th style={{ padding: '12px 16px' }}>Area</th>
+                  <th style={{ padding: '12px 16px' }}>Follow-up</th>
+                  <th style={{ padding: '12px 16px' }}>Source</th>
                 </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {displayedEnquiries.length > 0 ? (
+                  displayedEnquiries.map((detail) => (
+                    <tr key={detail.id} style={{ borderBottom: '1px solid #e2e8f0' }}>
+                      <td style={{ padding: '14px 16px' }}>{detail.name}</td>
+                      <td style={{ padding: '14px 16px' }}>{detail.grade}</td>
+                      <td style={{ padding: '14px 16px' }}>{detail.currentSchool}</td>
+                      <td style={{ padding: '14px 16px' }}>{detail.enquiryType}</td>
+                      <td style={{ padding: '14px 16px' }}>{detail.area}</td>
+                      <td style={{ padding: '14px 16px' }}>{detail.followUp}</td>
+                      <td style={{ padding: '14px 16px' }}>{detail.source}</td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan="7" style={{ padding: '18px 16px', color: '#64748b', textAlign: 'center' }}>
+                      No enquiries found for {selectedGrade}.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        )}
       </section>
 
-      <section style={sectionStyle}>
+      <section style={{ ...sectionStyle, padding: isMobile ? '16px' : sectionStyle.padding }}>
         <h3 style={{ marginBottom: '18px' }}>Rejected Applications</h3>
-        <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '720px' }}>
-            <thead>
-              <tr style={{ textAlign: 'left', borderBottom: '2px solid #e2e8f0' }}>
-                <th style={{ padding: '12px 16px' }}>Student</th>
-                <th style={{ padding: '12px 16px' }}>Grade</th>
-                <th style={{ padding: '12px 16px' }}>Reason for Rejection</th>
-                <th style={{ padding: '12px 16px' }}>Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rejectedApplications.map((app) => (
-                <tr key={app.id} style={{ borderBottom: '1px solid #e2e8f0' }}>
-                  <td style={{ padding: '14px 16px' }}>{app.name}</td>
-                  <td style={{ padding: '14px 16px' }}>{app.grade}</td>
-                  <td style={{ padding: '14px 16px' }}>{app.reason}</td>
-                  <td style={{ padding: '14px 16px', color: '#dc2626' }}>{app.status}</td>
+        {isMobile ? (
+          <div style={{ display: 'grid', gap: '10px' }}>
+            {rejectedApplications.map((app) => (
+              <article key={app.id} style={{ border: '1px solid #e2e8f0', borderRadius: '12px', padding: '12px', background: '#fff' }}>
+                <strong>{app.name}</strong>
+                <p style={{ marginTop: '6px', color: '#475569' }}>{app.grade}</p>
+                <p style={{ marginTop: '6px', color: '#334155' }}>{app.reason}</p>
+                <p style={{ marginTop: '6px', color: '#dc2626', fontWeight: 600 }}>{app.status}</p>
+              </article>
+            ))}
+          </div>
+        ) : (
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '720px' }}>
+              <thead>
+                <tr style={{ textAlign: 'left', borderBottom: '2px solid #e2e8f0' }}>
+                  <th style={{ padding: '12px 16px' }}>Student</th>
+                  <th style={{ padding: '12px 16px' }}>Grade</th>
+                  <th style={{ padding: '12px 16px' }}>Reason for Rejection</th>
+                  <th style={{ padding: '12px 16px' }}>Status</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {rejectedApplications.map((app) => (
+                  <tr key={app.id} style={{ borderBottom: '1px solid #e2e8f0' }}>
+                    <td style={{ padding: '14px 16px' }}>{app.name}</td>
+                    <td style={{ padding: '14px 16px' }}>{app.grade}</td>
+                    <td style={{ padding: '14px 16px' }}>{app.reason}</td>
+                    <td style={{ padding: '14px 16px', color: '#dc2626' }}>{app.status}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </section>
     </main>
   );

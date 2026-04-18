@@ -1,10 +1,17 @@
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 
 const Attendance = () => {
   const [selectedGrade, setSelectedGrade] = useState(null);
   const [selectedDivision, setSelectedDivision] = useState(null);
   const [selectedDate, setSelectedDate] = useState('2026-04-18');
+  const [isMobile, setIsMobile] = useState(() => window.innerWidth < 900);
   const detailsRef = useRef(null);
+
+  useEffect(() => {
+    const onResize = () => setIsMobile(window.innerWidth < 900);
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
 
   const gradeStats = useMemo(() => [
     {
@@ -162,7 +169,7 @@ const Attendance = () => {
   };
 
   return (
-    <main style={{ padding: '28px', maxWidth: '1240px', margin: '0 auto', color: '#0f172a' }}>
+    <main style={{ padding: isMobile ? '16px' : '28px', maxWidth: '1240px', margin: '0 auto', color: '#0f172a' }}>
       <section>
         <h2>Attendance Dashboards</h2>
         <p style={{ color: '#475569', marginTop: '8px' }}>
@@ -271,7 +278,7 @@ const Attendance = () => {
         </section>
       )}
 
-      <section style={{ marginTop: '28px', padding: '24px', borderRadius: '20px', background: '#ffffff', boxShadow: '0 18px 45px rgba(15, 23, 42, 0.08)' }} ref={detailsRef}>
+      <section style={{ marginTop: '28px', padding: isMobile ? '16px' : '24px', borderRadius: '20px', background: '#ffffff', boxShadow: '0 18px 45px rgba(15, 23, 42, 0.08)' }} ref={detailsRef}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
           <div>
             <h3 style={{ margin: 0 }}>Daily Attendance Details{selectedGradeText}{selectedDivisionText}</h3>
@@ -286,43 +293,60 @@ const Attendance = () => {
             </button>
           </div>
         </div>
-        <div style={{ marginTop: '22px', overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '860px' }}>
-            <thead>
-              <tr style={{ textAlign: 'left', borderBottom: '2px solid #e2e8f0' }}>
-                <th style={{ padding: '12px 16px' }}>Date</th>
-                <th style={{ padding: '12px 16px' }}>Grade</th>
-                <th style={{ padding: '12px 16px' }}>Division</th>
-                <th style={{ padding: '12px 16px' }}>Present</th>
-                <th style={{ padding: '12px 16px' }}>Absent</th>
-                <th style={{ padding: '12px 16px' }}>Records</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredDailyRecords.length > 0 ? (
-                filteredDailyRecords.map((record, index) => (
-                  <tr key={`${record.grade}-${record.division}-${index}`} style={{ borderBottom: '1px solid #e2e8f0' }}>
-                    <td style={{ padding: '14px 16px' }}>{record.date}</td>
-                    <td style={{ padding: '14px 16px' }}>{record.grade}</td>
-                    <td style={{ padding: '14px 16px' }}>{record.division}</td>
-                    <td style={{ padding: '14px 16px' }}>{record.present}</td>
-                    <td style={{ padding: '14px 16px' }}>{record.absent}</td>
-                    <td style={{ padding: '14px 16px' }}>{record.records.map((r) => `${r.name} (${r.status})`).join(', ')}</td>
-                  </tr>
-                ))
-              ) : (
-                <tr>
-                  <td colSpan="6" style={{ padding: '18px 16px', color: '#64748b', textAlign: 'center' }}>
-                    No attendance records available for the selected filter.
-                  </td>
-                </tr>
+        <div style={{ marginTop: '22px' }}>
+          {isMobile ? (
+            <div style={{ display: 'grid', gap: '10px' }}>
+              {filteredDailyRecords.length > 0 ? filteredDailyRecords.map((record, index) => (
+                <article key={`${record.grade}-${record.division}-${index}`} style={{ border: '1px solid #e2e8f0', borderRadius: '12px', padding: '12px', background: '#f8fafc' }}>
+                  <strong>{record.grade} / {record.division}</strong>
+                  <p style={{ marginTop: '6px', color: '#475569' }}>{record.date}</p>
+                  <p style={{ marginTop: '6px', color: '#334155' }}>Present: {record.present} · Absent: {record.absent}</p>
+                  <p style={{ marginTop: '6px', color: '#64748b', fontSize: '0.85rem' }}>{record.records.map((r) => `${r.name} (${r.status})`).join(', ')}</p>
+                </article>
+              )) : (
+                <p style={{ color: '#64748b' }}>No attendance records available for the selected filter.</p>
               )}
-            </tbody>
-          </table>
+            </div>
+          ) : (
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '860px' }}>
+                <thead>
+                  <tr style={{ textAlign: 'left', borderBottom: '2px solid #e2e8f0' }}>
+                    <th style={{ padding: '12px 16px' }}>Date</th>
+                    <th style={{ padding: '12px 16px' }}>Grade</th>
+                    <th style={{ padding: '12px 16px' }}>Division</th>
+                    <th style={{ padding: '12px 16px' }}>Present</th>
+                    <th style={{ padding: '12px 16px' }}>Absent</th>
+                    <th style={{ padding: '12px 16px' }}>Records</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredDailyRecords.length > 0 ? (
+                    filteredDailyRecords.map((record, index) => (
+                      <tr key={`${record.grade}-${record.division}-${index}`} style={{ borderBottom: '1px solid #e2e8f0' }}>
+                        <td style={{ padding: '14px 16px' }}>{record.date}</td>
+                        <td style={{ padding: '14px 16px' }}>{record.grade}</td>
+                        <td style={{ padding: '14px 16px' }}>{record.division}</td>
+                        <td style={{ padding: '14px 16px' }}>{record.present}</td>
+                        <td style={{ padding: '14px 16px' }}>{record.absent}</td>
+                        <td style={{ padding: '14px 16px' }}>{record.records.map((r) => `${r.name} (${r.status})`).join(', ')}</td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td colSpan="6" style={{ padding: '18px 16px', color: '#64748b', textAlign: 'center' }}>
+                        No attendance records available for the selected filter.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       </section>
 
-      <section style={{ marginTop: '28px', padding: '24px', borderRadius: '20px', background: '#ffffff', boxShadow: '0 18px 45px rgba(15, 23, 42, 0.08)' }}>
+      <section style={{ marginTop: '28px', padding: isMobile ? '16px' : '24px', borderRadius: '20px', background: '#ffffff', boxShadow: '0 18px 45px rgba(15, 23, 42, 0.08)' }}>
         <h3 style={{ marginBottom: '18px' }}>Leave & Absence Analytics</h3>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '18px' }}>
           <div style={cardStyle}>
@@ -342,29 +366,44 @@ const Attendance = () => {
           </div>
         </div>
 
-        <div style={{ marginTop: '24px', overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '860px' }}>
-            <thead>
-              <tr style={{ textAlign: 'left', borderBottom: '2px solid #e2e8f0' }}>
-                <th style={{ padding: '12px 16px' }}>Student</th>
-                <th style={{ padding: '12px 16px' }}>Grade</th>
-                <th style={{ padding: '12px 16px' }}>Type</th>
-                <th style={{ padding: '12px 16px' }}>Date</th>
-                <th style={{ padding: '12px 16px' }}>Notice</th>
-              </tr>
-            </thead>
-            <tbody>
+        <div style={{ marginTop: '24px' }}>
+          {isMobile ? (
+            <div style={{ display: 'grid', gap: '10px' }}>
               {leaveApplications.map((leave) => (
-                <tr key={leave.id} style={{ borderBottom: '1px solid #e2e8f0' }}>
-                  <td style={{ padding: '14px 16px' }}>{leave.student}</td>
-                  <td style={{ padding: '14px 16px' }}>{leave.grade}</td>
-                  <td style={{ padding: '14px 16px' }}>{leave.type}</td>
-                  <td style={{ padding: '14px 16px' }}>{leave.date}</td>
-                  <td style={{ padding: '14px 16px' }}>{leave.notice}</td>
-                </tr>
+                <article key={leave.id} style={{ border: '1px solid #e2e8f0', borderRadius: '12px', padding: '12px', background: '#fff' }}>
+                  <strong>{leave.student}</strong>
+                  <p style={{ marginTop: '6px', color: '#475569' }}>{leave.grade} · {leave.type}</p>
+                  <p style={{ marginTop: '6px', color: '#334155' }}>{leave.date}</p>
+                  <p style={{ marginTop: '6px', color: '#64748b', fontSize: '0.9rem' }}>{leave.notice}</p>
+                </article>
               ))}
-            </tbody>
-          </table>
+            </div>
+          ) : (
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '860px' }}>
+                <thead>
+                  <tr style={{ textAlign: 'left', borderBottom: '2px solid #e2e8f0' }}>
+                    <th style={{ padding: '12px 16px' }}>Student</th>
+                    <th style={{ padding: '12px 16px' }}>Grade</th>
+                    <th style={{ padding: '12px 16px' }}>Type</th>
+                    <th style={{ padding: '12px 16px' }}>Date</th>
+                    <th style={{ padding: '12px 16px' }}>Notice</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {leaveApplications.map((leave) => (
+                    <tr key={leave.id} style={{ borderBottom: '1px solid #e2e8f0' }}>
+                      <td style={{ padding: '14px 16px' }}>{leave.student}</td>
+                      <td style={{ padding: '14px 16px' }}>{leave.grade}</td>
+                      <td style={{ padding: '14px 16px' }}>{leave.type}</td>
+                      <td style={{ padding: '14px 16px' }}>{leave.date}</td>
+                      <td style={{ padding: '14px 16px' }}>{leave.notice}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       </section>
 

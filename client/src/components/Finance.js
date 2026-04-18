@@ -1,6 +1,14 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 
 const Finance = () => {
+  const [isMobile, setIsMobile] = useState(() => window.innerWidth < 900);
+
+  useEffect(() => {
+    const onResize = () => setIsMobile(window.innerWidth < 900);
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
+
   const formatCurrency = (value) => `₹${value.toLocaleString('en-IN')}`;
 
   const gradeCollection = [
@@ -77,7 +85,7 @@ const Finance = () => {
   };
 
   return (
-    <main style={{ padding: '28px', maxWidth: '1240px', margin: '0 auto', color: '#0f172a' }}>
+    <main style={{ padding: isMobile ? '16px' : '28px', maxWidth: '1240px', margin: '0 auto', color: '#0f172a' }}>
       <section>
         <h2>Fee Management Dashboards</h2>
         <p style={{ color: '#475569', marginTop: '8px' }}>
@@ -85,7 +93,7 @@ const Finance = () => {
         </p>
       </section>
 
-      <section style={{ ...sectionStyle, marginTop: '20px' }}>
+      <section style={{ ...sectionStyle, marginTop: '20px', padding: isMobile ? '16px' : sectionStyle.padding }}>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '16px' }}>
           <div style={{ ...cardStyle, flex: '1 1 220px' }}>
             <h3 style={{ marginBottom: '10px' }}>Annual Fee</h3>
@@ -105,7 +113,7 @@ const Finance = () => {
         </div>
       </section>
 
-      <section style={sectionStyle}>
+      <section style={{ ...sectionStyle, padding: isMobile ? '16px' : sectionStyle.padding }}>
         <h3 style={{ marginBottom: '18px' }}>Grade-wise Fee Collection Status</h3>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '18px' }}>
           {gradeCollection.map((grade) => (
@@ -142,9 +150,9 @@ const Finance = () => {
         </div>
       </section>
 
-      <section style={sectionStyle}>
+      <section style={{ ...sectionStyle, padding: isMobile ? '16px' : sectionStyle.padding }}>
         <h3 style={{ marginBottom: '18px' }}>Payment Method Collection Mix</h3>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 260px', gap: '20px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 260px', gap: '20px' }}>
           <div style={{ padding: '20px', borderRadius: '18px', background: '#f8fafc', border: '1px solid #e2e8f0' }}>
             {paymentMethods.map((item) => (
               <div key={item.method} style={{ marginBottom: '16px' }}>
@@ -170,7 +178,7 @@ const Finance = () => {
         </div>
       </section>
 
-      <section style={sectionStyle}>
+      <section style={{ ...sectionStyle, padding: isMobile ? '16px' : sectionStyle.padding }}>
         <h3 style={{ marginBottom: '18px' }}>Instalment Progress</h3>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px' }}>
           {installmentSummary.map((installment) => {
@@ -189,34 +197,49 @@ const Finance = () => {
         </div>
       </section>
 
-      <section style={sectionStyle}>
+      <section style={{ ...sectionStyle, padding: isMobile ? '16px' : sectionStyle.padding }}>
         <h3 style={{ marginBottom: '18px' }}>Concession / Late Payment Requests</h3>
-        <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '720px' }}>
-            <thead>
-              <tr style={{ textAlign: 'left', borderBottom: '2px solid #e2e8f0' }}>
-                <th style={{ padding: '12px 16px' }}>Student</th>
-                <th style={{ padding: '12px 16px' }}>Grade</th>
-                <th style={{ padding: '12px 16px' }}>Amount</th>
-                <th style={{ padding: '12px 16px' }}>Reason</th>
-                <th style={{ padding: '12px 16px' }}>Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {concessionRequests.map((request) => (
-                <tr key={request.student} style={{ borderBottom: '1px solid #e2e8f0' }}>
-                  <td style={{ padding: '14px 16px' }}>{request.student}</td>
-                  <td style={{ padding: '14px 16px' }}>{request.grade}</td>
-                  <td style={{ padding: '14px 16px' }}>{formatCurrency(request.amount)}</td>
-                  <td style={{ padding: '14px 16px' }}>{request.reason}</td>
-                  <td style={{ padding: '14px 16px', color: request.status === 'Approved' ? '#166534' : request.status === 'Under review' ? '#92400e' : '#1d4ed8' }}>
-                    {request.status}
-                  </td>
+        {isMobile ? (
+          <div style={{ display: 'grid', gap: '10px' }}>
+            {concessionRequests.map((request) => (
+              <article key={request.student} style={{ border: '1px solid #e2e8f0', borderRadius: '12px', padding: '12px', background: '#fff' }}>
+                <strong>{request.student}</strong>
+                <p style={{ marginTop: '6px', color: '#475569' }}>{request.grade} · {formatCurrency(request.amount)}</p>
+                <p style={{ marginTop: '6px', color: '#334155' }}>{request.reason}</p>
+                <p style={{ marginTop: '6px', color: request.status === 'Approved' ? '#166534' : request.status === 'Under review' ? '#92400e' : '#1d4ed8', fontWeight: 600 }}>
+                  {request.status}
+                </p>
+              </article>
+            ))}
+          </div>
+        ) : (
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '720px' }}>
+              <thead>
+                <tr style={{ textAlign: 'left', borderBottom: '2px solid #e2e8f0' }}>
+                  <th style={{ padding: '12px 16px' }}>Student</th>
+                  <th style={{ padding: '12px 16px' }}>Grade</th>
+                  <th style={{ padding: '12px 16px' }}>Amount</th>
+                  <th style={{ padding: '12px 16px' }}>Reason</th>
+                  <th style={{ padding: '12px 16px' }}>Status</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {concessionRequests.map((request) => (
+                  <tr key={request.student} style={{ borderBottom: '1px solid #e2e8f0' }}>
+                    <td style={{ padding: '14px 16px' }}>{request.student}</td>
+                    <td style={{ padding: '14px 16px' }}>{request.grade}</td>
+                    <td style={{ padding: '14px 16px' }}>{formatCurrency(request.amount)}</td>
+                    <td style={{ padding: '14px 16px' }}>{request.reason}</td>
+                    <td style={{ padding: '14px 16px', color: request.status === 'Approved' ? '#166534' : request.status === 'Under review' ? '#92400e' : '#1d4ed8' }}>
+                      {request.status}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </section>
     </main>
   );

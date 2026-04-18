@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 
 const Parents = () => {
   const [activeModule, setActiveModule] = useState('profile');
@@ -6,6 +6,13 @@ const Parents = () => {
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [selectedWeek, setSelectedWeek] = useState(new Date());
   const [selectedDay, setSelectedDay] = useState(null);
+  const [isMobile, setIsMobile] = useState(() => window.innerWidth < 900);
+
+  useEffect(() => {
+    const onResize = () => setIsMobile(window.innerWidth < 900);
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
 
   // Dummy data for Thane, Maharashtra CBSE school
   const studentProfile = {
@@ -130,7 +137,7 @@ const Parents = () => {
         return (
           <div style={{ padding: '20px', borderRadius: '16px', background: '#f8fafc', border: '1px solid #e2e8f0' }}>
             <h3>Student Profile</h3>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+            <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', alignItems: isMobile ? 'flex-start' : 'center', gap: '20px' }}>
               <img src={studentProfile.photo} alt="Student" onClick={() => setSelectedStudent(studentProfile)} style={{ cursor: 'pointer', borderRadius: '50%', width: '100px', height: '100px' }} />
               <div>
                 <p><strong>Name:</strong> {studentProfile.name}</p>
@@ -159,7 +166,7 @@ const Parents = () => {
         return (
           <div style={{ padding: '20px', borderRadius: '16px', background: '#f8fafc', border: '1px solid #e2e8f0' }}>
             <h3>Parent Profile</h3>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+            <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', alignItems: isMobile ? 'flex-start' : 'center', gap: '20px' }}>
               <img src={parentProfile.photo} alt="Parent" onClick={() => setSelectedStudent(parentProfile)} style={{ cursor: 'pointer', borderRadius: '50%', width: '100px', height: '100px' }} />
               <div>
                 <p><strong>Name:</strong> {parentProfile.name}</p>
@@ -182,17 +189,17 @@ const Parents = () => {
         return (
           <div style={{ padding: '20px', borderRadius: '16px', background: '#f8fafc', border: '1px solid #e2e8f0' }}>
             <h3>Attendance Details</h3>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '20px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '20px', gap: '8px', flexWrap: 'wrap' }}>
               <button onClick={() => setSelectedDate(new Date(selectedDate.getFullYear(), selectedDate.getMonth() - 1))}>Previous Month</button>
               <span>{selectedDate.toLocaleString('default', { month: 'long', year: 'numeric' })}</span>
               <button onClick={() => setSelectedDate(new Date(selectedDate.getFullYear(), selectedDate.getMonth() + 1))}>Next Month</button>
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '5px' }}>
-              {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => <div key={day} style={{ textAlign: 'center', fontWeight: 'bold' }}>{day}</div>)}
+            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(5, 1fr)' : 'repeat(7, 1fr)', gap: '5px' }}>
+              {!isMobile && ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => <div key={day} style={{ textAlign: 'center', fontWeight: 'bold' }}>{day}</div>)}
               {attendanceData.map(day => (
                 <div key={day.date} style={{
                   backgroundColor: getStatusColor(day.status, day.type),
-                  padding: '10px', border: '1px solid #ccc', textAlign: 'center', color: '#fff', minHeight: '40px', display: 'flex', alignItems: 'center', justifyContent: 'center'
+                  padding: isMobile ? '8px' : '10px', border: '1px solid #ccc', textAlign: 'center', color: '#fff', minHeight: '40px', display: 'flex', alignItems: 'center', justifyContent: 'center'
                 }} title={day.reason || day.status}>
                   {new Date(day.date).getDate()}
                 </div>
@@ -252,7 +259,7 @@ const Parents = () => {
         return (
           <div style={{ padding: '20px', borderRadius: '16px', background: '#f8fafc', border: '1px solid #e2e8f0' }}>
             <h3>Daily Activities</h3>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '20px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '20px', gap: '8px', flexWrap: 'wrap' }}>
               <button onClick={() => setSelectedWeek(new Date(selectedWeek.getTime() - 7 * 24 * 60 * 60 * 1000))}>Previous Week</button>
               <span>Week of {selectedWeek.toDateString()}</span>
               <button onClick={() => setSelectedWeek(new Date(selectedWeek.getTime() + 7 * 24 * 60 * 60 * 1000))}>Next Week</button>
@@ -281,7 +288,7 @@ const Parents = () => {
             {photoGallery.map(album => (
               <div key={album.event} style={{ marginBottom: '20px' }}>
                 <h4>{album.event}</h4>
-                <div style={{ display: 'flex', gap: '10px' }}>
+                <div style={{ display: 'flex', gap: '10px', overflowX: 'auto', paddingBottom: '4px' }}>
                   {album.photos.map(photo => <img key={photo} src={`https://via.placeholder.com/150?text=${photo}`} alt={photo} style={{ borderRadius: '8px' }} />)}
                 </div>
               </div>
@@ -338,14 +345,14 @@ const Parents = () => {
   };
 
   return (
-    <main style={{ padding: '28px', maxWidth: '1240px', margin: '0 auto', color: '#0f172a' }}>
+    <main style={{ padding: isMobile ? '16px' : '28px', maxWidth: '1240px', margin: '0 auto', color: '#0f172a' }}>
       <section>
         <h2>Parents Portal - SMT School, Thane</h2>
         <p style={{ color: '#475569', marginTop: '8px' }}>
           Access your child's academic information, attendance, fees, and school updates.
         </p>
       </section>
-      <nav style={{ display: 'flex', gap: '10px', marginBottom: '20px', flexWrap: 'wrap' }}>
+      <nav style={{ display: 'flex', gap: '10px', marginBottom: '20px', flexWrap: 'nowrap', overflowX: 'auto', paddingBottom: '4px' }}>
         {[
           { key: 'profile', label: 'Student Profile' },
           { key: 'parent-profile', label: 'Parent Profile' },
@@ -358,7 +365,7 @@ const Parents = () => {
           { key: 'report', label: 'Report Card' },
           { key: 'contact', label: 'Contact Us' },
         ].map(module => (
-          <button key={module.key} onClick={() => setActiveModule(module.key)} style={{ padding: '10px 16px', borderRadius: '12px', border: '1px solid #cbd5e1', background: activeModule === module.key ? '#3b82f6' : '#fff', color: activeModule === module.key ? '#fff' : '#0f172a', cursor: 'pointer' }}>
+          <button key={module.key} onClick={() => setActiveModule(module.key)} style={{ padding: '10px 16px', borderRadius: '12px', border: '1px solid #cbd5e1', background: activeModule === module.key ? '#3b82f6' : '#fff', color: activeModule === module.key ? '#fff' : '#0f172a', cursor: 'pointer', whiteSpace: 'nowrap' }}>
             {module.label}
           </button>
         ))}
