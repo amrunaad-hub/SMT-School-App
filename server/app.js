@@ -64,16 +64,22 @@ mongoose.connect(MONGODB_URI, {
 app.use('/api/auth', authRoutes);
 app.use('/api/attachments', attachmentRoutes);
 
-if (process.env.NODE_ENV === 'production') {
-    const clientBuildPath = path.join(__dirname, '../client/build');
-    app.use(express.static(clientBuildPath));
+// Serve static files and SPA
+const clientBuildPath = path.join(__dirname, '../client/build');
+app.use(express.static(clientBuildPath));
 
-    app.get('*', (req, res) => {
-        res.sendFile(path.join(clientBuildPath, 'index.html'));
+// Fallback to index.html for SPA routing
+app.get('*', (req, res) => {
+    res.sendFile(path.join(clientBuildPath, 'index.html'), (err) => {
+        if (err) {
+            res.status(500).json({ message: 'Client build not found. Ensure "npm run build --prefix client" was executed during deployment.' });
+        }
     });
-}
+});
 
 // Start the server
 app.listen(PORT, () => {
-    console.log(`Server is running on http://localhost:${PORT}`);
+    console.log(`Server is running on port ${PORT}`);
+    console.log(`NODE_ENV: ${process.env.NODE_ENV}`);
+    console.log(`Client build path: ${clientBuildPath}`);
 });
