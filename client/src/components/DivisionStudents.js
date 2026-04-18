@@ -1,46 +1,14 @@
 import React, { useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import SearchBar from './SearchBar';
+import { getStudentsByClass } from '../data/studentDirectory';
 
 const DivisionStudents = () => {
   const { grade, division } = useParams();
   const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState('');
 
-  // Generate 35-40 students per division
-  const generateStudents = (grade, division) => {
-    const maharashtrianNames = [
-      'Rahul', 'Priya', 'Rohan', 'Ananya', 'Karan', 'Meera', 'Vikram', 'Sneha', 'Arjun', 'Pooja',
-      'Sachin', 'Kavita', 'Aditya', 'Shreya', 'Vishal', 'Neha', 'Siddharth', 'Anjali', 'Ravi', 'Divya',
-      'Amit', 'Sakshi', 'Nikhil', 'Ritika', 'Prateek', 'Swati', 'Yash', 'Komal', 'Dhruv', 'Pallavi',
-      'Harsh', 'Simran', 'Kartik', 'Nandini', 'Rishi', 'Tanya', 'Varun', 'Alisha', 'Mohan', 'Geeta'
-    ];
-    const maharashtrianSurnames = [
-      'Deshmukh', 'Bhosale', 'Pawar', 'Jadhav', 'More', 'Kulkarni', 'Joshi', 'Sharma', 'Patil', 'Desai',
-      'Gaikwad', 'Chavan', 'Rane', 'Salunkhe', 'Mahajan', 'Nimbalkar', 'Gokhale', 'Apte', 'Tilak', 'Ranade'
-    ];
-    const nonMaharashtrianSurnames = ['Singh', 'Kumar', 'Gupta', 'Reddy', 'Sharma', 'Verma', 'Jain', 'Agarwal'];
-
-    const students = [];
-    const numStudents = Math.floor(Math.random() * 6) + 35; // 35-40
-
-    for (let i = 1; i <= numStudents; i++) {
-      const isMaharashtrian = Math.random() < 0.8; // 80% Maharashtrian
-      const name = maharashtrianNames[Math.floor(Math.random() * maharashtrianNames.length)];
-      const surname = isMaharashtrian
-        ? maharashtrianSurnames[Math.floor(Math.random() * maharashtrianSurnames.length)]
-        : nonMaharashtrianSurnames[Math.floor(Math.random() * nonMaharashtrianSurnames.length)];
-      students.push({
-        id: `${grade}-${division}-${i}`,
-        name: `${name} ${surname}`,
-        rollNo: i,
-        grade: `${grade} ${division.charAt(0).toUpperCase() + division.slice(1)}`
-      });
-    }
-    return students;
-  };
-
-  const students = useMemo(() => generateStudents(grade, division), [grade, division]);
+  const students = useMemo(() => getStudentsByClass(grade, division), [grade, division]);
   const filteredStudents = useMemo(() => {
     const query = searchTerm.trim().toLowerCase();
     if (!query) return students;
@@ -84,7 +52,7 @@ const DivisionStudents = () => {
             <Link key={student.id} to={`/sis/student/${student.id}`} style={cardStyle}>
               <h4>{student.name}</h4>
               <p>Roll No: {student.rollNo}</p>
-              <p>Grade: {student.grade}</p>
+              <p>Grade: {student.gradeLabel}</p>
             </Link>
           ))}
         </div>

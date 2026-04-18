@@ -1,40 +1,16 @@
 import React, { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import SearchBar from './SearchBar';
+import { GRADES, searchStudentsByName } from '../data/studentDirectory';
 
-const grades = Array.from({ length: 10 }, (_, i) => i + 1);
-const firstNames = ['Rahul', 'Priya', 'Rohan', 'Ananya', 'Karan', 'Meera', 'Vikram', 'Sneha', 'Arjun', 'Pooja', 'Sachin', 'Kavita', 'Aditya', 'Shreya', 'Vishal', 'Neha'];
-const lastNames = ['Deshmukh', 'Bhosale', 'Pawar', 'Jadhav', 'More', 'Kulkarni', 'Joshi', 'Patil', 'Desai', 'Gaikwad', 'Chavan', 'Mahajan'];
-const divisions = ['alpha', 'beta', 'gamma'];
+const grades = GRADES;
 
 const SIS = () => {
   const [studentQuery, setStudentQuery] = useState('');
 
-  const studentDirectory = useMemo(() => {
-    const directory = [];
-    grades.forEach((grade) => {
-      divisions.forEach((division) => {
-        for (let roll = 1; roll <= 30; roll += 1) {
-          const firstName = firstNames[(grade * 13 + roll) % firstNames.length];
-          const lastName = lastNames[(grade * 7 + roll * 3) % lastNames.length];
-          directory.push({
-            id: `${grade}-${division}-${roll}`,
-            name: `${firstName} ${lastName}`,
-            grade,
-            division,
-            roll,
-          });
-        }
-      });
-    });
-    return directory;
-  }, []);
-
   const filteredStudents = useMemo(() => {
-    const query = studentQuery.trim().toLowerCase();
-    if (!query) return [];
-    return studentDirectory.filter((student) => student.name.toLowerCase().includes(query)).slice(0, 30);
-  }, [studentQuery, studentDirectory]);
+    return searchStudentsByName(studentQuery, 30);
+  }, [studentQuery]);
 
   const cardStyle = {
     padding: '20px',
@@ -72,7 +48,7 @@ const SIS = () => {
                 {filteredStudents.map((student) => (
                   <Link key={student.id} to={`/sis/student/${student.id}`} style={{ textDecoration: 'none', color: '#0f172a', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '10px', background: '#fff' }}>
                     <strong>{student.name}</strong>
-                    <p style={{ margin: '6px 0 0', color: '#64748b' }}>Grade {student.grade} {student.division.charAt(0).toUpperCase() + student.division.slice(1)} • Roll {student.roll}</p>
+                    <p style={{ margin: '6px 0 0', color: '#64748b' }}>Grade {student.grade} {student.division.charAt(0).toUpperCase() + student.division.slice(1)} • Roll {student.rollNo}</p>
                   </Link>
                 ))}
               </div>

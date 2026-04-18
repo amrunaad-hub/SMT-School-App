@@ -1,24 +1,16 @@
 import React from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
+import { getStudentById } from '../data/studentDirectory';
 
 const StudentProfile = () => {
   const { id } = useParams();
   const navigate = useNavigate();
 
-  // Parse the ID to get grade, division, rollNo
+  const studentDirectoryRecord = getStudentById(id);
   const [grade, division, rollNo] = id.split('-');
 
   // Generate detailed student profile based on ID
   const generateStudentProfile = (id) => {
-    const maharashtrianNames = [
-      'Rahul', 'Priya', 'Rohan', 'Ananya', 'Karan', 'Meera', 'Vikram', 'Sneha', 'Arjun', 'Pooja',
-      'Sachin', 'Kavita', 'Aditya', 'Shreya', 'Vishal', 'Neha', 'Siddharth', 'Anjali', 'Ravi', 'Divya'
-    ];
-    const maharashtrianSurnames = [
-      'Deshmukh', 'Bhosale', 'Pawar', 'Jadhav', 'More', 'Kulkarni', 'Joshi', 'Sharma', 'Patil', 'Desai'
-    ];
-    const nonMaharashtrianSurnames = ['Singh', 'Kumar', 'Gupta', 'Reddy'];
-
     const bloodGroups = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
     const addresses = [
       '123 Main Street, Thane West, Maharashtra',
@@ -41,18 +33,14 @@ const StudentProfile = () => {
     const seed = id.split('').reduce((a, b) => a + b.charCodeAt(0), 0);
     const random = (max) => Math.floor((seed * 9301 + 49297) % 233280 / 233280 * max);
 
-    const isMaharashtrian = random(10) < 8; // 80% Maharashtrian
-    const firstName = maharashtrianNames[random(maharashtrianNames.length)];
-    const surname = isMaharashtrian
-      ? maharashtrianSurnames[random(maharashtrianSurnames.length)]
-      : nonMaharashtrianSurnames[random(nonMaharashtrianSurnames.length)];
+    const generatedFullName = studentDirectoryRecord?.name || 'Student Name';
 
     const birthYear = 2026 - parseInt(grade) - 5 + random(2); // Approximate age
     const birthMonth = random(12) + 1;
     const birthDay = random(28) + 1;
 
     return {
-      name: `${firstName} ${surname}`,
+      name: generatedFullName,
       rollNo: rollNo,
       grade: `${grade} ${division.charAt(0).toUpperCase() + division.slice(1)}`,
       dateOfBirth: `${birthDay.toString().padStart(2, '0')}/${birthMonth.toString().padStart(2, '0')}/${birthYear}`,
