@@ -5,12 +5,19 @@ const Parents = () => {
   const [activeModule, setActiveModule] = useState('profile');
   const [selectedStudent, setSelectedStudent] = useState(null);
   const [selectedChildId, setSelectedChildId] = useState('S-7A-15');
-  const [selectedWeek, setSelectedWeek] = useState(new Date());
-  const [selectedDay, setSelectedDay] = useState(null);
+  const [selectedActivityDate, setSelectedActivityDate] = useState(new Date(2026, 3, 15));
+  const [selectedTimetableDate, setSelectedTimetableDate] = useState(new Date(2026, 3, 15));
+  const [activityMonth, setActivityMonth] = useState(new Date(2026, 3, 1));
+  const [timetableMonth, setTimetableMonth] = useState(new Date(2026, 3, 1));
+  const [activityView, setActivityView] = useState('classwork');
+  const [activitySearch, setActivitySearch] = useState('');
+  const [circularSearch, setCircularSearch] = useState('');
+  const [messageSearch, setMessageSearch] = useState('');
   const [isMobile, setIsMobile] = useState(() => window.innerWidth < 900);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [currentMonth, setCurrentMonth] = useState(new Date(2026, 3, 1));
   const [receiptPreview, setReceiptPreview] = useState(null);
+  const [attachmentPreview, setAttachmentPreview] = useState(null);
 
   useEffect(() => {
     const onResize = () => setIsMobile(window.innerWidth < 900);
@@ -109,20 +116,14 @@ const Parents = () => {
   }, [fullAttendanceData]);
 
   const timetable = [
-    { day: 'Monday', periods: [
-      { time: '8:00-9:00', subject: 'English', teacher: 'Ms. Anuja Kulkarni', details: 'Grammar and comprehension' },
-      { time: '9:00-10:00', subject: 'Mathematics', teacher: 'Mr. Shrirang Joshi', details: 'Algebra equations' },
-      { time: '10:00-11:00', subject: 'Science', teacher: 'Ms. Nandini Ranade', details: 'Physics - Motion' },
-      { time: '11:00-12:00', subject: 'Social Studies', teacher: 'Mr. Akshay Deshmukh', details: 'Indian History' },
-      { time: '12:00-1:00', subject: 'Hindi', teacher: 'Ms. Revati Apte', details: 'Literature' },
-    ]},
-    { day: 'Tuesday', periods: [
-      { time: '8:00-9:00', subject: 'Mathematics', teacher: 'Mr. Shrirang Joshi', details: 'Geometry' },
-      { time: '9:00-10:00', subject: 'Science', teacher: 'Ms. Nandini Ranade', details: 'Chemistry - Acids' },
-      { time: '10:00-11:00', subject: 'English', teacher: 'Ms. Anuja Kulkarni', details: 'Writing skills' },
-      { time: '11:00-12:00', subject: 'Hindi', teacher: 'Ms. Revati Apte', details: 'Poetry' },
-      { time: '12:00-1:00', subject: 'Social Studies', teacher: 'Mr. Akshay Deshmukh', details: 'Geography' },
-    ]},
+    { date: '2026-04-14', time: '08:00-08:40', period: 'Period 1', subject: 'English', teacher: 'Ms. Anuja Kulkarni', details: 'Grammar and comprehension', attachments: [] },
+    { date: '2026-04-14', time: '08:45-09:25', period: 'Period 2', subject: 'Mathematics', teacher: 'Mr. Shrirang Joshi', details: 'Algebra equations', attachments: [] },
+    { date: '2026-04-15', time: '08:00-08:40', period: 'Period 1', subject: 'Science', teacher: 'Ms. Nandini Ranade', details: 'Video: Eating habits of animals', attachments: ['science-video-link.txt'] },
+    { date: '2026-04-15', time: '08:45-09:25', period: 'Period 2', subject: 'Hindi', teacher: 'Ms. Revati Apte', details: 'Notebook notes discussion', attachments: ['hindi-notes.pdf'] },
+    { date: '2026-04-16', time: '08:00-08:40', period: 'Period 1', subject: 'Social Studies', teacher: 'Mr. Akshay Deshmukh', details: 'Map reading practice', attachments: [] },
+    { date: '2026-04-16', time: '08:45-09:25', period: 'Period 2', subject: 'ICT', teacher: 'Ms. Kinjal Shah', details: 'Practical lab activity', attachments: ['ict-practice-sheet.docx'] },
+    { date: '2026-04-17', time: '08:00-08:40', period: 'Period 1', subject: 'Marathi', teacher: 'Ms. Madhuri Lakhapati', details: 'Poem reading and explanation', attachments: [] },
+    { date: '2026-04-17', time: '08:45-09:25', period: 'Period 2', subject: 'Library', teacher: 'Ms. Sanika Khade', details: 'Story telling session', attachments: [] },
   ];
 
   const events = [
@@ -132,8 +133,41 @@ const Parents = () => {
   ];
 
   const dailyActivities = [
-    { date: '2026-04-14', classwork: 'Algebra equations practice', homework: 'Solve 20 problems from textbook pg 45', topics: ['Linear equations', 'Word problems'], projects: 'Math project on real-life applications due next week', attachments: ['worksheet.pdf'] },
-    { date: '2026-04-15', classwork: 'English comprehension', homework: 'Write essay on My Hobby', topics: ['Grammar', 'Creative writing'], projects: 'Science model preparation', attachments: ['essay_guidelines.pdf'] },
+    { date: '2026-04-14', period: 'Period 1 - Science', classwork: 'Dictation practice completed in class.', homework: 'Revise categories: herbivore, carnivore, omnivore, producer, consumer.', topics: ['Animals', 'Food chain'], teacher: 'Ms. Saraswati Venkatesh', attachments: [] },
+    { date: '2026-04-14', period: 'Period 2 - Hindi', classwork: 'Language notebook notes were discussed.', homework: 'Complete two notebook pages based on class examples.', topics: ['Bhasha', 'Lipi'], teacher: 'Ms. Prity Pandey', attachments: ['hindi-notebook-notes.pdf'] },
+    { date: '2026-04-15', period: 'Period 3 - ICT', classwork: 'Practical conducted in computer lab.', homework: 'Write definitions of hardware and software.', topics: ['ICT basics'], teacher: 'Ms. Kinjal Shah', attachments: [] },
+    { date: '2026-04-16', period: 'Period 4 - Physical Education', classwork: 'Warm-up and agility drills done.', homework: 'Practice breathing exercise for 10 minutes.', topics: ['Fitness'], teacher: 'Mr. Omkar Patil', attachments: [] },
+    { date: '2026-04-17', period: 'Period 5 - English', classwork: 'Collective noun workbook practice.', homework: 'Write wrong dictation words 5 times each.', topics: ['Grammar'], teacher: 'Ms. Pooja Maheshwari', attachments: ['dictation-list.docx'] },
+  ];
+
+  const circularNotices = [
+    {
+      date: '2026-04-13',
+      title: 'Introductory PTM Circular',
+      body: 'Parent-Teacher Meeting is scheduled on 18 April 2026. Please join as per allotted time slot for academic planning discussion.',
+      attachments: ['ptm-circular.pdf'],
+    },
+    {
+      date: '2026-04-10',
+      title: 'Transport & Dispersal Instructions',
+      body: 'Please verify transport route number and dispersal gate details. Any changes should be notified in writing before Monday.',
+      attachments: ['transport-guidelines.pdf'],
+    },
+  ];
+
+  const campusMessages = [
+    {
+      date: '2026-04-08',
+      title: 'Healthy Tiffin and Birthday Notice',
+      body: 'We encourage nutritious home-prepared tiffin and request parents to avoid processed food in school lunch boxes.',
+      attachments: ['healthy-tiffin-circular.pdf'],
+    },
+    {
+      date: '2026-04-06',
+      title: 'School Safety Drill Update',
+      body: 'A planned safety drill will be conducted this week. Students have been briefed by class teachers.',
+      attachments: [],
+    },
   ];
 
   const photoGallery = [
@@ -389,20 +423,85 @@ const Parents = () => {
     return fullAttendanceData.find(a => a.date === dateStr);
   };
 
+  const formatDateKey = (date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+
+  const isSameDate = (left, right) => formatDateKey(left) === formatDateKey(right);
+
+  const changeMonthKeepingDay = (month, setMonth, selectedDate, setSelectedDate, delta) => {
+    const nextMonth = new Date(month.getFullYear(), month.getMonth() + delta, 1);
+    const maxDay = new Date(nextMonth.getFullYear(), nextMonth.getMonth() + 1, 0).getDate();
+    const nextDate = new Date(nextMonth.getFullYear(), nextMonth.getMonth(), Math.min(selectedDate.getDate(), maxDay));
+    setMonth(nextMonth);
+    setSelectedDate(nextDate);
+  };
+
+  const buildWeekStrip = (selectedDate) => {
+    const start = new Date(selectedDate);
+    start.setDate(selectedDate.getDate() - selectedDate.getDay());
+    return Array.from({ length: 7 }, (_, index) => {
+      const date = new Date(start);
+      date.setDate(start.getDate() + index);
+      return date;
+    });
+  };
+
+  const activityWeekStrip = buildWeekStrip(selectedActivityDate);
+  const timetableWeekStrip = buildWeekStrip(selectedTimetableDate);
+
+  const selectedActivityEntries = dailyActivities.filter((activity) => {
+    if (activity.date !== formatDateKey(selectedActivityDate)) {
+      return false;
+    }
+
+    if (!activitySearch.trim()) {
+      return true;
+    }
+
+    const query = activitySearch.toLowerCase();
+    return `${activity.period} ${activity.classwork} ${activity.homework} ${activity.teacher}`.toLowerCase().includes(query);
+  });
+
+  const selectedTimetableEntries = timetable.filter((entry) => entry.date === formatDateKey(selectedTimetableDate));
+
+  const filteredCircularNotices = circularNotices.filter((notice) => {
+    const query = circularSearch.trim().toLowerCase();
+    if (!query) {
+      return true;
+    }
+    return `${notice.title} ${notice.body} ${notice.date}`.toLowerCase().includes(query);
+  });
+
+  const filteredCampusMessages = campusMessages.filter((message) => {
+    const query = messageSearch.trim().toLowerCase();
+    if (!query) {
+      return true;
+    }
+    return `${message.title} ${message.body} ${message.date}`.toLowerCase().includes(query);
+  });
+
+  const openAttachmentPreview = (title, attachments) => {
+    if (!attachments || !attachments.length) {
+      return;
+    }
+    setAttachmentPreview({ title, attachments });
+  };
+
   const portalModules = [
     { key: 'profile', label: 'Student Profile', icon: '👤' },
     { key: 'parent-profile', label: 'Parent Profile', icon: '👨‍👩‍👧' },
     { key: 'attendance', label: 'Attendance', icon: '📅' },
     { key: 'timetable', label: 'Timetable', icon: '⏰' },
-    { key: 'events', label: 'Events', icon: '🎉' },
     { key: 'activities', label: 'Student Activity', icon: '📚' },
-    { key: 'gallery', label: 'Photo Gallery', icon: '🖼️' },
+    { key: 'circular', label: 'Ecampus Circular', icon: '📢' },
+    { key: 'message', label: 'Ecampus Message', icon: '💬' },
     { key: 'fees', label: 'Fees', icon: '💳' },
+    { key: 'events', label: 'Events', icon: '🎉' },
+    { key: 'gallery', label: 'Photo Gallery', icon: '🖼️' },
     { key: 'report', label: 'Report Card', icon: '📑' },
     { key: 'contact', label: 'Contact Us', icon: '📞' },
   ];
 
-  const primaryQuickModules = portalModules.slice(0, 8);
+  const primaryQuickModules = portalModules.filter((module) => ['profile', 'parent-profile', 'attendance', 'timetable', 'activities', 'circular', 'message', 'fees'].includes(module.key));
 
   const renderModule = () => {
     switch (activeModule) {
@@ -555,20 +654,46 @@ const Parents = () => {
       case 'timetable':
         return (
           <div style={{ padding: isMobile ? '16px' : '24px', borderRadius: '16px', background: 'linear-gradient(135deg, #fef3c7 0%, #fef9e7 100%)', border: '2px solid #fbbf24', boxShadow: '0 4px 16px rgba(251, 191, 36, 0.1)' }}>
-            <h3 style={{ color: '#92400e', fontSize: isMobile ? '1.2rem' : '1.4rem', fontWeight: '700', marginBottom: '16px' }}>⏰ Weekly Timetable - Grade 7 Alpha</h3>
-            {timetable.map(day => (
-              <div key={day.day} style={{ marginBottom: '16px', background: '#fff', padding: isMobile ? '12px' : '16px', borderRadius: '12px', border: '1px solid #fcd34d' }}>
-                <h4 style={{ color: '#92400e', fontWeight: '700', marginBottom: '10px', fontSize: isMobile ? '1rem' : '1.05rem' }}>{day.day}</h4>
-                <div style={{ display: 'grid', gap: '8px' }}>
-                  {day.periods.map(period => (
-                    <div key={period.time} onClick={() => alert(`Subject: ${period.subject}\nTeacher: ${period.teacher}\nDetails: ${period.details}`)} style={{ padding: isMobile ? '10px' : '12px', background: 'linear-gradient(135deg, #fef3c7 0%, #fef9e7 100%)', borderRadius: '8px', cursor: 'pointer', border: '2px solid #fcd34d', transition: 'all 0.2', minHeight: isMobile ? '44px' : 'auto', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-                      <strong style={{ color: '#92400e', fontSize: isMobile ? '0.85rem' : '0.95rem' }}>{period.time}</strong>
-                      <span style={{ fontSize: isMobile ? '0.8rem' : '0.85rem' }}>{period.subject} - {period.teacher}</span>
-                    </div>
-                  ))}
-                </div>
+            <h3 style={{ color: '#92400e', fontSize: isMobile ? '1.2rem' : '1.4rem', fontWeight: '700', marginBottom: '12px' }}>⏰ Timetable</h3>
+            <div style={{ background: '#fff', borderRadius: '12px', border: '1px solid #fcd34d', padding: isMobile ? '10px' : '14px', marginBottom: '14px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', marginBottom: '10px' }}>
+                <button onClick={() => changeMonthKeepingDay(timetableMonth, setTimetableMonth, selectedTimetableDate, setSelectedTimetableDate, -1)} style={{ border: 'none', background: '#f59e0b', color: '#fff', borderRadius: '8px', padding: '6px 10px', cursor: 'pointer', fontWeight: 700 }}>←</button>
+                <h4 style={{ margin: 0, color: '#92400e', fontSize: isMobile ? '1.02rem' : '1.1rem', fontWeight: 700 }}>{timetableMonth.toLocaleString('default', { month: 'long', year: 'numeric' })}</h4>
+                <button onClick={() => changeMonthKeepingDay(timetableMonth, setTimetableMonth, selectedTimetableDate, setSelectedTimetableDate, 1)} style={{ border: 'none', background: '#f59e0b', color: '#fff', borderRadius: '8px', padding: '6px 10px', cursor: 'pointer', fontWeight: 700 }}>→</button>
               </div>
-            ))}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '6px' }}>
+                {timetableWeekStrip.map((date) => (
+                  <button
+                    key={formatDateKey(date)}
+                    onClick={() => setSelectedTimetableDate(date)}
+                    style={{
+                      border: `1px solid ${isSameDate(date, selectedTimetableDate) ? '#f97316' : '#fcd34d'}`,
+                      background: isSameDate(date, selectedTimetableDate) ? '#fb923c' : '#fff',
+                      color: isSameDate(date, selectedTimetableDate) ? '#fff' : '#92400e',
+                      borderRadius: '10px',
+                      padding: '6px 2px',
+                      cursor: 'pointer',
+                      minHeight: '54px',
+                    }}
+                  >
+                    <div style={{ fontSize: '0.68rem', fontWeight: 700 }}>{date.toLocaleDateString('en-IN', { weekday: 'short' })}</div>
+                    <div style={{ fontSize: '1rem', fontWeight: 800 }}>{date.getDate()}</div>
+                  </button>
+                ))}
+              </div>
+            </div>
+            {selectedTimetableEntries.length ? selectedTimetableEntries.map((entry) => (
+              <div key={`${entry.date}-${entry.period}-${entry.time}`} style={{ marginBottom: '10px', background: '#fff', padding: isMobile ? '12px' : '14px', borderRadius: '12px', border: '1px solid #fcd34d' }}>
+                <p style={{ margin: '0 0 6px', color: '#92400e', fontWeight: 800, fontSize: isMobile ? '0.9rem' : '0.95rem' }}>{entry.period} • {entry.subject}</p>
+                <p style={{ margin: 0, color: '#7c2d12', fontSize: isMobile ? '0.8rem' : '0.88rem' }}>{entry.time} • {entry.teacher}</p>
+                <p style={{ margin: '8px 0 0', color: '#374151', fontSize: isMobile ? '0.82rem' : '0.9rem' }}>{entry.details}</p>
+                {entry.attachments.length > 0 && (
+                  <button onClick={() => openAttachmentPreview(`${entry.period} Attachment`, entry.attachments)} style={{ marginTop: '8px', border: '1px solid #f59e0b', background: '#fff7ed', color: '#9a3412', borderRadius: '999px', padding: '6px 10px', fontWeight: 700, cursor: 'pointer' }}>📎 {entry.attachments.length} Attachment</button>
+                )}
+              </div>
+            )) : (
+              <div style={{ background: '#fff', padding: isMobile ? '14px' : '18px', borderRadius: '12px', border: '1px dashed #fbbf24', color: '#92400e', fontWeight: 600 }}>No timetable entries for selected date.</div>
+            )}
           </div>
         );
       case 'events':
@@ -597,26 +722,102 @@ const Parents = () => {
         return (
           <div style={{ padding: isMobile ? '16px' : '24px', borderRadius: '16px', background: 'linear-gradient(135deg, #e0e7ff 0%, #f0f4ff 100%)', border: '2px solid #6366f1', boxShadow: '0 4px 16px rgba(99, 102, 241, 0.1)' }}>
             <h3 style={{ color: '#3730a3', fontSize: isMobile ? '1.2rem' : '1.4rem', fontWeight: '700', marginBottom: '16px' }}>📚 Daily Activities</h3>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '16px', gap: '6px', flexWrap: 'wrap' }}>
-              <button onClick={() => setSelectedWeek(new Date(selectedWeek.getTime() - 7 * 24 * 60 * 60 * 1000))} style={{ padding: isMobile ? '8px 10px' : '8px 16px', background: '#6366f1', color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '600', fontSize: isMobile ? '0.8rem' : '0.9rem', minHeight: '36px' }}>← Prev</button>
-              <span style={{ fontWeight: '700', color: '#3730a3', fontSize: isMobile ? '0.85rem' : '0.95rem', display: 'flex', alignItems: 'center' }}>Week</span>
-              <button onClick={() => setSelectedWeek(new Date(selectedWeek.getTime() + 7 * 24 * 60 * 60 * 1000))} style={{ padding: isMobile ? '8px 10px' : '8px 16px', background: '#6366f1', color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '600', fontSize: isMobile ? '0.8rem' : '0.9rem', minHeight: '36px' }}>Next →</button>
+            <div style={{ background: '#fff', borderRadius: '12px', border: '1px solid #c7d2fe', padding: isMobile ? '10px' : '14px', marginBottom: '14px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', marginBottom: '10px' }}>
+                <button onClick={() => changeMonthKeepingDay(activityMonth, setActivityMonth, selectedActivityDate, setSelectedActivityDate, -1)} style={{ border: 'none', background: '#6366f1', color: '#fff', borderRadius: '8px', padding: '6px 10px', cursor: 'pointer', fontWeight: 700 }}>←</button>
+                <h4 style={{ margin: 0, color: '#3730a3', fontSize: isMobile ? '1.02rem' : '1.1rem', fontWeight: 700 }}>{activityMonth.toLocaleString('default', { month: 'long', year: 'numeric' })}</h4>
+                <button onClick={() => changeMonthKeepingDay(activityMonth, setActivityMonth, selectedActivityDate, setSelectedActivityDate, 1)} style={{ border: 'none', background: '#6366f1', color: '#fff', borderRadius: '8px', padding: '6px 10px', cursor: 'pointer', fontWeight: 700 }}>→</button>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '6px', marginBottom: '10px' }}>
+                {activityWeekStrip.map((date) => (
+                  <button
+                    key={formatDateKey(date)}
+                    onClick={() => setSelectedActivityDate(date)}
+                    style={{
+                      border: `1px solid ${isSameDate(date, selectedActivityDate) ? '#6366f1' : '#c7d2fe'}`,
+                      background: isSameDate(date, selectedActivityDate) ? '#818cf8' : '#fff',
+                      color: isSameDate(date, selectedActivityDate) ? '#fff' : '#3730a3',
+                      borderRadius: '10px',
+                      padding: '6px 2px',
+                      cursor: 'pointer',
+                      minHeight: '54px',
+                    }}
+                  >
+                    <div style={{ fontSize: '0.68rem', fontWeight: 700 }}>{date.toLocaleDateString('en-IN', { weekday: 'short' })}</div>
+                    <div style={{ fontSize: '1rem', fontWeight: 800 }}>{date.getDate()}</div>
+                  </button>
+                ))}
+              </div>
+              <input
+                value={activitySearch}
+                onChange={(e) => setActivitySearch(e.target.value)}
+                placeholder="Search activity, subject, teacher"
+                style={{ width: '100%', minHeight: '40px', border: '1px solid #c7d2fe', borderRadius: '999px', padding: '0 14px', fontSize: isMobile ? '0.85rem' : '0.9rem', outline: 'none' }}
+              />
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', marginTop: '10px', border: '1px solid #c7d2fe', borderRadius: '999px', overflow: 'hidden' }}>
+                <button onClick={() => setActivityView('classwork')} style={{ border: 'none', background: activityView === 'classwork' ? '#4f46e5' : '#eef2ff', color: activityView === 'classwork' ? '#fff' : '#3730a3', fontWeight: 700, padding: '9px 10px', cursor: 'pointer' }}>Class Work</button>
+                <button onClick={() => setActivityView('homework')} style={{ border: 'none', background: activityView === 'homework' ? '#4f46e5' : '#eef2ff', color: activityView === 'homework' ? '#fff' : '#3730a3', fontWeight: 700, padding: '9px 10px', cursor: 'pointer' }}>Home Work</button>
+              </div>
             </div>
-            {dailyActivities.map(activity => (
-              <div key={activity.date} onClick={() => setSelectedDay(activity)} style={{ marginBottom: '10px', padding: isMobile ? '10px' : '12px', background: '#fff', borderRadius: '8px', cursor: 'pointer', border: '2px solid #a5b4fc', boxShadow: '0 2px 6px rgba(99, 102, 241, 0.1)', minHeight: isMobile ? '44px' : 'auto', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-                <strong style={{ color: '#3730a3', fontSize: isMobile ? '0.85rem' : '0.95rem' }}>{activity.date}</strong>
-                <span style={{ fontSize: isMobile ? '0.8rem' : '0.85rem', color: '#666', marginTop: '4px' }}>{activity.classwork}</span>
+            {selectedActivityEntries.length ? selectedActivityEntries.map((activity) => (
+              <div key={`${activity.date}-${activity.period}`} style={{ marginBottom: '10px', padding: isMobile ? '10px' : '12px', background: '#fff', borderRadius: '10px', border: '1px solid #a5b4fc', boxShadow: '0 2px 6px rgba(99, 102, 241, 0.1)' }}>
+                <p style={{ margin: 0, color: '#3730a3', fontWeight: 800, fontSize: isMobile ? '0.9rem' : '0.95rem' }}>{activity.period}</p>
+                <p style={{ margin: '6px 0 0', color: '#374151', fontSize: isMobile ? '0.82rem' : '0.9rem' }}>{activityView === 'classwork' ? activity.classwork : activity.homework}</p>
+                <p style={{ margin: '8px 0 0', color: '#6366f1', fontSize: isMobile ? '0.78rem' : '0.85rem', fontWeight: 700 }}>👩‍🏫 {activity.teacher}</p>
+                {activity.attachments.length > 0 && (
+                  <button onClick={() => openAttachmentPreview(`${activity.period} Attachment`, activity.attachments)} style={{ marginTop: '8px', border: '1px solid #6366f1', background: '#eef2ff', color: '#3730a3', borderRadius: '999px', padding: '6px 10px', fontWeight: 700, cursor: 'pointer' }}>📎 {activity.attachments.length} Attachment</button>
+                )}
               </div>
-            ))}
-            {selectedDay && (
-              <div style={{ marginTop: '16px', padding: isMobile ? '12px' : '20px', background: '#fff', borderRadius: '12px', border: '2px solid #a5b4fc' }}>
-                <h4 style={{ color: '#3730a3', fontWeight: '700', fontSize: isMobile ? '1rem' : '1.05rem' }}>📋 Details for {selectedDay.date}</h4>
-                <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(2, 1fr)', gap: isMobile ? '8px' : '12px' }}>
-                  <p style={{ fontSize: isMobile ? '0.8rem' : '0.85rem' }}><strong>✏️ Classwork:</strong> {selectedDay.classwork}</p>
-                  <p style={{ fontSize: isMobile ? '0.8rem' : '0.85rem' }}><strong>📝 Homework:</strong> {selectedDay.homework}</p>
-                  <p style={{ fontSize: isMobile ? '0.8rem' : '0.85rem', gridColumn: isMobile ? '1' : 'span 2' }}><strong>🎯 Topics:</strong> {selectedDay.topics.join(', ')}</p>
-                </div>
+            )) : (
+              <div style={{ background: '#fff', padding: isMobile ? '14px' : '18px', borderRadius: '12px', border: '1px dashed #6366f1', color: '#3730a3', fontWeight: 600 }}>No activities found for selected date/search.</div>
+            )}
+          </div>
+        );
+      case 'circular':
+        return (
+          <div style={{ padding: isMobile ? '16px' : '24px', borderRadius: '16px', background: 'linear-gradient(135deg, #fff7ed 0%, #fff1f2 100%)', border: '2px solid #fb7185', boxShadow: '0 4px 16px rgba(244, 63, 94, 0.1)' }}>
+            <h3 style={{ color: '#9f1239', fontSize: isMobile ? '1.2rem' : '1.4rem', fontWeight: '700', marginBottom: '12px' }}>📢 Ecampus Circular</h3>
+            <input
+              value={circularSearch}
+              onChange={(e) => setCircularSearch(e.target.value)}
+              placeholder="Search circulars"
+              style={{ width: '100%', minHeight: '40px', border: '1px solid #fda4af', borderRadius: '999px', padding: '0 14px', fontSize: isMobile ? '0.85rem' : '0.9rem', outline: 'none', marginBottom: '12px' }}
+            />
+            {filteredCircularNotices.length ? filteredCircularNotices.map((notice) => (
+              <div key={`${notice.date}-${notice.title}`} style={{ marginBottom: '10px', background: '#fff', borderRadius: '12px', border: '1px solid #fecdd3', padding: isMobile ? '12px' : '14px' }}>
+                <p style={{ margin: 0, color: '#9f1239', fontWeight: 800, fontSize: isMobile ? '0.95rem' : '1rem' }}>{notice.title}</p>
+                <p style={{ margin: '4px 0 0', color: '#be123c', fontWeight: 700, fontSize: isMobile ? '0.75rem' : '0.82rem' }}>{new Date(notice.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</p>
+                <p style={{ margin: '8px 0 0', color: '#374151', fontSize: isMobile ? '0.82rem' : '0.9rem', lineHeight: 1.5 }}>{notice.body}</p>
+                {notice.attachments.length > 0 && (
+                  <button onClick={() => openAttachmentPreview(notice.title, notice.attachments)} style={{ marginTop: '8px', border: '1px solid #fb7185', background: '#fff1f2', color: '#9f1239', borderRadius: '999px', padding: '6px 10px', fontWeight: 700, cursor: 'pointer' }}>📎 {notice.attachments.length} Attachment</button>
+                )}
               </div>
+            )) : (
+              <div style={{ background: '#fff', padding: isMobile ? '14px' : '18px', borderRadius: '12px', border: '1px dashed #fb7185', color: '#9f1239', fontWeight: 600 }}>No circulars found for this search.</div>
+            )}
+          </div>
+        );
+      case 'message':
+        return (
+          <div style={{ padding: isMobile ? '16px' : '24px', borderRadius: '16px', background: 'linear-gradient(135deg, #ffe4e6 0%, #fff1f2 100%)', border: '2px solid #f43f5e', boxShadow: '0 4px 16px rgba(244, 63, 94, 0.1)' }}>
+            <h3 style={{ color: '#9f1239', fontSize: isMobile ? '1.2rem' : '1.4rem', fontWeight: '700', marginBottom: '12px' }}>💬 Ecampus Message</h3>
+            <input
+              value={messageSearch}
+              onChange={(e) => setMessageSearch(e.target.value)}
+              placeholder="Search messages"
+              style={{ width: '100%', minHeight: '40px', border: '1px solid #fda4af', borderRadius: '999px', padding: '0 14px', fontSize: isMobile ? '0.85rem' : '0.9rem', outline: 'none', marginBottom: '12px' }}
+            />
+            {filteredCampusMessages.length ? filteredCampusMessages.map((message) => (
+              <div key={`${message.date}-${message.title}`} style={{ marginBottom: '10px', background: '#fff', borderRadius: '12px', border: '1px solid #fecdd3', padding: isMobile ? '12px' : '14px' }}>
+                <p style={{ margin: 0, color: '#9f1239', fontWeight: 800, fontSize: isMobile ? '0.95rem' : '1rem' }}>{message.title}</p>
+                <p style={{ margin: '4px 0 0', color: '#be123c', fontWeight: 700, fontSize: isMobile ? '0.75rem' : '0.82rem' }}>{new Date(message.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</p>
+                <p style={{ margin: '8px 0 0', color: '#374151', fontSize: isMobile ? '0.82rem' : '0.9rem', lineHeight: 1.5 }}>{message.body}</p>
+                {message.attachments.length > 0 && (
+                  <button onClick={() => openAttachmentPreview(message.title, message.attachments)} style={{ marginTop: '8px', border: '1px solid #fb7185', background: '#fff1f2', color: '#9f1239', borderRadius: '999px', padding: '6px 10px', fontWeight: 700, cursor: 'pointer' }}>📎 {message.attachments.length} Attachment</button>
+                )}
+              </div>
+            )) : (
+              <div style={{ background: '#fff', padding: isMobile ? '14px' : '18px', borderRadius: '12px', border: '1px dashed #fb7185', color: '#9f1239', fontWeight: 600 }}>No messages found for this search.</div>
             )}
           </div>
         );
@@ -902,6 +1103,28 @@ const Parents = () => {
             </div>
           )}
         </>
+      )}
+
+      {attachmentPreview && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.58)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1200, padding: isMobile ? '12px' : '20px' }}>
+          <div style={{ width: '100%', maxWidth: '460px', background: '#fff', borderRadius: '14px', border: '1px solid #fecdd3', boxShadow: '0 24px 40px rgba(15, 23, 42, 0.35)', overflow: 'hidden' }}>
+            <div style={{ padding: isMobile ? '12px 14px' : '14px 16px', background: 'linear-gradient(135deg, #fb7185 0%, #f43f5e 100%)', color: '#fff', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h3 style={{ margin: 0, fontSize: isMobile ? '1rem' : '1.08rem' }}>📎 Attachment</h3>
+              <button onClick={() => setAttachmentPreview(null)} style={{ border: 'none', background: '#fff', color: '#be123c', width: '32px', height: '32px', borderRadius: '50%', fontWeight: 700, cursor: 'pointer' }}>✕</button>
+            </div>
+            <div style={{ padding: isMobile ? '14px' : '16px' }}>
+              <p style={{ margin: '0 0 10px', color: '#9f1239', fontWeight: 700 }}>{attachmentPreview.title}</p>
+              <div style={{ border: '1px solid #fecdd3', borderRadius: '10px', overflow: 'hidden' }}>
+                {attachmentPreview.attachments.map((fileName, index) => (
+                  <div key={`${fileName}-${index}`} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', padding: '10px 12px', borderBottom: index === attachmentPreview.attachments.length - 1 ? 'none' : '1px solid #ffe4e6' }}>
+                    <span style={{ color: '#334155', fontSize: isMobile ? '0.82rem' : '0.9rem', wordBreak: 'break-all' }}>{fileName}</span>
+                    <button onClick={() => alert(`Downloading ${fileName}`)} style={{ border: '1px solid #fb7185', background: '#fff1f2', color: '#9f1239', borderRadius: '999px', padding: '5px 10px', fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}>Download</button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
       )}
 
       {receiptPreview && (
