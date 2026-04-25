@@ -1,9 +1,9 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import SearchBar from './SearchBar';
+import { DEFAULT_ATTENDANCE_DATE, commandCenterAttendanceCards, weeklyAttendanceTrend } from '../data/attendanceAnalytics';
 
 const weekLabels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-const attendanceTrend = [94, 95, 93, 96, 95, 97, 96];
 const impromptuAbsenceTrend = [8, 7, 6, 5, 4, 3, 4];
 const feeCollectionMonthly = [66, 71, 75, 82, 88, 92];
 
@@ -12,15 +12,23 @@ const topMetrics = [
   { label: 'Impromptu Absenteeism', value: '4.2%', trend: '-1.1%', detail: 'Teacher + student sudden leave', link: '/attendance', accent: '#f97316' },
   { label: 'Fee Collection', value: '₹47.2L', trend: '+9.4%', detail: 'Current term collection', link: '/finance', accent: '#10b981' },
   { label: 'Class Coverage On Leave', value: '98.2%', trend: '+0.9%', detail: 'Periods successfully substituted', link: '/hr', accent: '#8b5cf6' },
-  { label: 'Cleanliness Compliance', value: '91%', trend: '+2.3%', detail: 'Washroom audit rating', link: '/inventory', accent: '#06b6d4' },
+  { label: 'Cleanliness Compliance', value: '91%', trend: '+2.3%', detail: 'Washroom audit rating', link: '/washrooms', accent: '#06b6d4' },
   { label: 'Upcoming Stakeholder Meetings', value: '7', trend: '+2', detail: 'Next 14 days', link: '/communication', accent: '#ef4444' },
 ];
 
 const washroomBlocks = [
-  { name: 'Primary Wing', score: 94, pending: 0, lastUpdate: '10:10 AM' },
-  { name: 'Middle School', score: 88, pending: 1, lastUpdate: '10:25 AM' },
-  { name: 'Senior Wing', score: 91, pending: 1, lastUpdate: '10:40 AM' },
-  { name: 'Admin Block', score: 95, pending: 0, lastUpdate: '10:50 AM' },
+  { id: 'floor-1-girls', name: 'Floor 1 Girls Washroom', score: 96, pending: 0, lastUpdate: '09:25 AM', cleaningType: 'Mopping' },
+  { id: 'floor-1-boys', name: 'Floor 1 Boys Washroom', score: 94, pending: 0, lastUpdate: '09:50 AM', cleaningType: 'Flushing' },
+  { id: 'floor-2-girls', name: 'Floor 2 Girls Washroom', score: 93, pending: 0, lastUpdate: '10:25 AM', cleaningType: 'Deep Cleaning' },
+  { id: 'floor-2-boys', name: 'Floor 2 Boys Washroom', score: 91, pending: 1, lastUpdate: '10:50 AM', cleaningType: 'Mopping' },
+  { id: 'floor-3-girls', name: 'Floor 3 Girls Washroom', score: 92, pending: 0, lastUpdate: '11:25 AM', cleaningType: 'Flushing' },
+  { id: 'floor-3-boys', name: 'Floor 3 Boys Washroom', score: 89, pending: 1, lastUpdate: '11:50 AM', cleaningType: 'Deep Cleaning' },
+  { id: 'floor-4-girls', name: 'Floor 4 Girls Washroom', score: 90, pending: 0, lastUpdate: '12:25 PM', cleaningType: 'Mopping' },
+  { id: 'floor-4-boys', name: 'Floor 4 Boys Washroom', score: 88, pending: 0, lastUpdate: '12:50 PM', cleaningType: 'Flushing' },
+  { id: 'floor-5-girls', name: 'Floor 5 Girls Washroom', score: 89, pending: 0, lastUpdate: '01:25 PM', cleaningType: 'Deep Cleaning' },
+  { id: 'floor-5-boys', name: 'Floor 5 Boys Washroom', score: 87, pending: 1, lastUpdate: '01:50 PM', cleaningType: 'Mopping' },
+  { id: 'floor-6-girls', name: 'Floor 6 Girls Washroom', score: 88, pending: 0, lastUpdate: '02:25 PM', cleaningType: 'Flushing' },
+  { id: 'floor-6-boys', name: 'Floor 6 Boys Washroom', score: 86, pending: 1, lastUpdate: '02:50 PM', cleaningType: 'Deep Cleaning' },
 ];
 
 const classContinuity = [
@@ -48,30 +56,6 @@ const priorityColor = {
   high: '#dc2626',
   medium: '#d97706',
   low: '#2563eb',
-};
-
-const LineChart = ({ values, color = '#2563eb', width = 420, height = 120 }) => {
-  const max = Math.max(...values);
-  const min = Math.min(...values);
-  const range = Math.max(max - min, 1);
-  const points = values
-    .map((value, index) => {
-      const x = (index / (values.length - 1 || 1)) * (width - 20) + 10;
-      const y = height - 10 - ((value - min) / range) * (height - 20);
-      return `${x},${y}`;
-    })
-    .join(' ');
-
-  return (
-    <svg viewBox={`0 0 ${width} ${height}`} style={{ width: '100%', height: `${height}px` }}>
-      <polyline fill="none" stroke={color} strokeWidth="3" points={points} />
-      {values.map((value, index) => {
-        const x = (index / (values.length - 1 || 1)) * (width - 20) + 10;
-        const y = height - 10 - ((value - min) / range) * (height - 20);
-        return <circle key={`${value}-${index}`} cx={x} cy={y} r="3.5" fill={color} />;
-      })}
-    </svg>
-  );
 };
 
 const CommandCenter = () => {
@@ -171,10 +155,27 @@ const CommandCenter = () => {
             <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1.4fr 1fr', gap: '14px' }}>
               <div>
                 <h3 style={{ margin: 0, color: '#1e3a8a' }}>Attendance Analytics</h3>
-                <p style={{ margin: '6px 0 10px', color: '#475569', fontSize: '0.86rem' }}>Daily attendance trend with direct visibility on sudden absenteeism risk.</p>
-                <LineChart values={attendanceTrend} color="#2563eb" />
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', marginTop: '4px', gap: '4px' }}>
-                  {weekLabels.map((day) => <span key={day} style={{ textAlign: 'center', fontSize: '0.72rem', color: '#64748b', fontWeight: 600 }}>{day}</span>)}
+                <p style={{ margin: '6px 0 10px', color: '#475569', fontSize: '0.86rem' }}>Daily absentee counts with drill-down to grade, division and student profiles.</p>
+                <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(2, minmax(0, 1fr))', gap: '10px' }}>
+                  {commandCenterAttendanceCards.map((card) => (
+                    <Link key={card.grade} to={`/attendance?date=${DEFAULT_ATTENDANCE_DATE}&grade=${card.grade}&view=all`} style={{ ...cardStyle, borderColor: '#bfdbfe', padding: '12px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: '10px', alignItems: 'center' }}>
+                        <strong style={{ color: '#1e3a8a' }}>{card.label}</strong>
+                        <span style={{ color: '#1d4ed8', fontWeight: 800 }}>{card.absent} absent</span>
+                      </div>
+                      <p style={{ margin: '8px 0 0', color: '#475569', fontSize: '0.8rem' }}>Attendance: {card.attendancePercent}%</p>
+                      <p style={{ margin: '6px 0 0', color: '#334155', fontSize: '0.8rem' }}>Highest absentee division: {card.topDivision.label} ({card.topDivision.absent})</p>
+                    </Link>
+                  ))}
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, minmax(0, 1fr))', marginTop: '12px', gap: '8px' }}>
+                  {weeklyAttendanceTrend.map((point) => (
+                    <Link key={point.date} to={`/attendance?date=${point.date}&view=all`} style={{ textDecoration: 'none', color: 'inherit', borderRadius: '12px', border: '1px solid #dbeafe', background: '#f8fbff', padding: '10px' }}>
+                      <div style={{ fontWeight: 800, color: '#1e3a8a' }}>{point.label}</div>
+                      <div style={{ marginTop: '6px', color: '#334155', fontSize: '0.8rem' }}>Absent: {point.absent}</div>
+                      <div style={{ marginTop: '4px', color: '#64748b', fontSize: '0.74rem' }}>No intimation: {point.noIntimationCount}</div>
+                    </Link>
+                  ))}
                 </div>
               </div>
               <div>
@@ -228,13 +229,14 @@ const CommandCenter = () => {
           <section style={{ marginTop: '16px', background: '#fff', border: '1px solid #a5f3fc', borderRadius: '16px', padding: isMobile ? '14px' : '16px', boxShadow: '0 10px 22px rgba(6, 182, 212, 0.08)' }}>
             <h3 style={{ margin: 0, color: '#155e75' }}>Washroom Cleanliness Live Status</h3>
             <p style={{ margin: '6px 0 12px', color: '#475569', fontSize: '0.84rem' }}>Audit updates from housekeeping supervisors.</p>
-            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(2, minmax(0, 1fr))', gap: '10px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(3, minmax(0, 1fr))', gap: '10px' }}>
               {washroomBlocks.map((block) => (
-                <Link key={block.name} to="/inventory" style={{ ...cardStyle, borderColor: '#a5f3fc', padding: '12px' }}>
+                <Link key={block.id} to={`/washrooms/${block.id}`} style={{ ...cardStyle, borderColor: '#a5f3fc', padding: '12px' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <strong style={{ color: '#0f766e', fontSize: '0.9rem' }}>{block.name}</strong>
                     <span style={{ color: block.pending ? '#dc2626' : '#16a34a', fontWeight: 700, fontSize: '0.8rem' }}>{block.pending ? `${block.pending} pending` : 'No pending'}</span>
                   </div>
+                  <p style={{ margin: '7px 0 0', color: '#475569', fontSize: '0.78rem' }}>Cleaning type: {block.cleaningType}</p>
                   <div style={{ marginTop: '8px', height: '9px', borderRadius: '999px', background: '#cffafe', overflow: 'hidden' }}>
                     <div style={{ width: `${block.score}%`, height: '100%', background: 'linear-gradient(90deg, #22d3ee 0%, #06b6d4 100%)', transition: 'width 320ms ease' }} />
                   </div>

@@ -1,4 +1,7 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
+import { DIVISIONS, GRADES, getStudentById } from '../data/studentDirectory';
+import { DEFAULT_ATTENDANCE_DATE, advanceLeaveRequests, getAttendanceStatsForDate, lateArrivals, weeklyAttendanceTrend } from '../data/attendanceAnalytics';
 
 const getAcademicYearLabel = (date) => {
   const year = date.getFullYear();
@@ -8,9 +11,7 @@ const getAcademicYearLabel = (date) => {
   return `${startYear}-${String(endYear).slice(-2)}`;
 };
 
-const getSaturdayOccurrence = (date) => {
-  return Math.floor((date.getDate() - 1) / 7) + 1;
-};
+const getSaturdayOccurrence = (date) => Math.floor((date.getDate() - 1) / 7) + 1;
 
 const getOperationalDayStatus = (date) => {
   const day = date.getDay();
@@ -27,16 +28,11 @@ const getOperationalDayStatus = (date) => {
   return { isWorkingDay: true, label: 'Regular Working Day' };
 };
 
-const Attendance = () => {
-  const [selectedGrade, setSelectedGrade] = useState(null);
-  const [selectedDivision, setSelectedDivision] = useState(null);
-  const [selectedDate, setSelectedDate] = useState('2026-04-18');
-  const [isMobile, setIsMobile] = useState(() => window.innerWidth < 900);
-  const detailsRef = useRef(null);
+const formatDivision = (division) => `${division.charAt(0).toUpperCase()}${division.slice(1)}`;
 
-  const selectedDateObject = useMemo(() => new Date(`${selectedDate}T00:00:00`), [selectedDate]);
-  const operationalDayStatus = useMemo(() => getOperationalDayStatus(selectedDateObject), [selectedDateObject]);
-  const academicYearLabel = useMemo(() => getAcademicYearLabel(selectedDateObject), [selectedDateObject]);
+const Attendance = () => {
+  const [isMobile, setIsMobile] = useState(() => window.innerWidth < 900);
+  const [searchParams, setSearchParams] = useSearchParams();
 
   useEffect(() => {
     const onResize = () => setIsMobile(window.innerWidth < 900);
@@ -44,186 +40,121 @@ const Attendance = () => {
     return () => window.removeEventListener('resize', onResize);
   }, []);
 
-  const gradeStats = useMemo(() => [
-    {
-      grade: 'Grade 1',
-      present: 38,
-      absent: 6,
-      attendancePercent: 86,
-      divisionCount: 3,
-      divisions: [
-        { division: 'A', present: 13, absent: 2, attendancePercent: 87 },
-        { division: 'B', present: 12, absent: 3, attendancePercent: 80 },
-        { division: 'C', present: 13, absent: 1, attendancePercent: 93 },
-      ],
-    },
-    {
-      grade: 'Grade 2',
-      present: 30,
-      absent: 8,
-      attendancePercent: 79,
-      divisionCount: 3,
-      divisions: [
-        { division: 'A', present: 10, absent: 3, attendancePercent: 77 },
-        { division: 'B', present: 11, absent: 2, attendancePercent: 85 },
-        { division: 'C', present: 9, absent: 3, attendancePercent: 75 },
-      ],
-    },
-    {
-      grade: 'Grade 3',
-      present: 34,
-      absent: 4,
-      attendancePercent: 89,
-      divisionCount: 2,
-      divisions: [
-        { division: 'A', present: 18, absent: 1, attendancePercent: 95 },
-        { division: 'B', present: 16, absent: 3, attendancePercent: 84 },
-      ],
-    },
-  ], []);
+  const selectedDate = searchParams.get('date') || DEFAULT_ATTENDANCE_DATE;
+  const selectedGrade = searchParams.get('grade') || 'all';
+  const selectedDivision = searchParams.get('division') || 'all';
+  const selectedView = searchParams.get('view') || 'all';
 
-  const dailyAttendance = useMemo(() => [
-    {
-      date: '2026-04-18',
-      grade: 'Grade 1',
-      division: 'A',
-      present: 13,
-      absent: 2,
-      records: [
-        { name: 'Aarav Patel', status: 'Present' },
-        { name: 'Meera Singh', status: 'Absent (No intimation)' },
-        { name: 'Riya Desai', status: 'Present' },
-      ],
-    },
-    {
-      date: '2026-04-18',
-      grade: 'Grade 1',
-      division: 'B',
-      present: 12,
-      absent: 3,
-      records: [
-        { name: 'Ankit Sharma', status: 'Present' },
-        { name: 'Naina Kapoor', status: 'Absent (Advance leave)' },
-        { name: 'Rohit Jain', status: 'Present' },
-      ],
-    },
-    {
-      date: '2026-04-18',
-      grade: 'Grade 2',
-      division: 'A',
-      present: 10,
-      absent: 3,
-      records: [
-        { name: 'Sara Mehta', status: 'Present' },
-        { name: 'Vikram Roy', status: 'Absent (No intimation)' },
-      ],
-    },
-    {
-      date: '2026-04-18',
-      grade: 'Grade 3',
-      division: 'A',
-      present: 18,
-      absent: 1,
-      records: [
-        { name: 'Priya Nair', status: 'Present' },
-        { name: 'Kabir Saini', status: 'Present' },
-      ],
-    },
-  ], []);
+  const selectedDateObject = useMemo(() => new Date(`${selectedDate}T00:00:00`), [selectedDate]);
+  const operationalDayStatus = useMemo(() => getOperationalDayStatus(selectedDateObject), [selectedDateObject]);
+  const academicYearLabel = useMemo(() => getAcademicYearLabel(selectedDateObject), [selectedDateObject]);
+  const attendanceSnapshot = useMemo(() => getAttendanceStatsForDate(selectedDate), [selectedDate]);
 
-  const leaveApplications = [
-    { id: 1, student: 'Nisha Bhatia', grade: 'Grade 1', date: '2026-04-16', type: 'Medical leave', notice: '3 days in advance' },
-    { id: 2, student: 'Karan Shetty', grade: 'Grade 2', date: '2026-04-18', type: 'Family event', notice: '2 days in advance' },
-    { id: 3, student: 'Tara Bose', grade: 'Grade 3', date: '2026-04-18', type: 'Personal', notice: '1 day in advance' },
-  ];
-
-  const noIntimationAbsentees = [
-    { id: 1, student: 'Rohan Desai', grade: 'Grade 1', division: 'A', date: '2026-04-18', note: 'Absent without prior intimation' },
-    { id: 2, student: 'Maya Kapoor', grade: 'Grade 2', division: 'B', date: '2026-04-18', note: 'Absent without prior intimation' },
-  ];
-
-  const lateArrivals = [
-    { id: 1, student: 'Aditi Jalan', grade: 'Grade 1', division: 'C', minutesLate: 15 },
-    { id: 2, student: 'Neil Shah', grade: 'Grade 3', division: 'B', minutesLate: 20 },
-  ];
-
-  const weeklyTrend = [
-    { day: 'Mon', present: 105, absent: 10 },
-    { day: 'Tue', present: 102, absent: 13 },
-    { day: 'Wed', present: 108, absent: 7 },
-    { day: 'Thu', present: 103, absent: 12 },
-    { day: 'Fri', present: 107, absent: 8 },
-  ];
-
-  const handleGradeClick = (grade) => {
-    setSelectedGrade(grade);
-    setSelectedDivision(null);
-    detailsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  const updateFilters = (updates) => {
+    const nextParams = new URLSearchParams(searchParams);
+    Object.entries(updates).forEach(([key, value]) => {
+      if (!value || value === 'all') {
+        nextParams.delete(key);
+      } else {
+        nextParams.set(key, value);
+      }
+    });
+    setSearchParams(nextParams);
   };
 
-  const handleDivisionClick = (division) => {
-    setSelectedDivision(division);
-    detailsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  };
+  const selectedGradeStats = attendanceSnapshot.gradeStats.find((grade) => String(grade.grade) === selectedGrade) || null;
 
-  const filteredDivisions = useMemo(() => {
-    if (!selectedGrade) return [];
-    return gradeStats.find((item) => item.grade === selectedGrade)?.divisions || [];
-  }, [selectedGrade, gradeStats]);
-
-  const filteredDailyRecords = useMemo(() => {
+  const filteredAbsentees = useMemo(() => {
     if (!operationalDayStatus.isWorkingDay) {
       return [];
     }
-    return dailyAttendance.filter((record) => {
-      const gradeMatch = selectedGrade ? record.grade === selectedGrade : true;
-      const divisionMatch = selectedDivision ? record.division === selectedDivision : true;
-      const dateMatch = selectedDate ? record.date === selectedDate : true;
-      return gradeMatch && divisionMatch && dateMatch;
+    return attendanceSnapshot.absentees.filter((entry) => {
+      const gradeMatch = selectedGrade === 'all' ? true : String(entry.grade) === selectedGrade;
+      const divisionMatch = selectedDivision === 'all' ? true : entry.division === selectedDivision;
+      const viewMatch = selectedView === 'all'
+        ? true
+        : selectedView === 'no-intimation'
+          ? entry.intimation === 'No prior intimation'
+          : entry.intimation === 'Advance leave';
+      return gradeMatch && divisionMatch && viewMatch;
     });
-  }, [selectedGrade, selectedDivision, selectedDate, dailyAttendance, operationalDayStatus]);
+  }, [attendanceSnapshot.absentees, operationalDayStatus, selectedDivision, selectedGrade, selectedView]);
 
-  const totalsForSelectedDate = useMemo(() => {
-    if (!operationalDayStatus.isWorkingDay) {
-      return { present: 0, absent: 0, attendancePercent: 0 };
-    }
+  const filteredAdvanceLeave = useMemo(() => {
+    return advanceLeaveRequests
+      .map((request) => {
+        const student = getStudentById(request.studentId);
+        if (!student || request.date !== selectedDate) {
+          return null;
+        }
+        return {
+          ...request,
+          studentName: student.name,
+          grade: student.grade,
+          division: student.division,
+        };
+      })
+      .filter(Boolean)
+      .filter((request) => {
+        const gradeMatch = selectedGrade === 'all' ? true : String(request.grade) === selectedGrade;
+        const divisionMatch = selectedDivision === 'all' ? true : request.division === selectedDivision;
+        return gradeMatch && divisionMatch;
+      });
+  }, [selectedDate, selectedDivision, selectedGrade]);
 
-    const totals = filteredDailyRecords.reduce((acc, record) => {
-      acc.present += record.present;
-      acc.absent += record.absent;
-      return acc;
-    }, { present: 0, absent: 0 });
+  const filteredLateArrivals = useMemo(() => {
+    return (lateArrivals[selectedDate] || [])
+      .map((entry) => {
+        const student = getStudentById(entry.studentId);
+        if (!student) {
+          return null;
+        }
+        return {
+          ...entry,
+          studentName: student.name,
+          grade: student.grade,
+          division: student.division,
+        };
+      })
+      .filter(Boolean)
+      .filter((entry) => {
+        const gradeMatch = selectedGrade === 'all' ? true : String(entry.grade) === selectedGrade;
+        const divisionMatch = selectedDivision === 'all' ? true : entry.division === selectedDivision;
+        return gradeMatch && divisionMatch;
+      });
+  }, [selectedDate, selectedDivision, selectedGrade]);
 
-    const strength = totals.present + totals.absent;
-    const attendancePercent = strength > 0 ? Math.round((totals.present / strength) * 100) : 0;
-    return { ...totals, attendancePercent };
-  }, [filteredDailyRecords, operationalDayStatus]);
-
-  const selectedGradeText = selectedGrade ? ` for ${selectedGrade}` : '';
-  const selectedDivisionText = selectedDivision ? ` / ${selectedDivision}` : '';
-
-  const buttonStyle = {
-    padding: '10px 16px',
-    borderRadius: '12px',
-    border: '1px solid #cbd5e1',
-    background: '#fff',
-    color: '#0f172a',
-    cursor: 'pointer',
+  const sectionStyle = {
+    marginTop: '24px',
+    padding: isMobile ? '16px' : '24px',
+    borderRadius: '20px',
+    background: '#ffffff',
+    boxShadow: '0 18px 45px rgba(15, 23, 42, 0.08)',
   };
 
   const cardStyle = {
-    padding: '20px',
+    padding: '18px 20px',
     borderRadius: '16px',
     background: '#f8fafc',
     border: '1px solid #e2e8f0',
   };
 
+  const pillButton = (active) => ({
+    padding: '10px 14px',
+    borderRadius: '999px',
+    border: `1px solid ${active ? '#0284c7' : '#cbd5e1'}`,
+    background: active ? '#e0f2fe' : '#fff',
+    color: active ? '#0c4a6e' : '#0f172a',
+    fontWeight: 700,
+    cursor: 'pointer',
+  });
+
   return (
-    <main style={{ padding: isMobile ? '16px' : '28px', maxWidth: '1240px', margin: '0 auto', color: '#0f172a' }}>
+    <main style={{ padding: isMobile ? '16px' : '28px', maxWidth: '1280px', margin: '0 auto', color: '#0f172a' }}>
       <section>
         <h2>Attendance Dashboards</h2>
-        <p style={{ color: '#475569', marginTop: '8px' }}>
-          Multi-level attendance analytics with grade, division, daily drill-down, leave planning and absentee alerts. Academic Year {academicYearLabel} (April to March).
+        <p style={{ color: '#475569', marginTop: '8px', maxWidth: '920px' }}>
+          Attendance analytics now drill down from school totals to grade, division, and the actual absent student roster with reasons, prior intimation status, and profile links. Academic Year {academicYearLabel}.
         </p>
         <div style={{ marginTop: '14px', padding: '12px 14px', borderRadius: '12px', border: `2px solid ${operationalDayStatus.isWorkingDay ? '#22c55e' : '#f59e0b'}`, background: operationalDayStatus.isWorkingDay ? '#f0fdf4' : '#fffbeb' }}>
           <strong style={{ color: operationalDayStatus.isWorkingDay ? '#166534' : '#92400e' }}>Attendance Policy Status: {operationalDayStatus.label}</strong>
@@ -231,257 +162,283 @@ const Attendance = () => {
         </div>
       </section>
 
-      <section style={{ marginTop: '24px', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '18px' }}>
-        <div style={cardStyle}>
-          <h3 style={{ marginBottom: '10px' }}>Today&apos;s Attendance</h3>
-          <p style={{ margin: 0, fontSize: '1.75rem', fontWeight: 700 }}>{totalsForSelectedDate.attendancePercent}%</p>
-          <p style={{ marginTop: '8px', color: '#64748b' }}>{operationalDayStatus.isWorkingDay ? `Overall student attendance on ${selectedDate}.` : `No attendance is recorded because ${operationalDayStatus.label.toLowerCase()}.`}</p>
+      <section style={sectionStyle}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', gap: '14px', flexWrap: 'wrap', alignItems: 'flex-start' }}>
+          <div>
+            <h3 style={{ margin: 0 }}>Daily Attendance Drill-down</h3>
+            <p style={{ margin: '8px 0 0', color: '#64748b' }}>Pick a date, then narrow by grade, division, and absentee type.</p>
+          </div>
+          <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+            <input type="date" value={selectedDate} onChange={(event) => updateFilters({ date: event.target.value })} style={{ padding: '10px 12px', borderRadius: '12px', border: '1px solid #cbd5e1' }} />
+            <select value={selectedGrade} onChange={(event) => updateFilters({ grade: event.target.value, division: 'all' })} style={{ padding: '10px 12px', borderRadius: '12px', border: '1px solid #cbd5e1' }}>
+              <option value="all">All grades</option>
+              {GRADES.map((grade) => <option key={grade} value={String(grade)}>Grade {grade}</option>)}
+            </select>
+            <select value={selectedDivision} onChange={(event) => updateFilters({ division: event.target.value })} style={{ padding: '10px 12px', borderRadius: '12px', border: '1px solid #cbd5e1' }}>
+              <option value="all">All divisions</option>
+              {DIVISIONS.map((division) => <option key={division} value={division}>Division {formatDivision(division)}</option>)}
+            </select>
+          </div>
         </div>
-        <div style={cardStyle}>
-          <h3 style={{ marginBottom: '10px' }}>Leaves Applied in Advance</h3>
-          <p style={{ margin: 0, fontSize: '1.75rem', fontWeight: 700 }}>3</p>
-          <p style={{ marginTop: '8px', color: '#64748b' }}>Students who submitted leave requests before the day.</p>
-        </div>
-        <div style={cardStyle}>
-          <h3 style={{ marginBottom: '10px' }}>Absent Without Intimation</h3>
-          <p style={{ margin: 0, fontSize: '1.75rem', fontWeight: 700 }}>2</p>
-          <p style={{ marginTop: '8px', color: '#64748b' }}>Unplanned absences requiring follow-up.</p>
-        </div>
-        <div style={cardStyle}>
-          <h3 style={{ marginBottom: '10px' }}>Late Arrivals</h3>
-          <p style={{ margin: 0, fontSize: '1.75rem', fontWeight: 700 }}>2</p>
-          <p style={{ marginTop: '8px', color: '#64748b' }}>Students who reached after the bell.</p>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px', marginTop: '18px' }}>
+          <button type="button" onClick={() => updateFilters({ view: 'all' })} style={{ ...cardStyle, textAlign: 'left', cursor: 'pointer', borderColor: selectedView === 'all' ? '#0284c7' : '#e2e8f0', background: selectedView === 'all' ? '#f0f9ff' : '#f8fafc' }}>
+            <h4 style={{ margin: '0 0 10px' }}>Overall Attendance</h4>
+            <p style={{ margin: 0, fontSize: '1.7rem', fontWeight: 800 }}>{attendanceSnapshot.totals.attendancePercent}%</p>
+            <p style={{ margin: '8px 0 0', color: '#64748b' }}>{attendanceSnapshot.totals.present} present · {attendanceSnapshot.totals.absent} absent</p>
+          </button>
+          <button type="button" onClick={() => updateFilters({ view: 'advance-leave' })} style={{ ...cardStyle, textAlign: 'left', cursor: 'pointer', borderColor: selectedView === 'advance-leave' ? '#0284c7' : '#e2e8f0', background: selectedView === 'advance-leave' ? '#f0f9ff' : '#f8fafc' }}>
+            <h4 style={{ margin: '0 0 10px' }}>Advance Leave</h4>
+            <p style={{ margin: 0, fontSize: '1.7rem', fontWeight: 800 }}>{attendanceSnapshot.totals.advanceLeaveCount}</p>
+            <p style={{ margin: '8px 0 0', color: '#64748b' }}>Absences with prior intimation.</p>
+          </button>
+          <button type="button" onClick={() => updateFilters({ view: 'no-intimation' })} style={{ ...cardStyle, textAlign: 'left', cursor: 'pointer', borderColor: selectedView === 'no-intimation' ? '#0284c7' : '#e2e8f0', background: selectedView === 'no-intimation' ? '#f0f9ff' : '#f8fafc' }}>
+            <h4 style={{ margin: '0 0 10px' }}>No Prior Intimation</h4>
+            <p style={{ margin: 0, fontSize: '1.7rem', fontWeight: 800 }}>{attendanceSnapshot.totals.noIntimationCount}</p>
+            <p style={{ margin: '8px 0 0', color: '#64748b' }}>Follow-up required by class team.</p>
+          </button>
+          <div style={cardStyle}>
+            <h4 style={{ margin: '0 0 10px' }}>Late Arrivals</h4>
+            <p style={{ margin: 0, fontSize: '1.7rem', fontWeight: 800 }}>{attendanceSnapshot.totals.lateArrivalCount}</p>
+            <p style={{ margin: '8px 0 0', color: '#64748b' }}>Students who entered after assembly.</p>
+          </div>
         </div>
       </section>
 
-      <section style={{ marginTop: '28px', padding: '24px', borderRadius: '20px', background: '#ffffff', boxShadow: '0 18px 45px rgba(15, 23, 42, 0.08)' }}>
-        <h3 style={{ marginBottom: '18px' }}>Grade-wise Attendance Snapshot</h3>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '18px' }}>
-          {gradeStats.map((grade) => (
-            <div
+      <section style={sectionStyle}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', gap: '14px', flexWrap: 'wrap', alignItems: 'flex-start' }}>
+          <div>
+            <h3 style={{ margin: 0 }}>Grade-wise Absenteeism</h3>
+            <p style={{ margin: '8px 0 0', color: '#64748b' }}>Click a grade card to open division-level absentee counts.</p>
+          </div>
+          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+            <button type="button" style={pillButton(selectedGrade === 'all')} onClick={() => updateFilters({ grade: 'all', division: 'all' })}>All grades</button>
+            {attendanceSnapshot.gradeStats.filter((grade) => grade.absent > 0).map((grade) => (
+              <button key={grade.grade} type="button" style={pillButton(selectedGrade === String(grade.grade))} onClick={() => updateFilters({ grade: String(grade.grade), division: 'all' })}>
+                Grade {grade.grade}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '16px', marginTop: '18px' }}>
+          {attendanceSnapshot.gradeStats.map((grade) => (
+            <button
               key={grade.grade}
-              onClick={() => handleGradeClick(grade.grade)}
-              style={{
-                ...cardStyle,
-                cursor: 'pointer',
-                background: selectedGrade === grade.grade ? '#def7ec' : cardStyle.background,
-                borderColor: selectedGrade === grade.grade ? '#10b981' : cardStyle.border,
-              }}
+              type="button"
+              onClick={() => updateFilters({ grade: String(grade.grade), division: 'all' })}
+              style={{ ...cardStyle, textAlign: 'left', cursor: 'pointer', borderColor: selectedGrade === String(grade.grade) ? '#0ea5e9' : '#e2e8f0', background: selectedGrade === String(grade.grade) ? '#f0f9ff' : '#f8fafc' }}
             >
-              <h4 style={{ margin: '0 0 10px' }}>{grade.grade}</h4>
-              <div style={{ display: 'grid', gap: '8px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span>Present</span>
-                  <strong>{grade.present}</strong>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span>Absent</span>
-                  <strong>{grade.absent}</strong>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span>Attendance</span>
-                  <strong>{grade.attendancePercent}%</strong>
-                </div>
-                <div style={{ height: '10px', borderRadius: '999px', background: '#e2e8f0', overflow: 'hidden' }}>
-                  <div style={{ width: `${grade.attendancePercent}%`, height: '100%', background: '#0ea5e9' }} />
-                </div>
+              <h4 style={{ margin: 0 }}>Grade {grade.grade}</h4>
+              <div style={{ marginTop: '12px', display: 'grid', gap: '6px', color: '#334155' }}>
+                <span>Absent: <strong>{grade.absent}</strong></span>
+                <span>Present: <strong>{grade.present}</strong></span>
+                <span>Attendance: <strong>{grade.attendancePercent}%</strong></span>
               </div>
-            </div>
+              <div style={{ height: '10px', borderRadius: '999px', background: '#dbeafe', overflow: 'hidden', marginTop: '14px' }}>
+                <div style={{ width: `${grade.attendancePercent}%`, height: '100%', background: 'linear-gradient(90deg, #38bdf8 0%, #0284c7 100%)' }} />
+              </div>
+            </button>
           ))}
         </div>
       </section>
 
-      {selectedGrade && (
-        <section style={{ marginTop: '28px', padding: '24px', borderRadius: '20px', background: '#ffffff', boxShadow: '0 18px 45px rgba(15, 23, 42, 0.08)' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
-            <h3 style={{ margin: 0 }}>Division Drilldown for {selectedGrade}</h3>
-            <button type="button" style={buttonStyle} onClick={() => { setSelectedGrade(null); setSelectedDivision(null); }}>
-              Clear Grade Filter
-            </button>
+      {selectedGradeStats && (
+        <section style={sectionStyle}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: '14px', flexWrap: 'wrap', alignItems: 'flex-start' }}>
+            <div>
+              <h3 style={{ margin: 0 }}>Division-wise Drill-down for Grade {selectedGradeStats.grade}</h3>
+              <p style={{ margin: '8px 0 0', color: '#64748b' }}>Open the division count to list the actual absent students.</p>
+            </div>
+            <button type="button" style={pillButton(false)} onClick={() => updateFilters({ grade: 'all', division: 'all' })}>Clear grade filter</button>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '18px', marginTop: '20px' }}>
-            {filteredDivisions.map((division) => (
-              <div
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px', marginTop: '18px' }}>
+            {selectedGradeStats.divisions.map((division) => (
+              <button
                 key={division.division}
-                onClick={() => handleDivisionClick(division.division)}
-                style={{
-                  ...cardStyle,
-                  cursor: 'pointer',
-                  background: selectedDivision === division.division ? '#f0f9ff' : cardStyle.background,
-                  borderColor: selectedDivision === division.division ? '#38bdf8' : cardStyle.border,
-                }}
+                type="button"
+                onClick={() => updateFilters({ division: division.division })}
+                style={{ ...cardStyle, textAlign: 'left', cursor: 'pointer', borderColor: selectedDivision === division.division ? '#0284c7' : '#e2e8f0', background: selectedDivision === division.division ? '#f0f9ff' : '#f8fafc' }}
               >
-                <h4 style={{ margin: '0 0 10px' }}>Division {division.division}</h4>
-                <div style={{ display: 'grid', gap: '8px' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span>Present</span>
-                    <strong>{division.present}</strong>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span>Absent</span>
-                    <strong>{division.absent}</strong>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span>Attendance</span>
-                    <strong>{division.attendancePercent}%</strong>
-                  </div>
+                <h4 style={{ margin: 0 }}>{division.label}</h4>
+                <div style={{ marginTop: '12px', display: 'grid', gap: '6px', color: '#334155' }}>
+                  <span>Absent: <strong>{division.absent}</strong></span>
+                  <span>Present: <strong>{division.present}</strong></span>
+                  <span>Attendance: <strong>{division.attendancePercent}%</strong></span>
                 </div>
-              </div>
+                {division.absentStudents.length > 0 && <p style={{ margin: '10px 0 0', color: '#64748b', fontSize: '0.84rem' }}>{division.absentStudents.length} student profiles available in drill-down.</p>}
+              </button>
             ))}
           </div>
         </section>
       )}
 
-      <section style={{ marginTop: '28px', padding: isMobile ? '16px' : '24px', borderRadius: '20px', background: '#ffffff', boxShadow: '0 18px 45px rgba(15, 23, 42, 0.08)' }} ref={detailsRef}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+      <section style={sectionStyle}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', gap: '14px', flexWrap: 'wrap', alignItems: 'flex-start' }}>
           <div>
-            <h3 style={{ margin: 0 }}>Daily Attendance Details{selectedGradeText}{selectedDivisionText}</h3>
-            <p style={{ margin: '8px 0 0', color: '#64748b' }}>Date filter and detailed attendance records by grade and division.</p>
+            <h3 style={{ margin: 0 }}>Absent Student Roster</h3>
+            <p style={{ margin: '8px 0 0', color: '#64748b' }}>
+              {selectedGrade === 'all' ? 'All grades' : `Grade ${selectedGrade}`}
+              {selectedDivision === 'all' ? '' : ` · Division ${formatDivision(selectedDivision)}`}
+              {' · '}
+              {selectedView === 'all' ? 'All absentees' : selectedView === 'no-intimation' ? 'No prior intimation only' : 'Advance leave only'}
+            </p>
           </div>
-          <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
-            <input
-              type="date"
-              value={selectedDate}
-              onChange={(e) => setSelectedDate(e.target.value)}
-              style={{
-                ...buttonStyle,
-                minWidth: isMobile ? '100%' : '170px',
-                padding: '9px 12px',
-              }}
-            />
-            <button type="button" style={buttonStyle} onClick={() => setSelectedDate('2026-04-18')}>
-              18 Apr
-            </button>
-            <button type="button" style={buttonStyle} onClick={() => setSelectedDate('2026-04-17')}>
-              17 Apr
-            </button>
+          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+            <button type="button" style={pillButton(selectedView === 'all')} onClick={() => updateFilters({ view: 'all' })}>All</button>
+            <button type="button" style={pillButton(selectedView === 'advance-leave')} onClick={() => updateFilters({ view: 'advance-leave' })}>Advance leave</button>
+            <button type="button" style={pillButton(selectedView === 'no-intimation')} onClick={() => updateFilters({ view: 'no-intimation' })}>No prior intimation</button>
           </div>
         </div>
-        <div style={{ marginTop: '22px' }}>
-          {isMobile ? (
-            <div style={{ display: 'grid', gap: '10px' }}>
-              {filteredDailyRecords.length > 0 ? filteredDailyRecords.map((record, index) => (
-                <article key={`${record.grade}-${record.division}-${index}`} style={{ border: '1px solid #e2e8f0', borderRadius: '12px', padding: '12px', background: '#f8fafc' }}>
-                  <strong>{record.grade} / {record.division}</strong>
-                  <p style={{ marginTop: '6px', color: '#475569' }}>{record.date}</p>
-                  <p style={{ marginTop: '6px', color: '#334155' }}>Present: {record.present} · Absent: {record.absent}</p>
-                  <p style={{ marginTop: '6px', color: '#64748b', fontSize: '0.85rem' }}>{record.records.map((r) => `${r.name} (${r.status})`).join(', ')}</p>
-                </article>
-              )) : (
-                <p style={{ color: '#64748b' }}>{operationalDayStatus.isWorkingDay ? 'No attendance records available for the selected filter.' : `School is off (${operationalDayStatus.label}), so attendance is not applicable for this date.`}</p>
-              )}
-            </div>
-          ) : (
-            <div style={{ overflowX: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '860px' }}>
-                <thead>
-                  <tr style={{ textAlign: 'left', borderBottom: '2px solid #e2e8f0' }}>
-                    <th style={{ padding: '12px 16px' }}>Date</th>
-                    <th style={{ padding: '12px 16px' }}>Grade</th>
-                    <th style={{ padding: '12px 16px' }}>Division</th>
-                    <th style={{ padding: '12px 16px' }}>Present</th>
-                    <th style={{ padding: '12px 16px' }}>Absent</th>
-                    <th style={{ padding: '12px 16px' }}>Records</th>
+
+        {!operationalDayStatus.isWorkingDay ? (
+          <p style={{ color: '#64748b', marginTop: '16px' }}>School is off for the selected date, so absentee drill-down is not applicable.</p>
+        ) : isMobile ? (
+          <div style={{ display: 'grid', gap: '12px', marginTop: '18px' }}>
+            {filteredAbsentees.map((entry) => (
+              <article key={entry.studentId} style={{ ...cardStyle, background: '#fff' }}>
+                <Link to={`/sis/student/${entry.studentId}`} style={{ color: '#0f172a', fontWeight: 800, textDecoration: 'none' }}>{entry.studentName}</Link>
+                <p style={{ margin: '6px 0 0', color: '#475569' }}>Grade {entry.grade} · Division {formatDivision(entry.division)} · Roll {entry.rollNo}</p>
+                <p style={{ margin: '8px 0 0', color: '#334155' }}>Reason: {entry.reason}</p>
+                <p style={{ margin: '6px 0 0', color: entry.intimation === 'No prior intimation' ? '#b45309' : '#166534', fontWeight: 700 }}>{entry.intimation}</p>
+                <p style={{ margin: '6px 0 0', color: '#64748b' }}>{entry.followUp}</p>
+              </article>
+            ))}
+          </div>
+        ) : (
+          <div style={{ overflowX: 'auto', marginTop: '18px' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '980px' }}>
+              <thead>
+                <tr style={{ textAlign: 'left', borderBottom: '2px solid #e2e8f0' }}>
+                  <th style={{ padding: '12px 16px' }}>Student</th>
+                  <th style={{ padding: '12px 16px' }}>Grade</th>
+                  <th style={{ padding: '12px 16px' }}>Division</th>
+                  <th style={{ padding: '12px 16px' }}>Roll No</th>
+                  <th style={{ padding: '12px 16px' }}>Reason</th>
+                  <th style={{ padding: '12px 16px' }}>Intimation</th>
+                  <th style={{ padding: '12px 16px' }}>Follow-up</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredAbsentees.map((entry) => (
+                  <tr key={entry.studentId} style={{ borderBottom: '1px solid #e2e8f0' }}>
+                    <td style={{ padding: '14px 16px' }}><Link to={`/sis/student/${entry.studentId}`} style={{ color: '#0f172a', fontWeight: 700, textDecoration: 'none' }}>{entry.studentName}</Link></td>
+                    <td style={{ padding: '14px 16px' }}>Grade {entry.grade}</td>
+                    <td style={{ padding: '14px 16px' }}>Division {formatDivision(entry.division)}</td>
+                    <td style={{ padding: '14px 16px' }}>{entry.rollNo}</td>
+                    <td style={{ padding: '14px 16px' }}>{entry.reason}</td>
+                    <td style={{ padding: '14px 16px', color: entry.intimation === 'No prior intimation' ? '#b45309' : '#166534', fontWeight: 700 }}>{entry.intimation}</td>
+                    <td style={{ padding: '14px 16px' }}>{entry.followUp}</td>
                   </tr>
-                </thead>
-                <tbody>
-                  {filteredDailyRecords.length > 0 ? (
-                    filteredDailyRecords.map((record, index) => (
-                      <tr key={`${record.grade}-${record.division}-${index}`} style={{ borderBottom: '1px solid #e2e8f0' }}>
-                        <td style={{ padding: '14px 16px' }}>{record.date}</td>
-                        <td style={{ padding: '14px 16px' }}>{record.grade}</td>
-                        <td style={{ padding: '14px 16px' }}>{record.division}</td>
-                        <td style={{ padding: '14px 16px' }}>{record.present}</td>
-                        <td style={{ padding: '14px 16px' }}>{record.absent}</td>
-                        <td style={{ padding: '14px 16px' }}>{record.records.map((r) => `${r.name} (${r.status})`).join(', ')}</td>
-                      </tr>
-                    ))
-                  ) : (
-                    <tr>
-                      <td colSpan="6" style={{ padding: '18px 16px', color: '#64748b', textAlign: 'center' }}>
-                        {operationalDayStatus.isWorkingDay ? 'No attendance records available for the selected filter.' : `School is off (${operationalDayStatus.label}), so attendance is not applicable for this date.`}
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </section>
 
-      <section style={{ marginTop: '28px', padding: isMobile ? '16px' : '24px', borderRadius: '20px', background: '#ffffff', boxShadow: '0 18px 45px rgba(15, 23, 42, 0.08)' }}>
-        <h3 style={{ marginBottom: '18px' }}>Leave & Absence Analytics</h3>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '18px' }}>
-          <div style={cardStyle}>
-            <h4 style={{ marginBottom: '12px' }}>Advance Leave Applications</h4>
-            <p style={{ margin: 0, fontSize: '1.5rem', fontWeight: 700 }}>{leaveApplications.length}</p>
-            <p style={{ marginTop: '8px', color: '#64748b' }}>Students who applied before absence.</p>
-          </div>
-          <div style={cardStyle}>
-            <h4 style={{ marginBottom: '12px' }}>Absent Without Intimation</h4>
-            <p style={{ margin: 0, fontSize: '1.5rem', fontWeight: 700 }}>{noIntimationAbsentees.length}</p>
-            <p style={{ marginTop: '8px', color: '#64748b' }}>Require principal follow-up and parent contact.</p>
-          </div>
-          <div style={cardStyle}>
-            <h4 style={{ marginBottom: '12px' }}>Late Arrivals</h4>
-            <p style={{ margin: 0, fontSize: '1.5rem', fontWeight: 700 }}>{lateArrivals.length}</p>
-            <p style={{ marginTop: '8px', color: '#64748b' }}>Monitored for punctuality interventions.</p>
-          </div>
-        </div>
-
-        <div style={{ marginTop: '24px' }}>
-          {isMobile ? (
+      <section style={sectionStyle}>
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1.15fr 0.85fr', gap: '18px' }}>
+          <div>
+            <h3 style={{ margin: 0 }}>Weekly Absentee Trend</h3>
+            <p style={{ margin: '8px 0 14px', color: '#64748b' }}>Daily attendance percentages and absence counts with visual representation and labeled values.</p>
+            
+            <div style={{ ...cardStyle, marginBottom: '16px', background: '#fff' }}>
+              <div style={{ marginBottom: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.85rem', color: '#64748b' }}>
+                <span>Attendance Rate</span>
+                <span>Absences</span>
+              </div>
+              <svg style={{ width: '100%', height: '240px', minHeight: '240px' }} viewBox={`0 0 ${weeklyAttendanceTrend.length * 80} 240`} preserveAspectRatio="none">
+                {weeklyAttendanceTrend.map((point, idx) => {
+                  const x = idx * 80 + 20;
+                  const maxHeight = 180;
+                  const barHeight = (point.attendancePercent / 100) * maxHeight;
+                  const yStart = 200 - barHeight;
+                  const isSelected = selectedDate === point.date;
+                  
+                  return (
+                    <g key={point.date}>
+                      <rect
+                        x={x}
+                        y={yStart}
+                        width="50"
+                        height={barHeight}
+                        fill={isSelected ? '#0284c7' : '#38bdf8'}
+                        rx="4"
+                        onClick={() => updateFilters({ date: point.date })}
+                        style={{ cursor: 'pointer', opacity: isSelected ? 1 : 0.8 }}
+                      />
+                      <text x={x + 25} y={yStart - 6} textAnchor="middle" fontSize="12" fontWeight="700" fill="#0f172a" onClick={() => updateFilters({ date: point.date })} style={{ cursor: 'pointer' }}>
+                        {point.attendancePercent}%
+                      </text>
+                      <text x={x + 25} y="220" textAnchor="middle" fontSize="10" fill="#64748b">
+                        {point.label}
+                      </text>
+                      {point.absent > 0 && (
+                        <circle
+                          cx={x + 25}
+                          cy={yStart - 20}
+                          r="14"
+                          fill="#ff6b6b"
+                          onClick={() => updateFilters({ date: point.date })}
+                          style={{ cursor: 'pointer' }}
+                        />
+                      )}
+                      {point.absent > 0 && (
+                        <text x={x + 25} y={yStart - 15} textAnchor="middle" fontSize="11" fontWeight="700" fill="#fff" onClick={() => updateFilters({ date: point.date })} style={{ cursor: 'pointer', pointerEvents: 'none' }}>
+                          {point.absent}
+                        </text>
+                      )}
+                    </g>
+                  );
+                })}
+              </svg>
+            </div>
+            
             <div style={{ display: 'grid', gap: '10px' }}>
-              {leaveApplications.map((leave) => (
-                <article key={leave.id} style={{ border: '1px solid #e2e8f0', borderRadius: '12px', padding: '12px', background: '#fff' }}>
-                  <strong>{leave.student}</strong>
-                  <p style={{ marginTop: '6px', color: '#475569' }}>{leave.grade} · {leave.type}</p>
-                  <p style={{ marginTop: '6px', color: '#334155' }}>{leave.date}</p>
-                  <p style={{ marginTop: '6px', color: '#64748b', fontSize: '0.9rem' }}>{leave.notice}</p>
-                </article>
+              {weeklyAttendanceTrend.map((point) => (
+                <button key={point.date} type="button" onClick={() => updateFilters({ date: point.date })} style={{ ...cardStyle, textAlign: 'left', cursor: 'pointer', borderColor: selectedDate === point.date ? '#0284c7' : '#e2e8f0', background: selectedDate === point.date ? '#f0f9ff' : '#f8fafc' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: '10px', alignItems: 'center' }}>
+                    <strong>{point.label}</strong>
+                    <span>{point.attendancePercent}% attendance</span>
+                  </div>
+                  <div style={{ marginTop: '8px', display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: '8px', color: '#334155', fontSize: '0.88rem' }}>
+                    <span>Absent: {point.absent}</span>
+                    <span>No intimation: {point.noIntimationCount}</span>
+                    <span>Date: {point.date}</span>
+                  </div>
+                </button>
               ))}
             </div>
-          ) : (
-            <div style={{ overflowX: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '860px' }}>
-                <thead>
-                  <tr style={{ textAlign: 'left', borderBottom: '2px solid #e2e8f0' }}>
-                    <th style={{ padding: '12px 16px' }}>Student</th>
-                    <th style={{ padding: '12px 16px' }}>Grade</th>
-                    <th style={{ padding: '12px 16px' }}>Type</th>
-                    <th style={{ padding: '12px 16px' }}>Date</th>
-                    <th style={{ padding: '12px 16px' }}>Notice</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {leaveApplications.map((leave) => (
-                    <tr key={leave.id} style={{ borderBottom: '1px solid #e2e8f0' }}>
-                      <td style={{ padding: '14px 16px' }}>{leave.student}</td>
-                      <td style={{ padding: '14px 16px' }}>{leave.grade}</td>
-                      <td style={{ padding: '14px 16px' }}>{leave.type}</td>
-                      <td style={{ padding: '14px 16px' }}>{leave.date}</td>
-                      <td style={{ padding: '14px 16px' }}>{leave.notice}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
-      </section>
+          </div>
 
-      <section style={{ marginTop: '28px', padding: '24px', borderRadius: '20px', background: '#ffffff', boxShadow: '0 18px 45px rgba(15, 23, 42, 0.08)' }}>
-        <h3 style={{ marginBottom: '18px' }}>Weekly Attendance Trend</h3>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '18px' }}>
-          {weeklyTrend.map((point) => (
-            <div key={point.day} style={cardStyle}>
-              <h4 style={{ margin: '0 0 10px' }}>{point.day}</h4>
-              <p style={{ margin: 0, fontSize: '1.4rem', fontWeight: 700 }}>{point.present}</p>
-              <p style={{ margin: '4px 0 0', color: '#64748b' }}>Present</p>
-              <p style={{ margin: '10px 0 0', color: '#334155' }}><strong>{point.absent}</strong> absent</p>
+          <div>
+            <h3 style={{ margin: 0 }}>Related Actions</h3>
+            <div style={{ display: 'grid', gap: '12px', marginTop: '14px' }}>
+              <div style={cardStyle}>
+                <h4 style={{ margin: '0 0 10px' }}>Advance Leave Requests</h4>
+                {filteredAdvanceLeave.length === 0 ? <p style={{ margin: 0, color: '#64748b' }}>No advance leave requests for the current filter.</p> : filteredAdvanceLeave.map((request, index) => (
+                  <div key={request.id} style={{ padding: '10px 0', borderBottom: index === filteredAdvanceLeave.length - 1 ? 'none' : '1px solid #e2e8f0' }}>
+                    <p style={{ margin: 0, fontWeight: 700 }}>{request.studentName}</p>
+                    <p style={{ margin: '4px 0 0', color: '#475569' }}>Grade {request.grade} · Division {formatDivision(request.division)}</p>
+                    <p style={{ margin: '4px 0 0', color: '#334155' }}>{request.type}</p>
+                    <p style={{ margin: '4px 0 0', color: '#64748b' }}>{request.notice}</p>
+                  </div>
+                ))}
+              </div>
+              <div style={cardStyle}>
+                <h4 style={{ margin: '0 0 10px' }}>Late Arrival Watch</h4>
+                {filteredLateArrivals.length === 0 ? <p style={{ margin: 0, color: '#64748b' }}>No late arrival alerts for the selected date.</p> : filteredLateArrivals.map((entry, index) => (
+                  <div key={entry.studentId} style={{ padding: '10px 0', borderBottom: index === filteredLateArrivals.length - 1 ? 'none' : '1px solid #e2e8f0' }}>
+                    <p style={{ margin: 0, fontWeight: 700 }}>{entry.studentName}</p>
+                    <p style={{ margin: '4px 0 0', color: '#475569' }}>Grade {entry.grade} · Division {formatDivision(entry.division)}</p>
+                    <p style={{ margin: '4px 0 0', color: '#334155' }}>{entry.minutesLate} minutes late</p>
+                    <p style={{ margin: '4px 0 0', color: '#64748b' }}>{entry.note}</p>
+                  </div>
+                ))}
+              </div>
             </div>
-          ))}
+          </div>
         </div>
       </section>
     </main>

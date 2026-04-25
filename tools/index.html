@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SMT School ERP — Dev Tools</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:        #0d1117;
+      --surface:   #161b22;
+      --border:    #30363d;
+      --text:      #c9d1d9;
+      --muted:     #8b949e;
+      --accent:    #58a6ff;
+      --green:     #3fb950;
+      --red:       #f85149;
+      --orange:    #d29922;
+      --purple:    #bc8cff;
+      --font-mono: 'Cascadia Code', 'Fira Code', Consolas, 'Courier New', monospace;
+      --font-ui:   'Segoe UI', system-ui, -apple-system, sans-serif;
+    }
+
+    html, body { height: 100%; background: var(--bg); color: var(--text); font-family: var(--font-ui); font-size: 14px; }
+
+    /* ── Layout ── */
+    .app { display: grid; grid-template-rows: 52px 1fr; height: 100vh; }
+    .main { display: grid; grid-template-columns: 280px 1fr; overflow: hidden; }
+    .sidebar { background: var(--surface); border-right: 1px solid var(--border); overflow-y: auto; padding: 12px 8px 24px; }
+    .panel { display: flex; flex-direction: column; overflow: hidden; }
+
+    /* ── Header ── */
+    header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 20px;
+    }
+    .header-title { font-weight: 600; font-size: 15px; letter-spacing: 0.02em; }
+    .header-title span { color: var(--muted); font-weight: 400; }
+    .header-status { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); }
+    .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); flex-shrink: 0; }
+    .dot.idle { background: var(--muted); }
+    .dot.running { background: var(--accent); animation: pulse 1.2s ease-in-out infinite; }
+
+    @keyframes pulse { 0%,100%{ opacity:1 } 50%{ opacity:0.3 } }
+
+    /* ── Sidebar Groups ── */
+    .group-label {
+      font-size: 10px; font-weight: 700; letter-spacing: 0.1em;
+      text-transform: uppercase; color: var(--muted);
+      padding: 14px 8px 4px;
+    }
+    .task-btn {
+      display: flex; flex-direction: column; align-items: flex-start;
+      width: 100%; background: none; border: none; cursor: pointer;
+      padding: 7px 10px; border-radius: 6px; text-align: left;
+      transition: background 0.12s;
+      color: var(--text);
+    }
+    .task-btn:hover { background: rgba(255,255,255,0.06); }
+    .task-btn:active { background: rgba(255,255,255,0.1); }
+    .task-btn.running { background: rgba(88,166,255,0.1); }
+    .task-btn.success { background: rgba(63,185,80,0.08); }
+    .task-btn.failed  { background: rgba(248,81,73,0.08); }
+    .task-name { font-size: 13px; font-weight: 500; display: flex; align-items: center; gap: 6px; width: 100%; }
+    .task-desc { font-size: 11px; color: var(--muted); margin-top: 1px; }
+    .task-icon { font-size: 10px; margin-left: auto; }
+
+    /* Group accent colors */
+    .group-deploy   .task-name { color: #ff7b72; }
+    .group-tests    .task-name { color: #79c0ff; }
+    .group-quality  .task-name { color: #d2a8ff; }
+    .group-security .task-name { color: #ffa657; }
+    .group-build    .task-name { color: #56d364; }
+    .group-database .task-name { color: #f2cc60; }
+
+    /* Commit message input */
+    .commit-input-wrap { padding: 4px 10px 8px; }
+    .commit-input {
+      width: 100%; background: var(--bg); border: 1px solid var(--border);
+      border-radius: 5px; color: var(--text); font-family: var(--font-mono);
+      font-size: 11px; padding: 5px 8px; outline: none;
+      transition: border-color 0.15s;
+    }
+    .commit-input:focus { border-color: var(--accent); }
+    .commit-input::placeholder { color: var(--muted); }
+
+    /* ── Panel ── */
+    .panel-header {
+      background: var(--surface); border-bottom: 1px solid var(--border);
+      padding: 10px 16px; display: flex; align-items: center; gap: 12px;
+      flex-shrink: 0;
+    }
+    .active-task-name { font-size: 13px; font-weight: 600; }
+    .active-task-meta { font-size: 12px; color: var(--muted); margin-left: auto; }
+    .badge {
+      font-size: 11px; padding: 2px 8px; border-radius: 12px; font-weight: 600;
+      letter-spacing: 0.03em;
+    }
+    .badge.running  { background: rgba(88,166,255,0.2);  color: var(--accent); }
+    .badge.success  { background: rgba(63,185,80,0.2);   color: var(--green); }
+    .badge.failed   { background: rgba(248,81,73,0.2);   color: var(--red); }
+    .badge.idle     { background: rgba(139,148,158,0.2); color: var(--muted); }
+    .badge.cancelled{ background: rgba(210,153,34,0.2);  color: var(--orange); }
+
+    .stop-btn {
+      background: rgba(248,81,73,0.15); color: var(--red);
+      border: 1px solid rgba(248,81,73,0.3); border-radius: 5px;
+      padding: 3px 10px; font-size: 12px; cursor: pointer;
+      transition: background 0.12s;
+    }
+    .stop-btn:hover { background: rgba(248,81,73,0.3); }
+
+    /* ── Terminal ── */
+    .terminal-wrap { flex: 1; overflow: hidden; position: relative; }
+    .terminal {
+      position: absolute; inset: 0;
+      padding: 14px 16px; overflow-y: auto;
+      font-family: var(--font-mono); font-size: 12.5px; line-height: 1.65;
+      background: var(--bg);
+      white-space: pre-wrap; word-break: break-all;
+    }
+    .terminal .line-out { color: #c9d1d9; }
+    .terminal .line-err { color: #ffa657; }
+    .terminal .line-info{ color: #58a6ff; font-style: italic; }
+    .terminal .line-done-ok  { color: var(--green); font-weight: 700; }
+    .terminal .line-done-err { color: var(--red);   font-weight: 700; }
+    .terminal-empty { color: var(--muted); font-family: var(--font-mono); font-size: 12.5px; padding: 14px 16px; }
+
+    /* scrollbar */
+    .terminal::-webkit-scrollbar { width: 6px; }
+    .terminal::-webkit-scrollbar-track { background: transparent; }
+    .terminal::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+    /* ── History ── */
+    .history-bar {
+      flex-shrink: 0; background: var(--surface);
+      border-top: 1px solid var(--border);
+      padding: 8px 12px; display: flex; align-items: center; gap: 6px;
+      overflow-x: auto; min-height: 42px;
+    }
+    .history-label { font-size: 11px; color: var(--muted); white-space: nowrap; margin-right: 4px; }
+    .hist-chip {
+      display: flex; align-items: center; gap: 5px;
+      background: rgba(255,255,255,0.04); border: 1px solid var(--border);
+      border-radius: 5px; padding: 3px 8px; font-size: 11px; white-space: nowrap;
+      cursor: pointer; transition: background 0.1s; flex-shrink: 0;
+    }
+    .hist-chip:hover { background: rgba(255,255,255,0.09); }
+    .hist-chip .hc-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+    .hist-chip .hc-dot.success  { background: var(--green); }
+    .hist-chip .hc-dot.failed   { background: var(--red); }
+    .hist-chip .hc-dot.cancelled{ background: var(--orange); }
+    .hist-chip .hc-ms { color: var(--muted); font-size: 10px; }
+
+    /* ── Sidebar scrollbar ── */
+    .sidebar::-webkit-scrollbar { width: 4px; }
+    .sidebar::-webkit-scrollbar-thumb { background: var(--border); }
+
+    /* ── Utility ── */
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body>
+<div class="app">
+
+  <!-- Header -->
+  <header>
+    <div class="header-title">SMT School ERP <span>/ Dev Tools</span></div>
+    <div class="header-status">
+      <div class="dot idle" id="global-dot"></div>
+      <span id="global-status">Idle</span>
+    </div>
+  </header>
+
+  <div class="main">
+
+    <!-- Sidebar -->
+    <aside class="sidebar" id="sidebar">
+      <!-- populated by JS -->
+    </aside>
+
+    <!-- Right panel -->
+    <div class="panel">
+
+      <!-- Active task header -->
+      <div class="panel-header" id="panel-header">
+        <span class="active-task-name" id="active-name">No task running</span>
+        <span class="badge idle" id="active-badge">Idle</span>
+        <span class="active-task-meta" id="active-meta"></span>
+        <button class="stop-btn hidden" id="stop-btn">Stop</button>
+      </div>
+
+      <!-- Terminal output -->
+      <div class="terminal-wrap">
+        <div class="terminal" id="terminal">
+          <span class="line-info">← Select a task on the left to run it.</span>
+        </div>
+      </div>
+
+      <!-- History bar -->
+      <div class="history-bar" id="history-bar">
+        <span class="history-label">Recent:</span>
+        <span style="color: var(--muted); font-size:11px">No runs yet</span>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script>
+  const BASE = ''  // same origin
+  let currentTaskId = null
+  let currentEventSource = null
+  let timerInterval = null
+  let taskDefs = {}
+
+  const GROUP_ORDER = ['deploy', 'tests', 'quality', 'security', 'build', 'database']
+  const GROUP_LABELS = {
+    deploy:   '🚀  Deploy & Git',
+    tests:    '🧪  Tests',
+    quality:  '✨  Code Quality',
+    security: '🔒  Security',
+    build:    '📦  Build',
+    database: '🗄️  Database',
+  }
+
+  // ── Init ──────────────────────────────────────────────────────────────────
+  async function init() {
+    try {
+      const res = await fetch('/tasks')
+      taskDefs = await res.json()
+      renderSidebar()
+      renderHistory()
+    } catch (e) {
+      document.getElementById('terminal').innerHTML =
+        '<span class="line-err">Could not reach task runner server.\nMake sure it is running: node tools/server.js\n</span>'
+    }
+  }
+
+  // ── Render sidebar ────────────────────────────────────────────────────────
+  function renderSidebar() {
+    const sidebar = document.getElementById('sidebar')
+    sidebar.innerHTML = ''
+
+    const groups = {}
+    for (const [key, def] of Object.entries(taskDefs)) {
+      if (!groups[def.group]) groups[def.group] = []
+      groups[def.group].push([key, def])
+    }
+
+    for (const group of GROUP_ORDER) {
+      if (!groups[group]) continue
+      const labelEl = document.createElement('div')
+      labelEl.className = 'group-label'
+      labelEl.textContent = GROUP_LABELS[group] || group
+      sidebar.appendChild(labelEl)
+
+      for (const [key, def] of groups[group]) {
+        if (def.needsMessage) {
+          // Commit & Deploy — render input + button together
+          const wrap = document.createElement('div')
+          wrap.className = `task-btn group-${group}`
+          wrap.style.cssText = 'cursor:default; padding-bottom:0'
+          wrap.innerHTML = `
+            <span class="task-name" style="cursor:default">${def.label}<span class="task-icon" id="icon-${key}"></span></span>
+            <span class="task-desc">${def.desc}</span>
+          `
+          sidebar.appendChild(wrap)
+          const inputWrap = document.createElement('div')
+          inputWrap.className = 'commit-input-wrap'
+          inputWrap.innerHTML = `
+            <input class="commit-input" id="msg-${key}" placeholder="Commit message…" />
+          `
+          sidebar.appendChild(inputWrap)
+          const runBtn = document.createElement('button')
+          runBtn.className = `task-btn group-${group}`
+          runBtn.id = `btn-${key}`
+          runBtn.style.cssText = 'padding-top:4px; margin-bottom:6px'
+          runBtn.innerHTML = `<span class="task-name" style="color:var(--green); font-size:12px">▶ Stage All, Commit & Push</span>`
+          runBtn.onclick = () => {
+            const msg = document.getElementById(`msg-${key}`)?.value?.trim()
+            if (!msg) { document.getElementById(`msg-${key}`).focus(); return }
+            runTask(key, { message: msg })
+          }
+          sidebar.appendChild(runBtn)
+        } else {
+          const btn = document.createElement('button')
+          btn.className = `task-btn group-${group}`
+          btn.id = `btn-${key}`
+          btn.innerHTML = `
+            <span class="task-name">${def.label}<span class="task-icon" id="icon-${key}"></span></span>
+            <span class="task-desc">${def.desc}</span>
+          `
+          btn.onclick = () => runTask(key)
+          sidebar.appendChild(btn)
+        }
+      }
+    }
+  }
+
+  // ── Run a task ────────────────────────────────────────────────────────────
+  async function runTask(name, params = {}) {
+    if (currentEventSource) { currentEventSource.close(); currentEventSource = null }
+    clearInterval(timerInterval)
+
+    const terminal = document.getElementById('terminal')
+    terminal.innerHTML = `<span class="line-info">▶ Running: ${taskDefs[name]?.label || name}\n\n</span>`
+
+    setGlobalState('running', name)
+    setBadge('running', name, '…')
+
+    let res
+    try {
+      res = await fetch(`/run/${name}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(params),
+      })
+    } catch (e) {
+      appendLine('err', `Failed to start task: ${e.message}\n`)
+      setGlobalState('idle')
+      setBadge('idle', 'No task running')
+      return
+    }
+
+    const data = await res.json()
+    currentTaskId = data.id
+
+    const startMs = Date.now()
+    timerInterval = setInterval(() => {
+      document.getElementById('active-meta').textContent = formatDuration(Date.now() - startMs)
+    }, 500)
+
+    document.getElementById('stop-btn').classList.remove('hidden')
+    document.getElementById('stop-btn').onclick = () => stopTask(currentTaskId)
+
+    currentEventSource = new EventSource(`/stream/${currentTaskId}`)
+    currentEventSource.onmessage = (e) => {
+      const msg = JSON.parse(e.data)
+      if (msg.t === 'out') appendLine('out', msg.s)
+      else if (msg.t === 'err') appendLine('err', msg.s)
+      else if (msg.t === 'done') {
+        clearInterval(timerInterval)
+        document.getElementById('stop-btn').classList.add('hidden')
+        const dur = formatDuration(msg.duration)
+        if (msg.status === 'success') {
+          appendLine('done-ok', `\n✓ Completed in ${dur} (exit 0)\n`)
+          setBadge('success', name, dur)
+          setGlobalState('idle')
+        } else {
+          appendLine('done-err', `\n✗ Failed in ${dur} (exit ${msg.code})\n`)
+          setBadge('failed', name, dur)
+          setGlobalState('idle')
+        }
+        setBtnState(name, msg.status)
+        setTimeout(() => { renderHistory(); setBtnState(name, null) }, 300)
+        currentEventSource.close()
+        currentEventSource = null
+        currentTaskId = null
+      }
+    }
+    currentEventSource.onerror = () => {
+      clearInterval(timerInterval)
+      document.getElementById('stop-btn').classList.add('hidden')
+      appendLine('err', '\nConnection to task runner lost.\n')
+      setGlobalState('idle')
+      currentEventSource.close()
+    }
+  }
+
+  // ── Stop a task ───────────────────────────────────────────────────────────
+  async function stopTask(id) {
+    await fetch(`/stop/${id}`, { method: 'POST' })
+    clearInterval(timerInterval)
+    document.getElementById('stop-btn').classList.add('hidden')
+    appendLine('err', '\n⊘ Task stopped by user.\n')
+    setBadge('cancelled', 'Stopped')
+    setGlobalState('idle')
+  }
+
+  // ── Render history bar ────────────────────────────────────────────────────
+  async function renderHistory() {
+    let history = []
+    try {
+      const r = await fetch('/history')
+      history = await r.json()
+    } catch (_) {}
+
+    const bar = document.getElementById('history-bar')
+    bar.innerHTML = '<span class="history-label">Recent:</span>'
+
+    if (!history.length) {
+      bar.innerHTML += '<span style="color:var(--muted);font-size:11px">No runs yet</span>'
+      return
+    }
+
+    for (const h of history.slice(0, 12)) {
+      const chip = document.createElement('div')
+      chip.className = 'hist-chip'
+      chip.title = `Exit: ${h.exitCode ?? '—'} · ${new Date(h.endedAt).toLocaleTimeString()}`
+      chip.innerHTML = `
+        <div class="hc-dot ${h.status}"></div>
+        <span>${h.label}</span>
+        <span class="hc-ms">${formatDuration(h.duration)}</span>
+      `
+      chip.onclick = () => {
+        // re-run same task
+        runTask(h.name)
+      }
+      bar.appendChild(chip)
+    }
+  }
+
+  // ── DOM helpers ───────────────────────────────────────────────────────────
+  function appendLine(type, text) {
+    const terminal = document.getElementById('terminal')
+    const span = document.createElement('span')
+    span.className = `line-${type}`
+    span.textContent = text
+    terminal.appendChild(span)
+    terminal.scrollTop = terminal.scrollHeight
+  }
+
+  function setBadge(status, name, meta) {
+    const badge = document.getElementById('active-badge')
+    const nameEl = document.getElementById('active-name')
+    badge.className = `badge ${status}`
+    badge.textContent = status.charAt(0).toUpperCase() + status.slice(1)
+    nameEl.textContent = taskDefs[name]?.label || name
+    if (meta) document.getElementById('active-meta').textContent = meta
+  }
+
+  function setGlobalState(state, taskName) {
+    const dot = document.getElementById('global-dot')
+    const status = document.getElementById('global-status')
+    dot.className = `dot ${state}`
+    if (state === 'running') {
+      status.textContent = `Running: ${taskDefs[taskName]?.label || taskName}`
+    } else {
+      status.textContent = 'Idle'
+    }
+  }
+
+  function setBtnState(name, state) {
+    const btn = document.getElementById(`btn-${name}`)
+    if (!btn) return
+    btn.className = `task-btn group-${taskDefs[name]?.group || ''}${state ? ' ' + state : ''}`
+    const icon = document.getElementById(`icon-${name}`)
+    if (!icon) return
+    icon.textContent = state === 'success' ? '✓' : state === 'failed' ? '✗' : state === 'running' ? '…' : ''
+  }
+
+  function formatDuration(ms) {
+    if (!ms) return '—'
+    if (ms < 1000) return `${ms}ms`
+    if (ms < 60000) return `${(ms / 1000).toFixed(1)}s`
+    const m = Math.floor(ms / 60000), s = Math.floor((ms % 60000) / 1000)
+    return `${m}m ${s}s`
+  }
+
+  init()
+</script>
+</body>
+</html>

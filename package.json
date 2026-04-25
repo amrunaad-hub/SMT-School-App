@@ -10,7 +10,19 @@
     "dev": "concurrently \"npm run server\" \"npm run client\"",
     "postinstall": "npm install --prefix client && npm run build --prefix client",
     "install-all": "npm install && npm install --prefix client",
-    "build": "npm run build --prefix client"
+    "build": "npm run build --prefix client",
+    "tools": "node tools/server.js",
+    "test": "npm run test:server && npm run test:client",
+    "test:server": "jest server/tests --forceExit --passWithNoTests",
+    "test:client": "cross-env CI=true npm test --prefix client -- --watchAll=false",
+    "test:e2e": "npx playwright test",
+    "test:coverage": "jest server/tests --coverage --forceExit --passWithNoTests",
+    "lint": "eslint server/ client/src/ --ext .js,.jsx --max-warnings 0",
+    "lint:fix": "eslint server/ client/src/ --ext .js,.jsx --fix",
+    "format": "prettier --write \"server/**/*.js\" \"client/src/**/*.{js,jsx}\"",
+    "format:check": "prettier --check \"server/**/*.js\" \"client/src/**/*.{js,jsx}\"",
+    "seed": "node server/utils/seedUsers.js",
+    "build:analyze": "cross-env GENERATE_SOURCEMAP=true npm run build --prefix client"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

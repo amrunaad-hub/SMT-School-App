@@ -1,6 +1,6 @@
 const GRADES = Array.from({ length: 10 }, (_, index) => index + 1);
 const DIVISIONS = ['alpha', 'beta', 'gamma'];
-const STUDENTS_PER_DIVISION = 38;
+const STUDENTS_PER_DIVISION = 40;
 
 const MAHARASHTRIAN_FIRST_NAMES = [
   'Aarav', 'Aditya', 'Atharva', 'Om', 'Vedant', 'Siddharth', 'Rohit', 'Rohan', 'Yash', 'Sanket',

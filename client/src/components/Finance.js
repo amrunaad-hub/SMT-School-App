@@ -1,7 +1,164 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
+import { DIVISIONS, GRADES, SCHOOL_STUDENT_DIRECTORY, STUDENTS_PER_DIVISION } from '../data/studentDirectory';
+
+const ANNUAL_FEE = 90000;
+const INSTALLMENT_AMOUNT = ANNUAL_FEE / 3;
+const RTE_PER_DIVISION = Math.round(STUDENTS_PER_DIVISION * 0.25);
+
+const installmentSchedule = [
+  { id: 'april', label: 'April Instalment', dueDate: '2026-04-01' },
+  { id: 'july', label: 'July Instalment', dueDate: '2026-07-01' },
+  { id: 'november', label: 'November Instalment', dueDate: '2026-11-01' },
+];
+
+const paymentMethods = ['NEFT', 'UPI', 'Cash', 'Card'];
+const condonenceReasons = [
+  'Sibling concession requested',
+  'Medical emergency payment deferment',
+  'Temporary income disruption',
+  'Late fee waiver requested',
+];
+const delayReasons = [
+  'Cheque pickup scheduled next week',
+  'Parent requested payment extension',
+  'Transfer confirmation awaited from employer',
+  'Accounts team awaiting revised waiver approval',
+];
+
+const seedFromId = (id) => {
+  return id.split('').reduce((total, char) => total + char.charCodeAt(0), 0);
+};
+
+const formatCurrency = (value) => `₹${Number(value || 0).toLocaleString('en-IN')}`;
+
+const formatDivision = (division) => `${division.charAt(0).toUpperCase()}${division.slice(1)}`;
+
+const buildStudentFeeLedger = () => {
+  return SCHOOL_STUDENT_DIRECTORY.map((student) => {
+    const seed = seedFromId(student.id);
+    const isRte = student.rollNo <= RTE_PER_DIVISION;
+    const profileType = seed % 8;
+    const paymentMethod = paymentMethods[seed % paymentMethods.length];
+
+    const installments = installmentSchedule.map((installment, index) => {
+      const defaultPaidDate = installment.id === 'april'
+        ? '2026-03-29'
+        : installment.id === 'july'
+          ? '2026-06-28'
+          : '2026-10-28';
+
+      if (isRte) {
+        return {
+          ...installment,
+          amount: 0,
+          status: 'RTE Zero Fee',
+          paymentDate: '-',
+          paymentMethod: '-',
+          note: 'Covered under Right to Education quota',
+        };
+      }
+
+      if (profileType <= 2) {
+        return {
+          ...installment,
+          amount: INSTALLMENT_AMOUNT,
+          status: 'Paid',
+          paymentDate: defaultPaidDate,
+          paymentMethod,
+          note: 'Paid within schedule',
+        };
+      }
+
+      if (profileType === 3) {
+        return {
+          ...installment,
+          amount: INSTALLMENT_AMOUNT,
+          status: index < 2 ? 'Paid' : 'Delayed',
+          paymentDate: index < 2 ? defaultPaidDate : '-',
+          paymentMethod: index < 2 ? paymentMethod : '-',
+          note: index < 2 ? 'Paid within schedule' : delayReasons[seed % delayReasons.length],
+        };
+      }
+
+      if (profileType === 4) {
+        return {
+          ...installment,
+          amount: INSTALLMENT_AMOUNT,
+          status: index === 0 ? 'Paid' : 'Condonence Requested',
+          paymentDate: index === 0 ? defaultPaidDate : '-',
+          paymentMethod: index === 0 ? paymentMethod : '-',
+          note: index === 0 ? 'Paid before due date' : condonenceReasons[seed % condonenceReasons.length],
+        };
+      }
+
+      if (profileType === 5) {
+        return {
+          ...installment,
+          amount: INSTALLMENT_AMOUNT,
+          status: index === 0 ? 'Condonence Approved' : index === 1 ? 'Delayed' : 'Upcoming',
+          paymentDate: '-',
+          paymentMethod: '-',
+          note: index === 0 ? 'Approved partial waiver for first instalment' : index === 1 ? delayReasons[(seed + 1) % delayReasons.length] : 'Due in November cycle',
+        };
+      }
+
+      if (profileType === 6) {
+        return {
+          ...installment,
+          amount: INSTALLMENT_AMOUNT,
+          status: index < 2 ? 'Paid' : 'Upcoming',
+          paymentDate: index < 2 ? defaultPaidDate : '-',
+          paymentMethod: index < 2 ? paymentMethod : '-',
+          note: index < 2 ? 'Paid within schedule' : 'Scheduled for November collection round',
+        };
+      }
+
+      return {
+        ...installment,
+        amount: INSTALLMENT_AMOUNT,
+        status: index === 0 ? 'Paid' : 'Delayed',
+        paymentDate: index === 0 ? defaultPaidDate : '-',
+        paymentMethod: index === 0 ? paymentMethod : '-',
+        note: index === 0 ? 'Paid within schedule' : delayReasons[(seed + index) % delayReasons.length],
+      };
+    });
+
+    const paidAmount = installments.reduce((total, installment) => {
+      return total + (installment.status === 'Paid' ? installment.amount : 0);
+    }, 0);
+    const payableAmount = isRte ? 0 : ANNUAL_FEE;
+    const pendingAmount = Math.max(payableAmount - paidAmount, 0);
+    const overallStatus = isRte
+      ? 'RTE Zero Fee'
+      : pendingAmount === 0
+        ? 'Fully Paid'
+        : installments.some((installment) => installment.status.includes('Condonence'))
+          ? 'Condonence Case'
+          : installments.some((installment) => installment.status === 'Delayed')
+            ? 'Delayed Payment'
+            : 'Partially Paid';
+
+    return {
+      ...student,
+      gradeLabel: `Grade ${student.grade}`,
+      divisionLabel: `Division ${formatDivision(student.division)}`,
+      isRte,
+      payableAmount,
+      paidAmount,
+      pendingAmount,
+      overallStatus,
+      installments,
+    };
+  });
+};
 
 const Finance = () => {
   const [isMobile, setIsMobile] = useState(() => window.innerWidth < 900);
+  const [selectedInstallment, setSelectedInstallment] = useState('april');
+  const [selectedGrade, setSelectedGrade] = useState('all');
+  const [selectedDivision, setSelectedDivision] = useState('all');
+  const [selectedCategory, setSelectedCategory] = useState('all');
 
   useEffect(() => {
     const onResize = () => setIsMobile(window.innerWidth < 900);
@@ -9,140 +166,278 @@ const Finance = () => {
     return () => window.removeEventListener('resize', onResize);
   }, []);
 
-  const formatCurrency = (value) => `₹${value.toLocaleString('en-IN')}`;
+  const feeLedger = useMemo(() => buildStudentFeeLedger(), []);
 
-  const gradeCollection = [
-    {
-      grade: 'Grade 7',
-      totalStudents: 120,
-      collectedAmount: 10350000,
-      pendingAmount: 1740000,
-      collectedPercent: 86,
-      divisions: [
-        { division: 'A', students: 40, collectedAmount: 3450000, collectedPercent: 97 },
-        { division: 'B', students: 40, collectedAmount: 3000000, collectedPercent: 83 },
-        { division: 'C', students: 40, collectedAmount: 2900000, collectedPercent: 81 },
-      ],
-    },
-    {
-      grade: 'Grade 8',
-      totalStudents: 110,
-      collectedAmount: 9350000,
-      pendingAmount: 1550000,
-      collectedPercent: 86,
-      divisions: [
-        { division: 'A', students: 36, collectedAmount: 2920000, collectedPercent: 90 },
-        { division: 'B', students: 37, collectedAmount: 3050000, collectedPercent: 88 },
-        { division: 'C', students: 37, collectedAmount: 3380000, collectedPercent: 92 },
-      ],
-    },
-    {
-      grade: 'Grade 9',
-      totalStudents: 100,
-      collectedAmount: 7200000,
-      pendingAmount: 1800000,
-      collectedPercent: 80,
-      divisions: [
-        { division: 'A', students: 34, collectedAmount: 2450000, collectedPercent: 86 },
-        { division: 'B', students: 33, collectedAmount: 2350000, collectedPercent: 82 },
-        { division: 'C', students: 33, collectedAmount: 2400000, collectedPercent: 84 },
-      ],
-    },
-  ];
+  const schoolSummary = useMemo(() => {
+    const enrolledStudents = feeLedger.length;
+    const rteStudents = feeLedger.filter((student) => student.isRte).length;
+    const payableStudents = enrolledStudents - rteStudents;
+    const expectedAmount = payableStudents * ANNUAL_FEE;
+    const collectedAmount = feeLedger.reduce((sum, student) => sum + student.paidAmount, 0);
+    const pendingAmount = Math.max(expectedAmount - collectedAmount, 0);
+    return { enrolledStudents, rteStudents, payableStudents, expectedAmount, collectedAmount, pendingAmount };
+  }, [feeLedger]);
 
-  const paymentMethods = [
-    { method: 'NEFT', amount: 10800000, percent: 44, color: '#2563eb' },
-    { method: 'Cash', amount: 6750000, percent: 28, color: '#f59e0b' },
-    { method: 'UPI', amount: 6900000, percent: 28, color: '#10b981' },
-  ];
+  const installmentSummary = useMemo(() => {
+    return installmentSchedule.map((installment) => {
+      const records = feeLedger.map((student) => {
+        return {
+          student,
+          installment: student.installments.find((item) => item.id === installment.id),
+        };
+      });
+      const expected = records.reduce((sum, record) => sum + record.installment.amount, 0);
+      const collected = records.reduce((sum, record) => sum + (record.installment.status === 'Paid' ? record.installment.amount : 0), 0);
 
-  const concessionRequests = [
-    { student: 'Nisha Gupta', grade: 'Grade 7', amount: 18000, reason: 'Sibling concession', status: 'Under review' },
-    { student: 'Karan Mehta', grade: 'Grade 8', amount: 27000, reason: 'Late fee request', status: 'Approved' },
-    { student: 'Simran Kaur', grade: 'Grade 9', amount: 36000, reason: 'Medical concession', status: 'Pending' },
-    { student: 'Arjun Rao', grade: 'Grade 7', amount: 15000, reason: 'Late payment waiver', status: 'Requested' },
-  ];
+      return {
+        ...installment,
+        expected,
+        collected,
+        fullyPaidCount: records.filter((record) => record.student.overallStatus === 'Fully Paid').length,
+        delayedCount: records.filter((record) => record.installment.status === 'Delayed').length,
+        condonenceCount: records.filter((record) => record.installment.status.includes('Condonence')).length,
+        rteCount: records.filter((record) => record.student.isRte).length,
+      };
+    });
+  }, [feeLedger]);
 
-  const installmentSummary = [
-    { label: '1 April', expected: 9900000, collected: 8800000 },
-    { label: '1 July', expected: 9900000, collected: 7600000 },
-    { label: '1 November', expected: 9900000, collected: 6600000 },
-  ];
+  const gradeSummary = useMemo(() => {
+    return GRADES.map((grade) => {
+      const label = `Grade ${grade}`;
+      const students = feeLedger.filter((student) => student.grade === grade);
+      const expectedAmount = students.reduce((sum, student) => sum + student.payableAmount, 0);
+      const collectedAmount = students.reduce((sum, student) => sum + student.paidAmount, 0);
+      const pendingAmount = Math.max(expectedAmount - collectedAmount, 0);
+      const selectedRecords = students.map((student) => student.installments.find((item) => item.id === selectedInstallment));
+      return {
+        grade,
+        label,
+        students,
+        expectedAmount,
+        collectedAmount,
+        pendingAmount,
+        collectionPercent: expectedAmount > 0 ? Math.round((collectedAmount / expectedAmount) * 100) : 100,
+        rteCount: students.filter((student) => student.isRte).length,
+        fullyPaidCount: students.filter((student) => student.overallStatus === 'Fully Paid').length,
+        delayedCount: selectedRecords.filter((record) => record.status === 'Delayed').length,
+        condonenceCount: selectedRecords.filter((record) => record.status.includes('Condonence')).length,
+        divisions: DIVISIONS.map((division) => {
+          const divisionStudents = students.filter((student) => student.division === division);
+          const divisionExpected = divisionStudents.reduce((sum, student) => sum + student.payableAmount, 0);
+          const divisionCollected = divisionStudents.reduce((sum, student) => sum + student.paidAmount, 0);
+          const divisionRecords = divisionStudents.map((student) => student.installments.find((item) => item.id === selectedInstallment));
+          return {
+            division,
+            label: `Division ${formatDivision(division)}`,
+            students: divisionStudents.length,
+            expectedAmount: divisionExpected,
+            collectedAmount: divisionCollected,
+            collectionPercent: divisionExpected > 0 ? Math.round((divisionCollected / divisionExpected) * 100) : 100,
+            rteCount: divisionStudents.filter((student) => student.isRte).length,
+            delayedCount: divisionRecords.filter((record) => record.status === 'Delayed').length,
+            condonenceCount: divisionRecords.filter((record) => record.status.includes('Condonence')).length,
+            fullyPaidCount: divisionStudents.filter((student) => student.overallStatus === 'Fully Paid').length,
+          };
+        }),
+      };
+    });
+  }, [feeLedger, selectedInstallment]);
+
+  const filteredStudents = useMemo(() => {
+    return feeLedger.filter((student) => {
+      const installment = student.installments.find((item) => item.id === selectedInstallment);
+      const gradeMatch = selectedGrade === 'all' ? true : String(student.grade) === selectedGrade;
+      const divisionMatch = selectedDivision === 'all' ? true : student.division === selectedDivision;
+
+      let categoryMatch = true;
+      if (selectedCategory === 'fully-paid') categoryMatch = student.overallStatus === 'Fully Paid';
+      if (selectedCategory === 'pending') categoryMatch = !student.isRte && student.pendingAmount > 0;
+      if (selectedCategory === 'delayed') categoryMatch = installment.status === 'Delayed';
+      if (selectedCategory === 'condonence') categoryMatch = installment.status.includes('Condonence');
+      if (selectedCategory === 'rte') categoryMatch = student.isRte;
+
+      return gradeMatch && divisionMatch && categoryMatch;
+    });
+  }, [feeLedger, selectedInstallment, selectedGrade, selectedDivision, selectedCategory]);
+
+  const activeInstallmentSummary = installmentSummary.find((installment) => installment.id === selectedInstallment) || installmentSummary[0];
 
   const sectionStyle = {
-    marginTop: '28px',
-    padding: '24px',
+    marginTop: '24px',
+    padding: isMobile ? '16px' : '24px',
     borderRadius: '20px',
     background: '#ffffff',
     boxShadow: '0 14px 40px rgba(15, 23, 42, 0.08)',
   };
 
   const cardStyle = {
-    padding: '18px 22px',
+    padding: '18px 20px',
     borderRadius: '18px',
     background: '#f8fafc',
     border: '1px solid #e2e8f0',
   };
 
+  const filterButtonStyle = (active) => ({
+    padding: '10px 14px',
+    borderRadius: '999px',
+    border: `1px solid ${active ? '#16a34a' : '#cbd5e1'}`,
+    background: active ? '#dcfce7' : '#fff',
+    color: active ? '#166534' : '#0f172a',
+    fontWeight: 700,
+    cursor: 'pointer',
+  });
+
   return (
-    <main style={{ padding: isMobile ? '16px' : '28px', maxWidth: '1240px', margin: '0 auto', color: '#0f172a' }}>
+    <main style={{ padding: isMobile ? '16px' : '28px', maxWidth: '1280px', margin: '0 auto', color: '#0f172a' }}>
       <section>
-        <h2>Fee Management Dashboards</h2>
-        <p style={{ color: '#475569', marginTop: '8px' }}>
-          Dummy fee analytics for grade-wise collection, payment methods, instalment progress, and concession / late fee requests.
+        <h2>Fee Collection Analytics</h2>
+        <p style={{ color: '#475569', marginTop: '8px', maxWidth: '900px' }}>
+          Three-instalment fee tracking across all grades and divisions. Drill down into fully paid students, delayed payment cases, condonence requests, and Right to Education zero-fee admissions.
         </p>
       </section>
 
-      <section style={{ ...sectionStyle, marginTop: '20px', padding: isMobile ? '16px' : sectionStyle.padding }}>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '16px' }}>
-          <div style={{ ...cardStyle, flex: '1 1 220px' }}>
-            <h3 style={{ marginBottom: '10px' }}>Annual Fee</h3>
-            <p style={{ margin: 0, fontSize: '1.4rem', fontWeight: 700 }}>₹90,000 / student</p>
-            <p style={{ margin: '8px 0 0', color: '#64748b' }}>Collected in 3 instalments: 1 Apr, 1 Jul, 1 Nov.</p>
+      <section style={sectionStyle}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px' }}>
+          <div style={cardStyle}>
+            <h3 style={{ margin: '0 0 10px' }}>Enrolled Students</h3>
+            <p style={{ margin: 0, fontSize: '1.6rem', fontWeight: 800 }}>{schoolSummary.enrolledStudents}</p>
+            <p style={{ margin: '8px 0 0', color: '#64748b' }}>All grades and all divisions.</p>
           </div>
-          <div style={{ ...cardStyle, flex: '1 1 220px' }}>
-            <h3 style={{ marginBottom: '10px' }}>Total Expected</h3>
-            <p style={{ margin: 0, fontSize: '1.4rem', fontWeight: 700 }}>{formatCurrency(29700000)}</p>
-            <p style={{ margin: '8px 0 0', color: '#64748b' }}>Based on 330 enrolled students.</p>
+          <div style={cardStyle}>
+            <h3 style={{ margin: '0 0 10px' }}>RTE Zero Fee</h3>
+            <p style={{ margin: 0, fontSize: '1.6rem', fontWeight: 800 }}>{schoolSummary.rteStudents}</p>
+            <p style={{ margin: '8px 0 0', color: '#64748b' }}>About 25% of each division under Right to Education.</p>
           </div>
-          <div style={{ ...cardStyle, flex: '1 1 220px' }}>
-            <h3 style={{ marginBottom: '10px' }}>Collected To Date</h3>
-            <p style={{ margin: 0, fontSize: '1.4rem', fontWeight: 700 }}>{formatCurrency(26800000)}</p>
-            <p style={{ margin: '8px 0 0', color: '#64748b' }}>About 90% collection rate across the school.</p>
+          <div style={cardStyle}>
+            <h3 style={{ margin: '0 0 10px' }}>Expected Fee</h3>
+            <p style={{ margin: 0, fontSize: '1.6rem', fontWeight: 800 }}>{formatCurrency(schoolSummary.expectedAmount)}</p>
+            <p style={{ margin: '8px 0 0', color: '#64748b' }}>After excluding zero-fee RTE students.</p>
+          </div>
+          <div style={cardStyle}>
+            <h3 style={{ margin: '0 0 10px' }}>Collected To Date</h3>
+            <p style={{ margin: 0, fontSize: '1.6rem', fontWeight: 800 }}>{formatCurrency(schoolSummary.collectedAmount)}</p>
+            <p style={{ margin: '8px 0 0', color: '#64748b' }}>{formatCurrency(schoolSummary.pendingAmount)} still pending.</p>
           </div>
         </div>
       </section>
 
-      <section style={{ ...sectionStyle, padding: isMobile ? '16px' : sectionStyle.padding }}>
-        <h3 style={{ marginBottom: '18px' }}>Grade-wise Fee Collection Status</h3>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '18px' }}>
-          {gradeCollection.map((grade) => (
-            <div key={grade.grade} style={{ padding: '20px', borderRadius: '18px', background: '#f8fafc', border: '1px solid #e2e8f0' }}>
-              <h4 style={{ margin: 0 }}>{grade.grade}</h4>
-              <p style={{ margin: '8px 0 12px', color: '#64748b' }}>
-                {grade.totalStudents} students · {grade.collectedPercent}% collected
-              </p>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '16px' }}>
-                <div>
-                  <strong>{formatCurrency(grade.collectedAmount)}</strong>
-                  <div style={{ color: '#475569' }}>Collected</div>
+      <section style={sectionStyle}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', gap: '14px', flexWrap: 'wrap', alignItems: 'flex-start' }}>
+          <div>
+            <h3 style={{ margin: 0 }}>Instalment Progress</h3>
+            <p style={{ margin: '8px 0 0', color: '#64748b' }}>April, July and November rounds with delay, condonence and fully paid visibility.</p>
+          </div>
+          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+            {installmentSchedule.map((installment) => (
+              <button key={installment.id} type="button" style={filterButtonStyle(selectedInstallment === installment.id)} onClick={() => setSelectedInstallment(installment.id)}>
+                {installment.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px', marginTop: '18px' }}>
+          {installmentSummary.map((installment) => {
+            const percent = installment.expected > 0 ? Math.round((installment.collected / installment.expected) * 100) : 100;
+            const active = installment.id === selectedInstallment;
+            return (
+              <button
+                key={installment.id}
+                type="button"
+                onClick={() => setSelectedInstallment(installment.id)}
+                style={{ ...cardStyle, textAlign: 'left', cursor: 'pointer', borderColor: active ? '#16a34a' : '#e2e8f0', background: active ? '#f0fdf4' : '#f8fafc' }}
+              >
+                <h4 style={{ margin: 0 }}>{installment.label}</h4>
+                <p style={{ margin: '8px 0 0', color: '#475569' }}>{percent}% collected</p>
+                <div style={{ height: '10px', borderRadius: '999px', background: '#dcfce7', overflow: 'hidden', marginTop: '12px' }}>
+                  <div style={{ width: `${percent}%`, height: '100%', background: 'linear-gradient(90deg, #22c55e 0%, #16a34a 100%)' }} />
                 </div>
-                <div>
-                  <strong>{formatCurrency(grade.pendingAmount)}</strong>
-                  <div style={{ color: '#475569' }}>Pending</div>
+                <p style={{ margin: '12px 0 0', color: '#0f172a' }}><strong>{formatCurrency(installment.collected)}</strong> of {formatCurrency(installment.expected)}</p>
+                <div style={{ marginTop: '10px', display: 'grid', gap: '4px', color: '#475569', fontSize: '0.84rem' }}>
+                  <span>Delayed: {installment.delayedCount}</span>
+                  <span>Condonence: {installment.condonenceCount}</span>
+                  <span>Fully paid students: {installment.fullyPaidCount}</span>
+                  <span>RTE zero fee: {installment.rteCount}</span>
                 </div>
+              </button>
+            );
+          })}
+        </div>
+      </section>
+
+      <section style={sectionStyle}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', gap: '14px', flexWrap: 'wrap', alignItems: 'flex-start' }}>
+          <div>
+            <h3 style={{ margin: 0 }}>Grade-wise and Division-wise Collection</h3>
+            <p style={{ margin: '8px 0 0', color: '#64748b' }}>Every grade and every division is included in the selected instalment round.</p>
+          </div>
+          <div style={{ ...cardStyle, minWidth: '240px', background: '#ecfdf5', borderColor: '#bbf7d0' }}>
+            <div style={{ color: '#166534', fontWeight: 700 }}>Selected instalment</div>
+            <div style={{ marginTop: '8px', fontSize: '1.2rem', fontWeight: 800 }}>{activeInstallmentSummary.label}</div>
+            <div style={{ marginTop: '8px', color: '#166534' }}>Collected {formatCurrency(activeInstallmentSummary.collected)} of {formatCurrency(activeInstallmentSummary.expected)}</div>
+          </div>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '18px', marginTop: '20px' }}>
+          {gradeSummary.map((grade) => (
+            <div key={grade.grade} style={{ ...cardStyle, background: '#fff' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: '10px', alignItems: 'flex-start' }}>
+                <div>
+                  <h4 style={{ margin: 0 }}>{grade.label}</h4>
+                  <p style={{ margin: '8px 0 0', color: '#64748b' }}>{grade.students.length} students</p>
+                </div>
+                <button
+                  type="button"
+                  style={filterButtonStyle(selectedGrade === String(grade.grade))}
+                  onClick={() => {
+                    setSelectedGrade(selectedGrade === String(grade.grade) ? 'all' : String(grade.grade));
+                    setSelectedDivision('all');
+                  }}
+                >
+                  {selectedGrade === String(grade.grade) ? 'Selected' : 'Drill down'}
+                </button>
               </div>
-              <div style={{ display: 'grid', gap: '12px' }}>
+              <div style={{ marginTop: '14px', display: 'grid', gap: '6px', color: '#334155', fontSize: '0.9rem' }}>
+                <span>Collected: <strong>{formatCurrency(grade.collectedAmount)}</strong></span>
+                <span>Pending: <strong>{formatCurrency(grade.pendingAmount)}</strong></span>
+                <span>RTE zero fee: <strong>{grade.rteCount}</strong></span>
+                <span>Fully paid: <strong>{grade.fullyPaidCount}</strong></span>
+                <span>Delayed: <strong>{grade.delayedCount}</strong></span>
+                <span>Condonence: <strong>{grade.condonenceCount}</strong></span>
+              </div>
+              <div style={{ height: '10px', borderRadius: '999px', background: '#e2e8f0', overflow: 'hidden', marginTop: '14px' }}>
+                <div style={{ width: `${grade.collectionPercent}%`, height: '100%', background: 'linear-gradient(90deg, #60a5fa 0%, #2563eb 100%)' }} />
+              </div>
+              <div style={{ marginTop: '16px', display: 'grid', gap: '10px' }}>
                 {grade.divisions.map((division) => (
-                  <div key={division.division}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.95rem', color: '#334155' }}>
-                      <span>Division {division.division}</span>
-                      <span>{division.collectedPercent}%</span>
+                  <button
+                    key={division.division}
+                    type="button"
+                    onClick={() => {
+                      setSelectedGrade(String(grade.grade));
+                      setSelectedDivision(division.division);
+                    }}
+                    style={{
+                      padding: '12px',
+                      borderRadius: '14px',
+                      border: `1px solid ${selectedGrade === String(grade.grade) && selectedDivision === division.division ? '#0ea5e9' : '#dbeafe'}`,
+                      background: selectedGrade === String(grade.grade) && selectedDivision === division.division ? '#eff6ff' : '#f8fafc',
+                      textAlign: 'left',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: '10px' }}>
+                      <strong>{division.label}</strong>
+                      <span>{division.collectionPercent}%</span>
                     </div>
-                    <div style={{ height: '10px', borderRadius: '999px', background: '#e2e8f0', overflow: 'hidden', marginTop: '6px' }}>
-                      <div style={{ width: `${division.collectedPercent}%`, height: '100%', background: '#2563eb' }} />
+                    <div style={{ marginTop: '8px', display: 'grid', gap: '4px', color: '#475569', fontSize: '0.82rem' }}>
+                      <span>Students: {division.students}</span>
+                      <span>RTE: {division.rteCount}</span>
+                      <span>Fully paid: {division.fullyPaidCount}</span>
+                      <span>Delayed: {division.delayedCount}</span>
+                      <span>Condonence: {division.condonenceCount}</span>
                     </div>
-                  </div>
+                  </button>
                 ))}
               </div>
             </div>
@@ -150,92 +445,96 @@ const Finance = () => {
         </div>
       </section>
 
-      <section style={{ ...sectionStyle, padding: isMobile ? '16px' : sectionStyle.padding }}>
-        <h3 style={{ marginBottom: '18px' }}>Payment Method Collection Mix</h3>
-        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 260px', gap: '20px' }}>
-          <div style={{ padding: '20px', borderRadius: '18px', background: '#f8fafc', border: '1px solid #e2e8f0' }}>
-            {paymentMethods.map((item) => (
-              <div key={item.method} style={{ marginBottom: '16px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px', fontWeight: 600 }}>
-                  <span>{item.method}</span>
-                  <span>{item.percent}%</span>
-                </div>
-                <div style={{ height: '14px', width: '100%', borderRadius: '999px', background: '#e2e8f0', overflow: 'hidden' }}>
-                  <div style={{ width: `${item.percent}%`, height: '100%', background: item.color }} />
-                </div>
-                <div style={{ marginTop: '8px', color: '#475569' }}>{formatCurrency(item.amount)}</div>
-              </div>
+      <section style={sectionStyle}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', gap: '14px', flexWrap: 'wrap', alignItems: 'flex-start' }}>
+          <div>
+            <h3 style={{ margin: 0 }}>Student Fee Drill-down</h3>
+            <p style={{ margin: '8px 0 0', color: '#64748b' }}>Rows include fully paid details, condonence notes, delayed payment remarks, and student profile links.</p>
+          </div>
+          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+            {[
+              { id: 'all', label: 'All students' },
+              { id: 'fully-paid', label: 'Fully paid' },
+              { id: 'pending', label: 'Pending' },
+              { id: 'delayed', label: 'Delayed' },
+              { id: 'condonence', label: 'Condonence' },
+              { id: 'rte', label: 'RTE zero fee' },
+            ].map((option) => (
+              <button key={option.id} type="button" style={filterButtonStyle(selectedCategory === option.id)} onClick={() => setSelectedCategory(option.id)}>
+                {option.label}
+              </button>
             ))}
           </div>
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '24px', borderRadius: '18px', background: '#fff', border: '1px solid #e2e8f0' }}>
-            <div style={{ width: '165px', height: '165px', borderRadius: '50%', background: '#f8fafc', position: 'relative', display: 'grid', placeItems: 'center' }}>
-              <div style={{ width: '130px', height: '130px', borderRadius: '50%', background: '#ffffff', display: 'grid', placeItems: 'center', boxShadow: '0 8px 18px rgba(15, 23, 42, 0.08)' }}>
-                <span style={{ fontSize: '1.25rem', fontWeight: 700 }}>{paymentMethods.reduce((sum, item) => sum + item.percent, 0)}%</span>
-              </div>
-            </div>
-            <p style={{ textAlign: 'center', color: '#475569', marginTop: '14px' }}>All payment methods collected to date</p>
-          </div>
         </div>
-      </section>
 
-      <section style={{ ...sectionStyle, padding: isMobile ? '16px' : sectionStyle.padding }}>
-        <h3 style={{ marginBottom: '18px' }}>Instalment Progress</h3>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px' }}>
-          {installmentSummary.map((installment) => {
-            const percent = Math.round((installment.collected / installment.expected) * 100);
-            return (
-              <div key={installment.label} style={{ ...cardStyle, padding: '18px' }}>
-                <h4 style={{ margin: 0 }}>{installment.label}</h4>
-                <p style={{ margin: '8px 0 14px', color: '#475569' }}>{percent}% collected</p>
-                <div style={{ height: '10px', borderRadius: '999px', background: '#e2e8f0', overflow: 'hidden' }}>
-                  <div style={{ width: `${percent}%`, height: '100%', background: '#0ea5e9' }} />
-                </div>
-                <p style={{ margin: '14px 0 0', color: '#0f172a' }}><strong>{formatCurrency(installment.collected)}</strong> of {formatCurrency(installment.expected)}</p>
-              </div>
-            );
-          })}
+        <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginTop: '18px' }}>
+          <select value={selectedGrade} onChange={(event) => {
+            setSelectedGrade(event.target.value);
+            setSelectedDivision('all');
+          }} style={{ padding: '10px 12px', borderRadius: '12px', border: '1px solid #cbd5e1' }}>
+            <option value="all">All grades</option>
+            {GRADES.map((grade) => <option key={grade} value={String(grade)}>Grade {grade}</option>)}
+          </select>
+          <select value={selectedDivision} onChange={(event) => setSelectedDivision(event.target.value)} style={{ padding: '10px 12px', borderRadius: '12px', border: '1px solid #cbd5e1' }}>
+            <option value="all">All divisions</option>
+            {DIVISIONS.map((division) => <option key={division} value={division}>Division {formatDivision(division)}</option>)}
+          </select>
         </div>
-      </section>
 
-      <section style={{ ...sectionStyle, padding: isMobile ? '16px' : sectionStyle.padding }}>
-        <h3 style={{ marginBottom: '18px' }}>Concession / Late Payment Requests</h3>
         {isMobile ? (
-          <div style={{ display: 'grid', gap: '10px' }}>
-            {concessionRequests.map((request) => (
-              <article key={request.student} style={{ border: '1px solid #e2e8f0', borderRadius: '12px', padding: '12px', background: '#fff' }}>
-                <strong>{request.student}</strong>
-                <p style={{ marginTop: '6px', color: '#475569' }}>{request.grade} · {formatCurrency(request.amount)}</p>
-                <p style={{ marginTop: '6px', color: '#334155' }}>{request.reason}</p>
-                <p style={{ marginTop: '6px', color: request.status === 'Approved' ? '#166534' : request.status === 'Under review' ? '#92400e' : '#1d4ed8', fontWeight: 600 }}>
-                  {request.status}
-                </p>
-              </article>
-            ))}
+          <div style={{ display: 'grid', gap: '12px', marginTop: '18px' }}>
+            {filteredStudents.slice(0, 60).map((student) => {
+              const installment = student.installments.find((item) => item.id === selectedInstallment);
+              return (
+                <article key={student.id} style={{ ...cardStyle, background: '#fff' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: '10px' }}>
+                    <div>
+                      <Link to={`/sis/student/${student.id}`} style={{ color: '#0f172a', fontWeight: 800, textDecoration: 'none' }}>{student.name}</Link>
+                      <p style={{ margin: '6px 0 0', color: '#475569' }}>Grade {student.grade} · Division {formatDivision(student.division)} · Roll {student.rollNo}</p>
+                    </div>
+                    <span style={{ color: student.isRte ? '#166534' : installment.status === 'Paid' ? '#166534' : installment.status === 'Delayed' ? '#b45309' : '#1d4ed8', fontWeight: 700 }}>{installment.status}</span>
+                  </div>
+                  <div style={{ marginTop: '10px', display: 'grid', gap: '4px', color: '#334155', fontSize: '0.9rem' }}>
+                    <span>Current instalment: {formatCurrency(installment.amount)}</span>
+                    <span>Paid till date: {formatCurrency(student.paidAmount)}</span>
+                    <span>Pending: {formatCurrency(student.pendingAmount)}</span>
+                    <span>Note: {installment.note}</span>
+                  </div>
+                </article>
+              );
+            })}
           </div>
         ) : (
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '720px' }}>
+          <div style={{ overflowX: 'auto', marginTop: '18px' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '1100px' }}>
               <thead>
                 <tr style={{ textAlign: 'left', borderBottom: '2px solid #e2e8f0' }}>
                   <th style={{ padding: '12px 16px' }}>Student</th>
                   <th style={{ padding: '12px 16px' }}>Grade</th>
-                  <th style={{ padding: '12px 16px' }}>Amount</th>
-                  <th style={{ padding: '12px 16px' }}>Reason</th>
-                  <th style={{ padding: '12px 16px' }}>Status</th>
+                  <th style={{ padding: '12px 16px' }}>Division</th>
+                  <th style={{ padding: '12px 16px' }}>Category</th>
+                  <th style={{ padding: '12px 16px' }}>{activeInstallmentSummary.label}</th>
+                  <th style={{ padding: '12px 16px' }}>Paid Till Date</th>
+                  <th style={{ padding: '12px 16px' }}>Pending</th>
+                  <th style={{ padding: '12px 16px' }}>Remarks</th>
                 </tr>
               </thead>
               <tbody>
-                {concessionRequests.map((request) => (
-                  <tr key={request.student} style={{ borderBottom: '1px solid #e2e8f0' }}>
-                    <td style={{ padding: '14px 16px' }}>{request.student}</td>
-                    <td style={{ padding: '14px 16px' }}>{request.grade}</td>
-                    <td style={{ padding: '14px 16px' }}>{formatCurrency(request.amount)}</td>
-                    <td style={{ padding: '14px 16px' }}>{request.reason}</td>
-                    <td style={{ padding: '14px 16px', color: request.status === 'Approved' ? '#166534' : request.status === 'Under review' ? '#92400e' : '#1d4ed8' }}>
-                      {request.status}
-                    </td>
-                  </tr>
-                ))}
+                {filteredStudents.map((student) => {
+                  const installment = student.installments.find((item) => item.id === selectedInstallment);
+                  return (
+                    <tr key={student.id} style={{ borderBottom: '1px solid #e2e8f0' }}>
+                      <td style={{ padding: '14px 16px' }}><Link to={`/sis/student/${student.id}`} style={{ color: '#0f172a', fontWeight: 700, textDecoration: 'none' }}>{student.name}</Link></td>
+                      <td style={{ padding: '14px 16px' }}>Grade {student.grade}</td>
+                      <td style={{ padding: '14px 16px' }}>Division {formatDivision(student.division)}</td>
+                      <td style={{ padding: '14px 16px' }}>{student.overallStatus}</td>
+                      <td style={{ padding: '14px 16px' }}>{installment.status} · {formatCurrency(installment.amount)}</td>
+                      <td style={{ padding: '14px 16px' }}>{formatCurrency(student.paidAmount)}</td>
+                      <td style={{ padding: '14px 16px' }}>{formatCurrency(student.pendingAmount)}</td>
+                      <td style={{ padding: '14px 16px' }}>{installment.note}</td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

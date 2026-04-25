@@ -17,6 +17,7 @@ import Attendance from './components/Attendance';
 import Transport from './components/Transport';
 import Inventory from './components/Inventory';
 import Communication from './components/Communication';
+import Washrooms from './components/Washrooms';
 import Parents from './components/Parents';
 import Teachers from './components/Teachers';
 import Login from './components/Login';
@@ -112,6 +113,8 @@ function App() {
           <Route path="/attendance" element={<ProtectedRoute authRole={authRole} allowedRoles={['admin']}><Attendance /></ProtectedRoute>} />
           <Route path="/transport" element={<ProtectedRoute authRole={authRole} allowedRoles={['admin']}><Transport /></ProtectedRoute>} />
           <Route path="/inventory" element={<ProtectedRoute authRole={authRole} allowedRoles={['admin']}><Inventory /></ProtectedRoute>} />
+          <Route path="/washrooms" element={<ProtectedRoute authRole={authRole} allowedRoles={['admin']}><Washrooms /></ProtectedRoute>} />
+          <Route path="/washrooms/:washroomId" element={<ProtectedRoute authRole={authRole} allowedRoles={['admin']}><Washrooms /></ProtectedRoute>} />
           <Route path="/communication" element={<ProtectedRoute authRole={authRole} allowedRoles={['admin']}><Communication /></ProtectedRoute>} />
 
           <Route path="*" element={<Navigate to={authRole ? getHomePath(authRole) : '/login'} replace />} />
