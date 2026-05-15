@@ -33,6 +33,16 @@ const formatDivision = (division) => `${division.charAt(0).toUpperCase()}${divis
 const Attendance = () => {
   const [isMobile, setIsMobile] = useState(() => window.innerWidth < 900);
   const [searchParams, setSearchParams] = useSearchParams();
+  const [wasSent, setWasSent] = useState({});   // { [studentId]: { wa: bool, email: bool } }
+  const [sending, setSending] = useState({});   // { [studentId]: { wa: bool, email: bool } }
+
+  const sendNotification = (studentId, channel) => {
+    setSending((prev) => ({ ...prev, [studentId]: { ...prev[studentId], [channel]: true } }));
+    setTimeout(() => {
+      setSending((prev) => { const n = { ...prev }; if (n[studentId]) delete n[studentId][channel]; return n; });
+      setWasSent((prev) => ({ ...prev, [studentId]: { ...prev[studentId], [channel]: true } }));
+    }, 1300);
+  };
 
   useEffect(() => {
     const onResize = () => setIsMobile(window.innerWidth < 900);
@@ -295,15 +305,32 @@ const Attendance = () => {
           <p style={{ color: '#64748b', marginTop: '16px' }}>School is off for the selected date, so absentee drill-down is not applicable.</p>
         ) : isMobile ? (
           <div style={{ display: 'grid', gap: '12px', marginTop: '18px' }}>
-            {filteredAbsentees.map((entry) => (
-              <article key={entry.studentId} style={{ ...cardStyle, background: '#fff' }}>
-                <Link to={`/sis/student/${entry.studentId}`} style={{ color: '#0f172a', fontWeight: 800, textDecoration: 'none' }}>{entry.studentName}</Link>
-                <p style={{ margin: '6px 0 0', color: '#475569' }}>Grade {entry.grade} · Division {formatDivision(entry.division)} · Roll {entry.rollNo}</p>
-                <p style={{ margin: '8px 0 0', color: '#334155' }}>Reason: {entry.reason}</p>
-                <p style={{ margin: '6px 0 0', color: entry.intimation === 'No prior intimation' ? '#b45309' : '#166534', fontWeight: 700 }}>{entry.intimation}</p>
-                <p style={{ margin: '6px 0 0', color: '#64748b' }}>{entry.followUp}</p>
-              </article>
-            ))}
+            {filteredAbsentees.map((entry) => {
+              const isNoIntimation = entry.intimation === 'No prior intimation';
+              const waSent = wasSent[entry.studentId]?.wa;
+              const emailSent = wasSent[entry.studentId]?.email;
+              const waSending = sending[entry.studentId]?.wa;
+              const emailSending = sending[entry.studentId]?.email;
+              return (
+                <article key={entry.studentId} style={{ ...cardStyle, background: '#fff' }}>
+                  <Link to={`/sis/student/${entry.studentId}`} style={{ color: '#0f172a', fontWeight: 800, textDecoration: 'none' }}>{entry.studentName}</Link>
+                  <p style={{ margin: '6px 0 0', color: '#475569' }}>Grade {entry.grade} · Division {formatDivision(entry.division)} · Roll {entry.rollNo}</p>
+                  <p style={{ margin: '8px 0 0', color: '#334155' }}>Reason: {entry.reason}</p>
+                  <p style={{ margin: '6px 0 0', color: isNoIntimation ? '#b45309' : '#166534', fontWeight: 700 }}>{entry.intimation}</p>
+                  <p style={{ margin: '6px 0 0', color: '#64748b' }}>{entry.followUp}</p>
+                  {isNoIntimation && (
+                    <div style={{ display: 'flex', gap: '8px', marginTop: '10px', flexWrap: 'wrap' }}>
+                      <button type="button" disabled={waSent || waSending} onClick={() => sendNotification(entry.studentId, 'wa')} style={{ padding: '8px 14px', borderRadius: '8px', border: 'none', background: waSent ? '#dcfce7' : waSending ? '#f3f4f6' : '#25d366', color: waSent ? '#166534' : waSending ? '#64748b' : '#fff', fontWeight: 700, cursor: waSent || waSending ? 'default' : 'pointer', fontSize: '0.84rem' }}>
+                        {waSent ? '✓ WA Sent' : waSending ? 'Sending…' : '💬 WhatsApp'}
+                      </button>
+                      <button type="button" disabled={emailSent || emailSending} onClick={() => sendNotification(entry.studentId, 'email')} style={{ padding: '8px 14px', borderRadius: '8px', border: 'none', background: emailSent ? '#dbeafe' : emailSending ? '#f3f4f6' : '#2563eb', color: emailSent ? '#1d4ed8' : emailSending ? '#64748b' : '#fff', fontWeight: 700, cursor: emailSent || emailSending ? 'default' : 'pointer', fontSize: '0.84rem' }}>
+                        {emailSent ? '✓ Email Sent' : emailSending ? 'Sending…' : '✉ Email'}
+                      </button>
+                    </div>
+                  )}
+                </article>
+              );
+            })}
           </div>
         ) : (
           <div style={{ overflowX: 'auto', marginTop: '18px' }}>
@@ -317,20 +344,50 @@ const Attendance = () => {
                   <th style={{ padding: '12px 16px' }}>Reason</th>
                   <th style={{ padding: '12px 16px' }}>Intimation</th>
                   <th style={{ padding: '12px 16px' }}>Follow-up</th>
+                  <th style={{ padding: '12px 16px' }}>Notify Parent</th>
                 </tr>
               </thead>
               <tbody>
-                {filteredAbsentees.map((entry) => (
-                  <tr key={entry.studentId} style={{ borderBottom: '1px solid #e2e8f0' }}>
-                    <td style={{ padding: '14px 16px' }}><Link to={`/sis/student/${entry.studentId}`} style={{ color: '#0f172a', fontWeight: 700, textDecoration: 'none' }}>{entry.studentName}</Link></td>
-                    <td style={{ padding: '14px 16px' }}>Grade {entry.grade}</td>
-                    <td style={{ padding: '14px 16px' }}>Division {formatDivision(entry.division)}</td>
-                    <td style={{ padding: '14px 16px' }}>{entry.rollNo}</td>
-                    <td style={{ padding: '14px 16px' }}>{entry.reason}</td>
-                    <td style={{ padding: '14px 16px', color: entry.intimation === 'No prior intimation' ? '#b45309' : '#166534', fontWeight: 700 }}>{entry.intimation}</td>
-                    <td style={{ padding: '14px 16px' }}>{entry.followUp}</td>
-                  </tr>
-                ))}
+                {filteredAbsentees.map((entry) => {
+                  const isNoIntimation = entry.intimation === 'No prior intimation';
+                  const waSent = wasSent[entry.studentId]?.wa;
+                  const emailSent = wasSent[entry.studentId]?.email;
+                  const waSending = sending[entry.studentId]?.wa;
+                  const emailSending = sending[entry.studentId]?.email;
+                  return (
+                    <tr key={entry.studentId} style={{ borderBottom: '1px solid #e2e8f0' }}>
+                      <td style={{ padding: '14px 16px' }}><Link to={`/sis/student/${entry.studentId}`} style={{ color: '#0f172a', fontWeight: 700, textDecoration: 'none' }}>{entry.studentName}</Link></td>
+                      <td style={{ padding: '14px 16px' }}>Grade {entry.grade}</td>
+                      <td style={{ padding: '14px 16px' }}>Division {formatDivision(entry.division)}</td>
+                      <td style={{ padding: '14px 16px' }}>{entry.rollNo}</td>
+                      <td style={{ padding: '14px 16px' }}>{entry.reason}</td>
+                      <td style={{ padding: '14px 16px', color: isNoIntimation ? '#b45309' : '#166534', fontWeight: 700 }}>{entry.intimation}</td>
+                      <td style={{ padding: '14px 16px' }}>{entry.followUp}</td>
+                      <td style={{ padding: '14px 16px' }}>
+                        {isNoIntimation ? (
+                          <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                            <button
+                              type="button"
+                              disabled={waSent || waSending}
+                              onClick={() => sendNotification(entry.studentId, 'wa')}
+                              style={{ padding: '6px 11px', borderRadius: '8px', border: 'none', background: waSent ? '#dcfce7' : waSending ? '#f3f4f6' : '#25d366', color: waSent ? '#166534' : waSending ? '#64748b' : '#fff', fontWeight: 700, cursor: waSent || waSending ? 'default' : 'pointer', fontSize: '0.78rem', whiteSpace: 'nowrap', transition: 'opacity 180ms' }}
+                            >
+                              {waSent ? '✓ WA Sent' : waSending ? 'Sending…' : '💬 WhatsApp'}
+                            </button>
+                            <button
+                              type="button"
+                              disabled={emailSent || emailSending}
+                              onClick={() => sendNotification(entry.studentId, 'email')}
+                              style={{ padding: '6px 11px', borderRadius: '8px', border: 'none', background: emailSent ? '#dbeafe' : emailSending ? '#f3f4f6' : '#2563eb', color: emailSent ? '#1d4ed8' : emailSending ? '#64748b' : '#fff', fontWeight: 700, cursor: emailSent || emailSending ? 'default' : 'pointer', fontSize: '0.78rem', whiteSpace: 'nowrap', transition: 'opacity 180ms' }}
+                            >
+                              {emailSent ? '✓ Email Sent' : emailSending ? 'Sending…' : '✉ Email'}
+                            </button>
+                          </div>
+                        ) : <span style={{ color: '#cbd5e1', fontSize: '0.84rem' }}>—</span>}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

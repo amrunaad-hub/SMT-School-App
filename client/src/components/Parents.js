@@ -20,6 +20,17 @@ const Parents = () => {
   const [attachmentPreview, setAttachmentPreview] = useState(null);
   const [attachmentMap, setAttachmentMap] = useState({});
   const [expandedCards, setExpandedCards] = useState({});
+  const [showLeaveModal, setShowLeaveModal] = useState(false);
+  const [leaveForm, setLeaveForm] = useState({ type: 'advance', fromDate: '', toDate: '', reason: '', document: null, docName: '' });
+  const [leaveFormErrors, setLeaveFormErrors] = useState({});
+  const [leaveSubmitting, setLeaveSubmitting] = useState(false);
+  const [selectedDateDetail, setSelectedDateDetail] = useState(null);
+  const [leaveRequests, setLeaveRequests] = useState([
+    { id: 'LR-001', type: 'advance', fromDate: '2026-04-09', toDate: '2026-04-09', reason: 'Family function', status: 'Approved', submittedAt: '2026-04-07 09:15 AM', approvedBy: 'Ms. Rekha Iyer', approvedAt: '2026-04-07 02:30 PM' },
+    { id: 'LR-002', type: 'advance', fromDate: '2026-04-03', toDate: '2026-04-03', reason: 'Medical leave', status: 'Approved', submittedAt: '2026-04-01 11:00 AM', approvedBy: 'Ms. Rekha Iyer', approvedAt: '2026-04-01 04:15 PM' },
+    { id: 'LR-003', type: 'regularization', fromDate: '2026-04-06', toDate: '2026-04-06', reason: 'Fever — medical certificate attached', status: 'Pending', submittedAt: '2026-04-08 08:45 AM', approvedBy: null, approvedAt: null },
+  ]);
+  const [notifications, setNotifications] = useState([]);
 
   const apiBase = process.env.REACT_APP_API_BASE_URL || '';
 
@@ -136,29 +147,40 @@ const Parents = () => {
     photo: 'https://api.dicebear.com/7.x/adventurer/svg?seed=Rajesh-Kulkarni',
   };
 
-  // Extended attendance data (memoized to prevent dependency issues)
+  // Extended attendance data. Types: regular, holiday, approved-leave, unregularized, leave-applied
   const fullAttendanceData = useMemo(() => [
     { date: '2026-04-01', status: 'present', type: 'regular' },
     { date: '2026-04-02', status: 'present', type: 'regular' },
-    { date: '2026-04-03', status: 'absent', type: 'advance', reason: 'Medical leave' },
+    { date: '2026-04-03', status: 'absent', type: 'approved-leave', reason: 'Medical leave — Approved' },
     { date: '2026-04-04', status: 'present', type: 'regular' },
-    { date: '2026-04-05', status: 'holiday', type: 'public', reason: 'Maharashtra Day' },
-    { date: '2026-04-06', status: 'absent', type: 'impromptu', reason: 'Fever' },
+    { date: '2026-04-05', status: 'holiday', type: 'holiday', reason: 'Maharashtra Day' },
+    { date: '2026-04-06', status: 'absent', type: 'unregularized', reason: 'Fever — Regularization Pending' },
     { date: '2026-04-07', status: 'present', type: 'regular' },
     { date: '2026-04-08', status: 'present', type: 'regular' },
-    { date: '2026-04-09', status: 'absent', type: 'advance', reason: 'Family function' },
-    { date: '2026-04-10', status: 'holiday', type: 'public', reason: 'Good Friday' },
+    { date: '2026-04-09', status: 'absent', type: 'approved-leave', reason: 'Family function — Approved' },
+    { date: '2026-04-10', status: 'holiday', type: 'holiday', reason: 'Good Friday' },
     { date: '2026-04-11', status: 'present', type: 'regular' },
     { date: '2026-04-12', status: 'present', type: 'regular' },
     { date: '2026-04-13', status: 'present', type: 'regular' },
     { date: '2026-04-14', status: 'present', type: 'regular' },
-    { date: '2026-04-15', status: 'absent', type: 'advance', reason: 'Doctor appointment' },
+    { date: '2026-04-15', status: 'absent', type: 'leave-applied', reason: 'Doctor appointment — Application Submitted' },
   ], []);
 
   // Get last 10 days of attendance
   const last10DaysAttendance = useMemo(() => {
     return fullAttendanceData.slice(-10);
   }, [fullAttendanceData]);
+
+  const adminNotes = useMemo(() => [
+    { id: 1, author: 'Ms. Smita Naik', role: 'Principal', text: 'Repeated absenteeism observed. Please ensure regular attendance to avoid impact on academics and term completion.', timestamp: '14 Apr 2026, 10:30 AM', priority: 'high' },
+    { id: 2, author: 'Ms. Rekha Iyer', role: 'Class Teacher', text: 'Please visit school and meet the class teacher to discuss recent absence pattern. Next PTM is 20 April.', timestamp: '10 Apr 2026, 02:15 PM', priority: 'medium' },
+  ], []);
+
+  const pushNotification = (message, type = 'success') => {
+    const id = Date.now();
+    setNotifications((prev) => [...prev, { id, message, type }]);
+    setTimeout(() => setNotifications((prev) => prev.filter((n) => n.id !== id)), 4500);
+  };
 
   const timetable = [
     { date: '2026-04-14', time: '08:00-08:40', period: 'Period 1', subject: 'English', teacher: 'Ms. Anuja Kulkarni', details: 'Grammar and comprehension', attachments: [] },
@@ -430,11 +452,22 @@ const Parents = () => {
   ];
 
   const getStatusColor = (status, type) => {
-    if (status === 'present') return '#10b981';
-    if (status === 'absent' && type === 'advance') return '#f59e0b';
-    if (status === 'absent' && type === 'impromptu') return '#ef4444';
-    if (status === 'holiday') return '#6b7280';
+    if (status === 'present') return '#10b981';          // green
+    if (status === 'holiday') return '#6b7280';           // grey
+    if (type === 'approved-leave') return '#f59e0b';      // amber — approved leave
+    if (type === 'leave-applied') return '#3b82f6';       // blue — pending application
+    if (type === 'unregularized') return '#ef4444';       // red — unregularized absence
+    if (status === 'absent') return '#ef4444';            // fallback absent
     return '#fff';
+  };
+
+  const getStatusLabel = (status, type) => {
+    if (status === 'present') return '✓ Present';
+    if (status === 'holiday') return '● Holiday';
+    if (type === 'approved-leave') return '✓ Approved Leave';
+    if (type === 'leave-applied') return '⏳ Leave Applied';
+    if (type === 'unregularized') return '⚠ Unregularized';
+    return '✕ Absent';
   };
 
   // Calendar generation function
@@ -633,50 +666,68 @@ const Parents = () => {
             )}
           </div>
         );
-      case 'attendance':
+      case 'attendance': {
+        const priorityBadge = { high: { bg: '#fee2e2', color: '#dc2626', label: 'High' }, medium: { bg: '#fef3c7', color: '#d97706', label: 'Medium' }, low: { bg: '#f0fdf4', color: '#16a34a', label: 'Low' } };
+        const statusBadge = { Pending: { bg: '#fef3c7', color: '#d97706' }, Approved: { bg: '#dcfce7', color: '#166534' }, Rejected: { bg: '#fee2e2', color: '#dc2626' }, Regularized: { bg: '#dbeafe', color: '#1d4ed8' } };
+
+        const submitLeave = () => {
+          const errors = {};
+          if (!leaveForm.fromDate) errors.fromDate = 'From date is required.';
+          if (!leaveForm.toDate) errors.toDate = 'To date is required.';
+          if (leaveForm.toDate && leaveForm.fromDate && leaveForm.toDate < leaveForm.fromDate) errors.toDate = 'To date cannot be before from date.';
+          if (!leaveForm.reason.trim()) errors.reason = 'Reason is required.';
+          if (Object.keys(errors).length > 0) { setLeaveFormErrors(errors); return; }
+          setLeaveSubmitting(true);
+          setTimeout(() => {
+            const newReq = { id: `LR-${String(leaveRequests.length + 1).padStart(3, '0')}`, type: leaveForm.type, fromDate: leaveForm.fromDate, toDate: leaveForm.toDate, reason: leaveForm.reason, status: 'Pending', submittedAt: new Date().toLocaleString('en-IN'), approvedBy: null, approvedAt: null };
+            setLeaveRequests((prev) => [...prev, newReq]);
+            setLeaveSubmitting(false);
+            setShowLeaveModal(false);
+            setLeaveForm({ type: 'advance', fromDate: '', toDate: '', reason: '', document: null, docName: '' });
+            setLeaveFormErrors({});
+            pushNotification(leaveForm.type === 'advance' ? 'Leave application submitted. Awaiting teacher approval.' : 'Regularization request submitted.');
+          }, 1200);
+        };
+
+        const fieldStyle = { width: '100%', padding: '9px 11px', borderRadius: '9px', border: '1px solid #cbd5e1', fontSize: '0.88rem', boxSizing: 'border-box' };
+        const errStyle = { color: '#dc2626', fontSize: '0.78rem', marginTop: '3px' };
+
         return (
-          <div style={{ padding: isMobile ? '16px' : '24px', borderRadius: '16px', background: 'linear-gradient(135deg, #f0fdf4 0%, #f7fee7 100%)', border: '2px solid #22c55e', boxShadow: '0 4px 16px rgba(34, 197, 94, 0.1)' }}>
-            <h3 style={{ color: '#166534', fontSize: isMobile ? '1.2rem' : '1.4rem', fontWeight: '700', marginBottom: '16px' }}>📅 Attendance Calendar & History</h3>
-            
+          <div style={{ padding: isMobile ? '14px' : '22px', borderRadius: '16px', background: 'linear-gradient(135deg, #f0fdf4 0%, #f7fee7 100%)', border: '2px solid #22c55e', boxShadow: '0 4px 16px rgba(34,197,94,0.1)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '10px' }}>
+              <h3 style={{ color: '#166534', fontSize: isMobile ? '1.15rem' : '1.35rem', fontWeight: '700', margin: 0 }}>📅 Attendance Calendar & History</h3>
+              <button
+                type="button"
+                onClick={() => setShowLeaveModal(true)}
+                style={{ padding: '9px 18px', borderRadius: '10px', border: 'none', background: '#16a34a', color: '#fff', fontWeight: 800, cursor: 'pointer', fontSize: '0.88rem', boxShadow: '0 3px 10px rgba(22,163,74,0.3)' }}
+              >
+                + Apply Leave
+              </button>
+            </div>
+
             {/* Calendar */}
-            <div style={{ marginBottom: '24px', background: '#fff', padding: isMobile ? '12px' : '20px', borderRadius: '12px', border: '1px solid #dcfce7' }}>
+            <div style={{ marginBottom: '20px', background: '#fff', padding: isMobile ? '12px' : '18px', borderRadius: '12px', border: '1px solid #dcfce7' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', gap: '8px', flexWrap: 'wrap' }}>
-                <button onClick={() => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1))} style={{ padding: isMobile ? '6px 8px' : '8px 12px', background: '#22c55e', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600', fontSize: isMobile ? '0.8rem' : '0.9rem', minHeight: '36px' }}>← Prev</button>
-                <h4 style={{ margin: 0, fontSize: isMobile ? '1rem' : '1.2rem', color: '#166534', fontWeight: '700' }}>{currentMonth.toLocaleString('default', { month: 'long', year: 'numeric' })}</h4>
-                <button onClick={() => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1))} style={{ padding: isMobile ? '6px 8px' : '8px 12px', background: '#22c55e', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600', fontSize: isMobile ? '0.8rem' : '0.9rem', minHeight: '36px' }}>Next →</button>
+                <button type="button" onClick={() => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1))} style={{ padding: '6px 12px', background: '#22c55e', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 700 }}>← Prev</button>
+                <h4 style={{ margin: 0, color: '#166534', fontWeight: 700 }}>{currentMonth.toLocaleString('default', { month: 'long', year: 'numeric' })}</h4>
+                <button type="button" onClick={() => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1))} style={{ padding: '6px 12px', background: '#22c55e', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 700 }}>Next →</button>
               </div>
-              
-              {/* Day headers */}
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '2px', marginBottom: '6px' }}>
-                {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map(day => (
-                  <div key={day} style={{ textAlign: 'center', fontWeight: '700', color: '#166534', padding: isMobile ? '4px' : '8px', fontSize: isMobile ? '0.75rem' : '0.9rem' }}>{day}</div>
-                ))}
+                {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((d, i) => <div key={i} style={{ textAlign: 'center', fontWeight: 700, color: '#166534', padding: '6px', fontSize: '0.82rem' }}>{d}</div>)}
               </div>
-              
-              {/* Calendar grid */}
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '2px' }}>
                 {calendarDays.map((date, index) => {
-                  const attendance = date ? getAttendanceForDate(date) : null;
-                  const bgColor = !date ? '#f3f4f6' : attendance ? getStatusColor(attendance.status, attendance.type) : '#fafafa';
-                  const isCurrentDate = date && new Date().toDateString() === date.toDateString();
-                  
+                  const att = date ? getAttendanceForDate(date) : null;
+                  const bg = !date ? '#f3f4f6' : att ? getStatusColor(att.status, att.type) : '#fafafa';
+                  const isToday = date && new Date().toDateString() === date.toDateString();
+                  const clickable = date && att && att.status !== 'present';
                   return (
-                    <div key={index} style={{
-                      backgroundColor: bgColor,
-                      padding: isMobile ? '6px' : '10px',
-                      border: isCurrentDate ? '3px solid #22c55e' : '1px solid #dcfce7',
-                      borderRadius: '4px',
-                      textAlign: 'center',
-                      color: date ? '#1f2937' : '#d1d5db',
-                      minHeight: isMobile ? '32px' : '45px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      fontWeight: date ? '600' : '400',
-                      cursor: date && attendance ? 'help' : 'default',
-                      fontSize: isMobile ? '0.8rem' : '0.9rem',
-                      transition: 'all 0.2s'
-                    }} title={attendance ? `${attendance.status.toUpperCase()} - ${attendance.reason || attendance.type}` : ''}>
+                    <div
+                      key={index}
+                      onClick={() => { if (clickable) setSelectedDateDetail(att); }}
+                      title={att ? `${getStatusLabel(att.status, att.type)} — ${att.reason || att.type}` : ''}
+                      style={{ backgroundColor: bg, padding: isMobile ? '5px 2px' : '9px 3px', border: isToday ? '3px solid #22c55e' : '1px solid #dcfce7', borderRadius: '4px', textAlign: 'center', color: date ? '#fff' : '#d1d5db', minHeight: isMobile ? '30px' : '42px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: date ? 700 : 400, cursor: clickable ? 'pointer' : 'default', fontSize: isMobile ? '0.78rem' : '0.88rem', transition: 'opacity 150ms' }}
+                    >
                       {date ? date.getDate() : ''}
                     </div>
                   );
@@ -685,49 +736,182 @@ const Parents = () => {
             </div>
 
             {/* Legend */}
-            <div style={{ background: '#fff', padding: isMobile ? '12px' : '16px', borderRadius: '12px', border: '1px solid #dcfce7', marginBottom: '20px' }}>
-              <h4 style={{ color: '#166534', fontWeight: '700', marginBottom: '10px', fontSize: isMobile ? '1rem' : '1.05rem' }}>Legend:</h4>
-              <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(2, 1fr)', gap: isMobile ? '6px' : '8px' }}>
-                <p style={{ margin: '4px 0', fontSize: isMobile ? '0.8rem' : '0.85rem' }}><span style={{ backgroundColor: '#10b981', color: '#fff', padding: '3px 6px', borderRadius: '4px', fontWeight: '600' }}>✓ Present</span></p>
-                <p style={{ margin: '4px 0', fontSize: isMobile ? '0.8rem' : '0.85rem' }}><span style={{ backgroundColor: '#f59e0b', color: '#fff', padding: '3px 6px', borderRadius: '4px', fontWeight: '600' }}>⚠ Advance</span></p>
-                <p style={{ margin: '4px 0', fontSize: isMobile ? '0.8rem' : '0.85rem' }}><span style={{ backgroundColor: '#ef4444', color: '#fff', padding: '3px 6px', borderRadius: '4px', fontWeight: '600' }}>✕ Impromptu</span></p>
-                <p style={{ margin: '4px 0', fontSize: isMobile ? '0.8rem' : '0.85rem' }}><span style={{ backgroundColor: '#6b7280', color: '#fff', padding: '3px 6px', borderRadius: '4px', fontWeight: '600' }}>● Holiday</span></p>
+            <div style={{ background: '#fff', padding: '12px 16px', borderRadius: '12px', border: '1px solid #dcfce7', marginBottom: '16px' }}>
+              <h4 style={{ color: '#166534', fontWeight: 700, marginBottom: '8px', margin: '0 0 8px' }}>Legend</h4>
+              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                {[['#10b981', '✓ Present'], ['#f59e0b', '✓ Approved Leave'], ['#3b82f6', '⏳ Leave Applied'], ['#ef4444', '⚠ Unregularized'], ['#6b7280', '● Holiday']].map(([color, label]) => (
+                  <span key={label} style={{ background: color, color: '#fff', padding: '3px 9px', borderRadius: '6px', fontSize: '0.76rem', fontWeight: 700 }}>{label}</span>
+                ))}
               </div>
+              <p style={{ margin: '8px 0 0', color: '#64748b', fontSize: '0.76rem' }}>Tap any non-present date to see details or apply regularization.</p>
             </div>
+
+            {/* Admin / Principal Notes */}
+            {adminNotes.length > 0 && (
+              <div style={{ background: '#fff', borderRadius: '12px', border: '1px solid #fecdd3', marginBottom: '16px', overflow: 'hidden' }}>
+                <div style={{ padding: '10px 14px', background: '#fef2f2', borderBottom: '1px solid #fecdd3' }}>
+                  <h4 style={{ margin: 0, color: '#9f1239', fontWeight: 800, fontSize: '0.95rem' }}>🔔 Notes from School Administration</h4>
+                </div>
+                {adminNotes.map((note) => {
+                  const pb = priorityBadge[note.priority];
+                  return (
+                    <div key={note.id} style={{ padding: '12px 14px', borderBottom: '1px solid #fef2f2' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: '10px', alignItems: 'flex-start', flexWrap: 'wrap' }}>
+                        <div style={{ flex: 1 }}>
+                          <p style={{ margin: 0, color: '#0f172a', fontSize: '0.88rem', fontWeight: 600, lineHeight: 1.5 }}>{note.text}</p>
+                          <p style={{ margin: '5px 0 0', color: '#64748b', fontSize: '0.76rem' }}>{note.author} · {note.role} · {note.timestamp}</p>
+                        </div>
+                        <span style={{ padding: '3px 9px', borderRadius: '999px', background: pb.bg, color: pb.color, fontWeight: 700, fontSize: '0.72rem', whiteSpace: 'nowrap' }}>{pb.label} Priority</span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* Leave Requests */}
+            {leaveRequests.length > 0 && (
+              <div style={{ background: '#fff', borderRadius: '12px', border: '1px solid #dcfce7', marginBottom: '16px', overflow: 'hidden' }}>
+                <div style={{ padding: '10px 14px', background: '#f0fdf4', borderBottom: '1px solid #dcfce7' }}>
+                  <h4 style={{ margin: 0, color: '#166534', fontWeight: 800, fontSize: '0.95rem' }}>📋 My Leave Applications</h4>
+                </div>
+                {leaveRequests.map((req) => {
+                  const sb = statusBadge[req.status];
+                  return (
+                    <div key={req.id} style={{ padding: '12px 14px', borderBottom: '1px solid #f0fdf4' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: '10px', alignItems: 'flex-start', flexWrap: 'wrap' }}>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+                            <span style={{ fontWeight: 700, color: '#0f172a', fontSize: '0.88rem' }}>{req.type === 'advance' ? 'Advance Leave' : 'Regularization'}</span>
+                            <span style={{ padding: '2px 8px', borderRadius: '999px', background: sb.bg, color: sb.color, fontWeight: 700, fontSize: '0.72rem' }}>{req.status}</span>
+                          </div>
+                          <p style={{ margin: '4px 0 0', color: '#475569', fontSize: '0.82rem' }}>{req.fromDate === req.toDate ? req.fromDate : `${req.fromDate} → ${req.toDate}`} · {req.reason}</p>
+                          <p style={{ margin: '3px 0 0', color: '#94a3b8', fontSize: '0.74rem' }}>Submitted: {req.submittedAt}{req.approvedBy ? ` · Approved by: ${req.approvedBy} at ${req.approvedAt}` : ''}</p>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
 
             {/* Last 10 Days History */}
             <div>
-              <h4 style={{ color: '#166534', fontWeight: '700', marginBottom: '10px', fontSize: isMobile ? '1.05rem' : '1.1rem' }}>📊 Last 10 Days History</h4>
+              <h4 style={{ color: '#166534', fontWeight: 700, marginBottom: '10px' }}>📊 Last 10 Days History</h4>
               <div style={{ display: 'grid', gap: '6px' }}>
                 {last10DaysAttendance.map((day) => {
-                  const statusBg = getStatusColor(day.status, day.type);
-                  const statusText = day.status === 'holiday' ? '🗓️ Holiday' : day.status === 'present' ? '✓ Present' : '✗ Absent';
-                  
+                  const bg = getStatusColor(day.status, day.type);
+                  const label = getStatusLabel(day.status, day.type);
+                  const clickable = day.status !== 'present';
                   return (
-                    <div key={day.date} style={{
-                      padding: isMobile ? '10px' : '12px',
-                      background: '#fff',
-                      borderRadius: '8px',
-                      border: `2px solid ${statusBg}`,
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                      boxShadow: `0 2px 8px ${statusBg}25`,
-                      gap: '8px',
-                      flexWrap: 'wrap'
-                    }}>
-                      <div style={{ flex: 1, minWidth: isMobile ? '150px' : '200px' }}>
-                        <strong style={{ color: '#166534', fontSize: isMobile ? '0.85rem' : '0.95rem' }}>{new Date(day.date).toLocaleDateString('en-IN', { weekday: 'short', month: 'short', day: 'numeric' })}</strong>
-                        <p style={{ margin: '2px 0 0', color: '#666', fontSize: isMobile ? '0.75rem' : '0.85rem' }}>{day.reason || day.type}</p>
+                    <div
+                      key={day.date}
+                      onClick={() => { if (clickable) setSelectedDateDetail(day); }}
+                      style={{ padding: '11px 14px', background: '#fff', borderRadius: '8px', border: `2px solid ${bg}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px', flexWrap: 'wrap', cursor: clickable ? 'pointer' : 'default', boxShadow: `0 2px 8px ${bg}18` }}
+                    >
+                      <div style={{ flex: 1, minWidth: '160px' }}>
+                        <strong style={{ color: '#166534', fontSize: isMobile ? '0.85rem' : '0.92rem' }}>{new Date(day.date).toLocaleDateString('en-IN', { weekday: 'short', month: 'short', day: 'numeric' })}</strong>
+                        {day.reason && <p style={{ margin: '2px 0 0', color: '#666', fontSize: '0.78rem' }}>{day.reason}</p>}
                       </div>
-                      <span style={{ background: statusBg, color: '#fff', padding: isMobile ? '4px 8px' : '6px 12px', borderRadius: '6px', fontWeight: '600', fontSize: isMobile ? '0.75rem' : '0.85rem', whiteSpace: 'nowrap' }}>{statusText}</span>
+                      <span style={{ background: bg, color: '#fff', padding: '5px 11px', borderRadius: '6px', fontWeight: 700, fontSize: '0.78rem', whiteSpace: 'nowrap' }}>{label}</span>
                     </div>
                   );
                 })}
               </div>
             </div>
+
+            {/* Apply Leave Modal */}
+            {showLeaveModal && (
+              <div role="dialog" aria-modal="true" style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.58)', zIndex: 1200, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }} onClick={(e) => { if (e.target === e.currentTarget) setShowLeaveModal(false); }}>
+                <div style={{ background: '#fff', borderRadius: '18px', padding: '24px', maxWidth: '460px', width: '100%', boxShadow: '0 24px 60px rgba(15,23,42,0.3)', maxHeight: '92vh', overflowY: 'auto' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                    <h3 style={{ margin: 0, color: '#166534', fontWeight: 800 }}>Apply Leave / Regularization</h3>
+                    <button type="button" onClick={() => setShowLeaveModal(false)} style={{ background: 'none', border: 'none', fontSize: '1.4rem', cursor: 'pointer', color: '#64748b' }}>×</button>
+                  </div>
+
+                  <div style={{ marginBottom: '14px' }}>
+                    <label style={{ display: 'block', fontWeight: 700, color: '#334155', marginBottom: '6px', fontSize: '0.88rem' }}>Type</label>
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      {[['advance', 'Advance Leave'], ['regularization', 'Post-Facto Regularization']].map(([val, lbl]) => (
+                        <button key={val} type="button" onClick={() => setLeaveForm((f) => ({ ...f, type: val }))} style={{ flex: 1, padding: '9px', borderRadius: '9px', border: `2px solid ${leaveForm.type === val ? '#16a34a' : '#cbd5e1'}`, background: leaveForm.type === val ? '#dcfce7' : '#fff', color: leaveForm.type === val ? '#166534' : '#334155', fontWeight: 700, cursor: 'pointer', fontSize: '0.82rem' }}>
+                          {lbl}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '14px' }}>
+                    <div>
+                      <label style={{ display: 'block', fontWeight: 700, color: '#334155', marginBottom: '5px', fontSize: '0.88rem' }}>From Date <span style={{ color: '#dc2626' }}>*</span></label>
+                      <input type="date" value={leaveForm.fromDate} onChange={(e) => { setLeaveForm((f) => ({ ...f, fromDate: e.target.value })); setLeaveFormErrors((err) => ({ ...err, fromDate: '' })); }} style={{ ...fieldStyle, borderColor: leaveFormErrors.fromDate ? '#dc2626' : '#cbd5e1' }} />
+                      {leaveFormErrors.fromDate && <p style={errStyle}>{leaveFormErrors.fromDate}</p>}
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontWeight: 700, color: '#334155', marginBottom: '5px', fontSize: '0.88rem' }}>To Date <span style={{ color: '#dc2626' }}>*</span></label>
+                      <input type="date" value={leaveForm.toDate} onChange={(e) => { setLeaveForm((f) => ({ ...f, toDate: e.target.value })); setLeaveFormErrors((err) => ({ ...err, toDate: '' })); }} style={{ ...fieldStyle, borderColor: leaveFormErrors.toDate ? '#dc2626' : '#cbd5e1' }} />
+                      {leaveFormErrors.toDate && <p style={errStyle}>{leaveFormErrors.toDate}</p>}
+                    </div>
+                  </div>
+
+                  <div style={{ marginBottom: '14px' }}>
+                    <label style={{ display: 'block', fontWeight: 700, color: '#334155', marginBottom: '5px', fontSize: '0.88rem' }}>Reason / Justification <span style={{ color: '#dc2626' }}>*</span></label>
+                    <textarea rows={3} value={leaveForm.reason} onChange={(e) => { setLeaveForm((f) => ({ ...f, reason: e.target.value })); setLeaveFormErrors((err) => ({ ...err, reason: '' })); }} placeholder="Describe reason in detail..." style={{ ...fieldStyle, resize: 'vertical', borderColor: leaveFormErrors.reason ? '#dc2626' : '#cbd5e1' }} />
+                    {leaveFormErrors.reason && <p style={errStyle}>{leaveFormErrors.reason}</p>}
+                  </div>
+
+                  <div style={{ marginBottom: '18px' }}>
+                    <label style={{ display: 'block', fontWeight: 700, color: '#334155', marginBottom: '5px', fontSize: '0.88rem' }}>Supporting Document (optional)</label>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '9px 12px', border: '1px dashed #cbd5e1', borderRadius: '9px', cursor: 'pointer', background: '#f8fafc' }}>
+                      <span style={{ color: '#64748b', fontSize: '0.84rem' }}>{leaveForm.docName || '📎 Upload document (PDF / Image)'}</span>
+                      <input type="file" accept=".pdf,image/*" onChange={(e) => { const f = e.target.files[0]; if (f) setLeaveForm((prev) => ({ ...prev, document: f, docName: f.name })); }} style={{ display: 'none' }} />
+                    </label>
+                  </div>
+
+                  <button type="button" onClick={submitLeave} disabled={leaveSubmitting} style={{ width: '100%', padding: '12px', borderRadius: '11px', border: 'none', background: leaveSubmitting ? '#94a3b8' : '#16a34a', color: '#fff', fontWeight: 800, cursor: leaveSubmitting ? 'default' : 'pointer', fontSize: '0.95rem' }}>
+                    {leaveSubmitting ? 'Submitting…' : 'Submit Application'}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Date Detail Modal */}
+            {selectedDateDetail && (
+              <div role="dialog" aria-modal="true" style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.58)', zIndex: 1200, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }} onClick={(e) => { if (e.target === e.currentTarget) setSelectedDateDetail(null); }}>
+                <div style={{ background: '#fff', borderRadius: '18px', padding: '24px', maxWidth: '400px', width: '100%', boxShadow: '0 24px 60px rgba(15,23,42,0.3)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
+                    <h3 style={{ margin: 0, color: '#0f172a', fontWeight: 800 }}>Absence Details</h3>
+                    <button type="button" onClick={() => setSelectedDateDetail(null)} style={{ background: 'none', border: 'none', fontSize: '1.4rem', cursor: 'pointer', color: '#64748b' }}>×</button>
+                  </div>
+                  <div style={{ padding: '12px 14px', borderRadius: '12px', background: '#f8fafc', border: '1px solid #e2e8f0', marginBottom: '16px' }}>
+                    <p style={{ margin: 0, fontWeight: 700, color: '#0f172a' }}>{new Date(selectedDateDetail.date).toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</p>
+                    <p style={{ margin: '6px 0 0', color: '#475569', fontSize: '0.88rem' }}>{selectedDateDetail.reason || selectedDateDetail.type}</p>
+                    <span style={{ display: 'inline-block', marginTop: '8px', padding: '4px 12px', borderRadius: '999px', background: getStatusColor(selectedDateDetail.status, selectedDateDetail.type), color: '#fff', fontWeight: 700, fontSize: '0.78rem' }}>{getStatusLabel(selectedDateDetail.status, selectedDateDetail.type)}</span>
+                  </div>
+                  {(selectedDateDetail.type === 'unregularized') && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setLeaveForm((f) => ({ ...f, type: 'regularization', fromDate: selectedDateDetail.date, toDate: selectedDateDetail.date, reason: selectedDateDetail.reason || '' }));
+                        setSelectedDateDetail(null);
+                        setShowLeaveModal(true);
+                      }}
+                      style={{ width: '100%', padding: '11px', borderRadius: '10px', border: 'none', background: '#1d4ed8', color: '#fff', fontWeight: 800, cursor: 'pointer', marginBottom: '10px' }}
+                    >
+                      Apply Regularization for this Date
+                    </button>
+                  )}
+                  {(selectedDateDetail.type === 'approved-leave' || selectedDateDetail.type === 'leave-applied') && (
+                    <p style={{ margin: 0, color: '#166534', fontSize: '0.84rem', fontWeight: 600, textAlign: 'center' }}>
+                      {selectedDateDetail.type === 'approved-leave' ? '✓ Leave has been approved by school.' : '⏳ Leave application is pending approval.'}
+                    </p>
+                  )}
+                  <button type="button" onClick={() => setSelectedDateDetail(null)} style={{ width: '100%', marginTop: '10px', padding: '10px', borderRadius: '10px', border: '1px solid #cbd5e1', background: '#fff', color: '#334155', fontWeight: 700, cursor: 'pointer' }}>Close</button>
+                </div>
+              </div>
+            )}
           </div>
         );
+      }
       case 'timetable':
         return (
           <div style={{ padding: isMobile ? '16px' : '24px', borderRadius: '16px', background: 'linear-gradient(135deg, #fef3c7 0%, #fef9e7 100%)', border: '2px solid #fbbf24', boxShadow: '0 4px 16px rgba(251, 191, 36, 0.1)' }}>
@@ -1298,6 +1482,17 @@ const Parents = () => {
               </div>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Toast notifications */}
+      {notifications.length > 0 && (
+        <div style={{ position: 'fixed', bottom: '80px', right: '16px', zIndex: 1500, display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          {notifications.map((n) => (
+            <div key={n.id} style={{ padding: '12px 18px', borderRadius: '12px', background: '#16a34a', color: '#fff', fontWeight: 700, fontSize: '0.88rem', boxShadow: '0 8px 20px rgba(22,163,74,0.35)', maxWidth: '320px' }}>
+              ✓ {n.message}
+            </div>
+          ))}
         </div>
       )}
     </main>

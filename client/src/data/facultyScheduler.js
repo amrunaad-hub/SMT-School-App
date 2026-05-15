@@ -63,6 +63,43 @@ const DIVISION_SUBJECT_TEACHER_CODES = {
   },
 };
 
+// Day-of-week subject patterns (1=Mon … 6=Sat). 8 subjects for Mon-Fri, 6 for Saturday half-day.
+const gradeSubjectPatternByDay = {
+  1: {
+    1: ['English', 'Maths', 'EVS', 'Hindi', 'Marathi', 'Library', 'English', 'Maths'],
+    2: ['Maths', 'Hindi', 'English', 'EVS', 'Marathi', 'Yoga', 'Maths', 'English'],
+    3: ['EVS', 'English', 'Maths', 'Marathi', 'Hindi', 'Library', 'EVS', 'English'],
+    4: ['Hindi', 'Maths', 'English', 'EVS', 'Marathi', 'Gym', 'Hindi', 'Maths'],
+    5: ['English', 'Marathi', 'Maths', 'EVS', 'Hindi', 'Yoga', 'English', 'Marathi'],
+    6: ['Maths', 'English', 'EVS', 'Hindi', 'Library', 'Marathi', 'Maths', 'English'],
+  },
+  2: {
+    1: ['Maths', 'EVS', 'English', 'Marathi', 'Hindi', 'Cyber / Computer', 'Maths', 'EVS'],
+    2: ['English', 'Maths', 'Hindi', 'EVS', 'Marathi', 'Library', 'English', 'Maths'],
+    3: ['Marathi', 'EVS', 'Maths', 'English', 'Hindi', 'Yoga', 'Marathi', 'EVS'],
+    4: ['EVS', 'Hindi', 'Maths', 'Marathi', 'English', 'Cyber / Computer', 'EVS', 'Hindi'],
+    5: ['Maths', 'English', 'Marathi', 'EVS', 'Hindi', 'Library', 'Maths', 'English'],
+    6: ['English', 'Maths', 'EVS', 'Hindi', 'Cyber / Computer', 'Marathi', 'English', 'Maths'],
+  },
+  3: {
+    1: ['English', 'Maths', 'EVS', 'Hindi', 'Marathi', 'Cyber / Computer', 'English', 'Maths'],
+    2: ['Maths', 'Hindi', 'English', 'EVS', 'Marathi', 'Library', 'Maths', 'Hindi'],
+    3: ['EVS', 'Maths', 'Hindi', 'English', 'Marathi', 'Gym', 'EVS', 'Maths'],
+    4: ['Hindi', 'English', 'Maths', 'Marathi', 'EVS', 'Cyber / Computer', 'Hindi', 'English'],
+    5: ['English', 'EVS', 'Marathi', 'Maths', 'Hindi', 'Library', 'English', 'EVS'],
+    6: ['Maths', 'English', 'EVS', 'Hindi', 'Cyber / Computer', 'Marathi', 'Maths', 'English'],
+  },
+  4: {
+    1: ['Maths', 'EVS', 'English', 'Marathi', 'Hindi', 'Cyber / Computer', 'Maths', 'EVS'],
+    2: ['English', 'Hindi', 'Maths', 'EVS', 'Marathi', 'Yoga', 'English', 'Hindi'],
+    3: ['EVS', 'Maths', 'English', 'Hindi', 'Marathi', 'Library', 'EVS', 'Maths'],
+    4: ['Hindi', 'Marathi', 'Maths', 'English', 'EVS', 'Cyber / Computer', 'Hindi', 'Marathi'],
+    5: ['Maths', 'English', 'EVS', 'Marathi', 'Hindi', 'Library', 'Maths', 'English'],
+    6: ['English', 'Maths', 'EVS', 'Marathi', 'Cyber / Computer', 'Hindi', 'English', 'Maths'],
+  },
+};
+
+// Fallback for any unmatched day (Sunday etc.)
 const gradeSubjectPattern = {
   1: ['English', 'Maths', 'EVS', 'Hindi', 'Marathi', 'Library', 'Yoga', 'Gym'],
   2: ['Maths', 'English', 'EVS', 'Marathi', 'Hindi', 'Library', 'Cyber / Computer', 'Yoga'],
@@ -254,10 +291,11 @@ const getTeacherForSubject = (division, subject) => {
   return getTeacherByCode(teacherCode);
 };
 
-const buildClassTimetable = (grade, division) => {
+const buildClassTimetable = (grade, division, dayOfWeek) => {
   const gradeNumber = Number(grade);
   const divisionKey = String(division || '').toLowerCase();
-  const subjectSequence = gradeSubjectPattern[gradeNumber] || gradeSubjectPattern[1];
+  const dayPatterns = gradeSubjectPatternByDay[gradeNumber];
+  const subjectSequence = (dayPatterns && dayPatterns[dayOfWeek]) || gradeSubjectPattern[gradeNumber] || gradeSubjectPattern[1];
 
   let sequencePointer = 0;
   return TIME_SLOTS.map((timeSlot, periodIndex) => {
@@ -312,14 +350,14 @@ const buildClassTimetable = (grade, division) => {
   });
 };
 
-const buildConsolidatedTimetable = () => {
+const buildConsolidatedTimetable = (dayOfWeek) => {
   const timetable = {};
   const grades = [1, 2, 3, 4];
 
   grades.forEach((grade) => {
     DIVISION_ORDER.forEach((divisionKey) => {
       const classKey = `Grade ${grade} ${DIVISION_LABEL[divisionKey]}`;
-      timetable[classKey] = buildClassTimetable(grade, divisionKey);
+      timetable[classKey] = buildClassTimetable(grade, divisionKey, dayOfWeek);
     });
   });
 

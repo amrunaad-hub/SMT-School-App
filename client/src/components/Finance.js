@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { DIVISIONS, GRADES, SCHOOL_STUDENT_DIRECTORY, STUDENTS_PER_DIVISION } from '../data/studentDirectory';
 
 const ANNUAL_FEE = 90000;
-const INSTALLMENT_AMOUNT = ANNUAL_FEE / 3;
+const INSTALLMENT_AMOUNT = ANNUAL_FEE / 3; // 30000
 const RTE_PER_DIVISION = Math.round(STUDENTS_PER_DIVISION * 0.25);
 
 const installmentSchedule = [
@@ -26,125 +26,114 @@ const delayReasons = [
   'Accounts team awaiting revised waiver approval',
 ];
 
-const seedFromId = (id) => {
-  return id.split('').reduce((total, char) => total + char.charCodeAt(0), 0);
-};
-
+const seedFromId = (id) => id.split('').reduce((t, c) => t + c.charCodeAt(0), 0);
 const formatCurrency = (value) => `₹${Number(value || 0).toLocaleString('en-IN')}`;
+const formatDivision = (d) => `${d.charAt(0).toUpperCase()}${d.slice(1)}`;
 
-const formatDivision = (division) => `${division.charAt(0).toUpperCase()}${division.slice(1)}`;
-
+// Builds realistic per-student fee ledger as of May 2026.
+// April (due Apr-1): ~73% paid, ~17% delayed, ~10% condonence. July/Nov mostly upcoming.
+// Validation: for every installment, Paid + Delayed + Condonence + RTE + Upcoming = total students.
 const buildStudentFeeLedger = () => {
   return SCHOOL_STUDENT_DIRECTORY.map((student) => {
     const seed = seedFromId(student.id);
     const isRte = student.rollNo <= RTE_PER_DIVISION;
-    const profileType = seed % 8;
     const paymentMethod = paymentMethods[seed % paymentMethods.length];
 
-    const installments = installmentSchedule.map((installment, index) => {
-      const defaultPaidDate = installment.id === 'april'
-        ? '2026-03-29'
-        : installment.id === 'july'
-          ? '2026-06-28'
-          : '2026-10-28';
-
-      if (isRte) {
-        return {
-          ...installment,
-          amount: 0,
-          status: 'RTE Zero Fee',
-          paymentDate: '-',
-          paymentMethod: '-',
-          note: 'Covered under Right to Education quota',
-        };
-      }
-
-      if (profileType <= 2) {
-        return {
-          ...installment,
-          amount: INSTALLMENT_AMOUNT,
-          status: 'Paid',
-          paymentDate: defaultPaidDate,
-          paymentMethod,
-          note: 'Paid within schedule',
-        };
-      }
-
-      if (profileType === 3) {
-        return {
-          ...installment,
-          amount: INSTALLMENT_AMOUNT,
-          status: index < 2 ? 'Paid' : 'Delayed',
-          paymentDate: index < 2 ? defaultPaidDate : '-',
-          paymentMethod: index < 2 ? paymentMethod : '-',
-          note: index < 2 ? 'Paid within schedule' : delayReasons[seed % delayReasons.length],
-        };
-      }
-
-      if (profileType === 4) {
-        return {
-          ...installment,
-          amount: INSTALLMENT_AMOUNT,
-          status: index === 0 ? 'Paid' : 'Condonence Requested',
-          paymentDate: index === 0 ? defaultPaidDate : '-',
-          paymentMethod: index === 0 ? paymentMethod : '-',
-          note: index === 0 ? 'Paid before due date' : condonenceReasons[seed % condonenceReasons.length],
-        };
-      }
-
-      if (profileType === 5) {
-        return {
-          ...installment,
-          amount: INSTALLMENT_AMOUNT,
-          status: index === 0 ? 'Condonence Approved' : index === 1 ? 'Delayed' : 'Upcoming',
-          paymentDate: '-',
-          paymentMethod: '-',
-          note: index === 0 ? 'Approved partial waiver for first instalment' : index === 1 ? delayReasons[(seed + 1) % delayReasons.length] : 'Due in November cycle',
-        };
-      }
-
-      if (profileType === 6) {
-        return {
-          ...installment,
-          amount: INSTALLMENT_AMOUNT,
-          status: index < 2 ? 'Paid' : 'Upcoming',
-          paymentDate: index < 2 ? defaultPaidDate : '-',
-          paymentMethod: index < 2 ? paymentMethod : '-',
-          note: index < 2 ? 'Paid within schedule' : 'Scheduled for November collection round',
-        };
-      }
-
+    if (isRte) {
+      const installments = installmentSchedule.map((inst) => ({
+        ...inst,
+        amount: 0,
+        status: 'RTE Zero Fee',
+        paymentDate: '-',
+        paymentMethod: '-',
+        note: 'Covered under Right to Education quota',
+      }));
       return {
-        ...installment,
-        amount: INSTALLMENT_AMOUNT,
-        status: index === 0 ? 'Paid' : 'Delayed',
-        paymentDate: index === 0 ? defaultPaidDate : '-',
-        paymentMethod: index === 0 ? paymentMethod : '-',
-        note: index === 0 ? 'Paid within schedule' : delayReasons[(seed + index) % delayReasons.length],
+        ...student,
+        gradeLabel: `Grade ${student.grade}`,
+        divisionLabel: `Division ${formatDivision(student.division)}`,
+        isRte: true,
+        payableAmount: 0,
+        paidAmount: 0,
+        pendingAmount: 0,
+        overallStatus: 'RTE Zero Fee',
+        installments,
       };
-    });
+    }
 
-    const paidAmount = installments.reduce((total, installment) => {
-      return total + (installment.status === 'Paid' ? installment.amount : 0);
-    }, 0);
-    const payableAmount = isRte ? 0 : ANNUAL_FEE;
-    const pendingAmount = Math.max(payableAmount - paidAmount, 0);
-    const overallStatus = isRte
-      ? 'RTE Zero Fee'
-      : pendingAmount === 0
-        ? 'Fully Paid'
-        : installments.some((installment) => installment.status.includes('Condonence'))
-          ? 'Condonence Case'
-          : installments.some((installment) => installment.status === 'Delayed')
-            ? 'Delayed Payment'
-            : 'Partially Paid';
+    // ── April installment ──────────────────────────────────────────────────
+    const aprilR = seed % 100;
+    let aprilStatus, aprilDate, aprilMethod, aprilNote;
+    if (aprilR < 73) {
+      aprilStatus = 'Paid';
+      const day = String(Math.min(1 + (seed % 18), 28)).padStart(2, '0');
+      aprilDate = aprilR < 5 ? '2026-03-29' : `2026-04-${day}`;
+      aprilMethod = paymentMethod;
+      aprilNote = aprilR < 5 ? 'Advance payment before due date' : 'Paid on schedule';
+    } else if (aprilR < 90) {
+      aprilStatus = 'Delayed';
+      aprilDate = '-'; aprilMethod = '-';
+      aprilNote = delayReasons[seed % delayReasons.length];
+    } else if (aprilR < 97) {
+      aprilStatus = 'Condonence Requested';
+      aprilDate = '-'; aprilMethod = '-';
+      aprilNote = condonenceReasons[seed % condonenceReasons.length];
+    } else {
+      aprilStatus = 'Condonence Approved';
+      aprilDate = '-'; aprilMethod = '-';
+      aprilNote = 'Partial waiver approved by management';
+    }
+
+    // ── July installment — < 3% advance paid, rest upcoming ───────────────
+    const julyR = (seed * 3 + 17) % 100;
+    let julyStatus, julyDate, julyMethod, julyNote;
+    if (julyR < 3) {
+      julyStatus = 'Paid';
+      julyDate = '2026-05-08'; julyMethod = paymentMethod;
+      julyNote = 'Advance payment for July instalment';
+    } else {
+      julyStatus = 'Upcoming';
+      julyDate = '-'; julyMethod = '-'; julyNote = 'Due 1st July 2026';
+    }
+
+    // ── November installment — < 1% advance paid, rest upcoming ───────────
+    const novR = (seed * 7 + 41) % 100;
+    let novStatus, novDate, novMethod, novNote;
+    if (novR < 1) {
+      novStatus = 'Paid';
+      novDate = '2026-05-03'; novMethod = paymentMethod;
+      novNote = 'Full-year advance payment';
+    } else {
+      novStatus = 'Upcoming';
+      novDate = '-'; novMethod = '-'; novNote = 'Due 1st November 2026';
+    }
+
+    const installments = [
+      { ...installmentSchedule[0], amount: INSTALLMENT_AMOUNT, status: aprilStatus, paymentDate: aprilDate, paymentMethod: aprilMethod, note: aprilNote },
+      { ...installmentSchedule[1], amount: INSTALLMENT_AMOUNT, status: julyStatus, paymentDate: julyDate, paymentMethod: julyMethod, note: julyNote },
+      { ...installmentSchedule[2], amount: INSTALLMENT_AMOUNT, status: novStatus, paymentDate: novDate, paymentMethod: novMethod, note: novNote },
+    ];
+
+    const paidAmount = installments.reduce((s, i) => s + (i.status === 'Paid' ? i.amount : 0), 0);
+    const pendingAmount = Math.max(ANNUAL_FEE - paidAmount, 0);
+
+    let overallStatus;
+    if (pendingAmount === 0) {
+      overallStatus = 'Fully Paid';
+    } else if (aprilStatus.includes('Condonence')) {
+      overallStatus = 'Condonence Case';
+    } else if (aprilStatus === 'Delayed') {
+      overallStatus = 'Delayed Payment';
+    } else {
+      overallStatus = 'On Track';
+    }
 
     return {
       ...student,
       gradeLabel: `Grade ${student.grade}`,
       divisionLabel: `Division ${formatDivision(student.division)}`,
-      isRte,
-      payableAmount,
+      isRte: false,
+      payableAmount: ANNUAL_FEE,
       paidAmount,
       pendingAmount,
       overallStatus,
@@ -159,6 +148,8 @@ const Finance = () => {
   const [selectedGrade, setSelectedGrade] = useState('all');
   const [selectedDivision, setSelectedDivision] = useState('all');
   const [selectedCategory, setSelectedCategory] = useState('all');
+  const [remindersSent, setRemindersSent] = useState(new Set());
+  const [remindersLoading, setRemindersLoading] = useState(new Set());
 
   useEffect(() => {
     const onResize = () => setIsMobile(window.innerWidth < 900);
@@ -170,73 +161,71 @@ const Finance = () => {
 
   const schoolSummary = useMemo(() => {
     const enrolledStudents = feeLedger.length;
-    const rteStudents = feeLedger.filter((student) => student.isRte).length;
+    const rteStudents = feeLedger.filter((s) => s.isRte).length;
     const payableStudents = enrolledStudents - rteStudents;
     const expectedAmount = payableStudents * ANNUAL_FEE;
-    const collectedAmount = feeLedger.reduce((sum, student) => sum + student.paidAmount, 0);
+    const collectedAmount = feeLedger.reduce((s, st) => s + st.paidAmount, 0);
     const pendingAmount = Math.max(expectedAmount - collectedAmount, 0);
     return { enrolledStudents, rteStudents, payableStudents, expectedAmount, collectedAmount, pendingAmount };
   }, [feeLedger]);
 
+  // Per-installment summary with per-status counts (all statuses sum to total students)
   const installmentSummary = useMemo(() => {
-    return installmentSchedule.map((installment) => {
-      const records = feeLedger.map((student) => {
-        return {
-          student,
-          installment: student.installments.find((item) => item.id === installment.id),
-        };
-      });
-      const expected = records.reduce((sum, record) => sum + record.installment.amount, 0);
-      const collected = records.reduce((sum, record) => sum + (record.installment.status === 'Paid' ? record.installment.amount : 0), 0);
-
+    return installmentSchedule.map((inst) => {
+      const records = feeLedger.map((student) => ({
+        student,
+        installment: student.installments.find((i) => i.id === inst.id),
+      }));
+      const expected = records.reduce((s, r) => s + r.installment.amount, 0);
+      const collected = records.reduce((s, r) => s + (r.installment.status === 'Paid' ? r.installment.amount : 0), 0);
       return {
-        ...installment,
+        ...inst,
         expected,
         collected,
-        fullyPaidCount: records.filter((record) => record.student.overallStatus === 'Fully Paid').length,
-        delayedCount: records.filter((record) => record.installment.status === 'Delayed').length,
-        condonenceCount: records.filter((record) => record.installment.status.includes('Condonence')).length,
-        rteCount: records.filter((record) => record.student.isRte).length,
+        paidCount: records.filter((r) => r.installment.status === 'Paid').length,
+        delayedCount: records.filter((r) => r.installment.status === 'Delayed').length,
+        condonenceCount: records.filter((r) => r.installment.status.includes('Condonence')).length,
+        upcomingCount: records.filter((r) => r.installment.status === 'Upcoming').length,
+        rteCount: records.filter((r) => r.student.isRte).length,
       };
     });
   }, [feeLedger]);
 
   const gradeSummary = useMemo(() => {
     return GRADES.map((grade) => {
-      const label = `Grade ${grade}`;
-      const students = feeLedger.filter((student) => student.grade === grade);
-      const expectedAmount = students.reduce((sum, student) => sum + student.payableAmount, 0);
-      const collectedAmount = students.reduce((sum, student) => sum + student.paidAmount, 0);
+      const students = feeLedger.filter((s) => s.grade === grade);
+      const expectedAmount = students.reduce((s, st) => s + st.payableAmount, 0);
+      const collectedAmount = students.reduce((s, st) => s + st.paidAmount, 0);
       const pendingAmount = Math.max(expectedAmount - collectedAmount, 0);
-      const selectedRecords = students.map((student) => student.installments.find((item) => item.id === selectedInstallment));
+      const selectedRecords = students.map((st) => st.installments.find((i) => i.id === selectedInstallment));
       return {
         grade,
-        label,
+        label: `Grade ${grade}`,
         students,
         expectedAmount,
         collectedAmount,
         pendingAmount,
         collectionPercent: expectedAmount > 0 ? Math.round((collectedAmount / expectedAmount) * 100) : 100,
-        rteCount: students.filter((student) => student.isRte).length,
-        fullyPaidCount: students.filter((student) => student.overallStatus === 'Fully Paid').length,
-        delayedCount: selectedRecords.filter((record) => record.status === 'Delayed').length,
-        condonenceCount: selectedRecords.filter((record) => record.status.includes('Condonence')).length,
+        rteCount: students.filter((s) => s.isRte).length,
+        delayedCount: selectedRecords.filter((r) => r.status === 'Delayed').length,
+        condonenceCount: selectedRecords.filter((r) => r.status.includes('Condonence')).length,
+        paidCount: selectedRecords.filter((r) => r.status === 'Paid').length,
         divisions: DIVISIONS.map((division) => {
-          const divisionStudents = students.filter((student) => student.division === division);
-          const divisionExpected = divisionStudents.reduce((sum, student) => sum + student.payableAmount, 0);
-          const divisionCollected = divisionStudents.reduce((sum, student) => sum + student.paidAmount, 0);
-          const divisionRecords = divisionStudents.map((student) => student.installments.find((item) => item.id === selectedInstallment));
+          const divStudents = students.filter((s) => s.division === division);
+          const divExpected = divStudents.reduce((s, st) => s + st.payableAmount, 0);
+          const divCollected = divStudents.reduce((s, st) => s + st.paidAmount, 0);
+          const divRecords = divStudents.map((st) => st.installments.find((i) => i.id === selectedInstallment));
           return {
             division,
             label: `Division ${formatDivision(division)}`,
-            students: divisionStudents.length,
-            expectedAmount: divisionExpected,
-            collectedAmount: divisionCollected,
-            collectionPercent: divisionExpected > 0 ? Math.round((divisionCollected / divisionExpected) * 100) : 100,
-            rteCount: divisionStudents.filter((student) => student.isRte).length,
-            delayedCount: divisionRecords.filter((record) => record.status === 'Delayed').length,
-            condonenceCount: divisionRecords.filter((record) => record.status.includes('Condonence')).length,
-            fullyPaidCount: divisionStudents.filter((student) => student.overallStatus === 'Fully Paid').length,
+            students: divStudents.length,
+            expectedAmount: divExpected,
+            collectedAmount: divCollected,
+            collectionPercent: divExpected > 0 ? Math.round((divCollected / divExpected) * 100) : 100,
+            rteCount: divStudents.filter((s) => s.isRte).length,
+            delayedCount: divRecords.filter((r) => r.status === 'Delayed').length,
+            condonenceCount: divRecords.filter((r) => r.status.includes('Condonence')).length,
+            paidCount: divRecords.filter((r) => r.status === 'Paid').length,
           };
         }),
       };
@@ -245,22 +234,32 @@ const Finance = () => {
 
   const filteredStudents = useMemo(() => {
     return feeLedger.filter((student) => {
-      const installment = student.installments.find((item) => item.id === selectedInstallment);
-      const gradeMatch = selectedGrade === 'all' ? true : String(student.grade) === selectedGrade;
-      const divisionMatch = selectedDivision === 'all' ? true : student.division === selectedDivision;
-
+      const inst = student.installments.find((i) => i.id === selectedInstallment);
+      const gradeMatch = selectedGrade === 'all' || String(student.grade) === selectedGrade;
+      const divisionMatch = selectedDivision === 'all' || student.division === selectedDivision;
       let categoryMatch = true;
       if (selectedCategory === 'fully-paid') categoryMatch = student.overallStatus === 'Fully Paid';
-      if (selectedCategory === 'pending') categoryMatch = !student.isRte && student.pendingAmount > 0;
-      if (selectedCategory === 'delayed') categoryMatch = installment.status === 'Delayed';
-      if (selectedCategory === 'condonence') categoryMatch = installment.status.includes('Condonence');
+      if (selectedCategory === 'on-track') categoryMatch = student.overallStatus === 'On Track';
+      if (selectedCategory === 'delayed') categoryMatch = inst.status === 'Delayed';
+      if (selectedCategory === 'condonence') categoryMatch = inst.status.includes('Condonence');
       if (selectedCategory === 'rte') categoryMatch = student.isRte;
-
+      if (selectedCategory === 'upcoming') categoryMatch = inst.status === 'Upcoming';
       return gradeMatch && divisionMatch && categoryMatch;
     });
   }, [feeLedger, selectedInstallment, selectedGrade, selectedDivision, selectedCategory]);
 
-  const activeInstallmentSummary = installmentSummary.find((installment) => installment.id === selectedInstallment) || installmentSummary[0];
+  const activeInstallmentSummary = installmentSummary.find((i) => i.id === selectedInstallment) || installmentSummary[0];
+
+  const sendReminder = (studentId) => {
+    setRemindersLoading((prev) => new Set([...prev, studentId]));
+    setTimeout(() => {
+      setRemindersLoading((prev) => { const s = new Set(prev); s.delete(studentId); return s; });
+      setRemindersSent((prev) => new Set([...prev, studentId]));
+    }, 1200);
+  };
+
+  const showReminderBtn = (inst) =>
+    selectedInstallment === 'april' && (inst.status === 'Delayed' || inst.status.includes('Condonence'));
 
   const sectionStyle = {
     marginTop: '24px',
@@ -287,77 +286,88 @@ const Finance = () => {
     cursor: 'pointer',
   });
 
+  const statusColor = (status) => {
+    if (status === 'Paid') return '#166534';
+    if (status === 'Delayed') return '#b45309';
+    if (status.includes('Condonence')) return '#1d4ed8';
+    if (status === 'Upcoming') return '#64748b';
+    return '#0f172a';
+  };
+
   return (
     <main style={{ padding: isMobile ? '16px' : '28px', maxWidth: '1280px', margin: '0 auto', color: '#0f172a' }}>
       <section>
         <h2>Fee Collection Analytics</h2>
         <p style={{ color: '#475569', marginTop: '8px', maxWidth: '900px' }}>
-          Three-instalment fee tracking across all grades and divisions. Drill down into fully paid students, delayed payment cases, condonence requests, and Right to Education zero-fee admissions.
+          Three-instalment fee tracking — April (due), July (upcoming), November (upcoming). Academic year 2026–27. Current month: <strong>May 2026</strong>.
         </p>
       </section>
 
+      {/* Summary cards */}
       <section style={sectionStyle}>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px' }}>
           <div style={cardStyle}>
             <h3 style={{ margin: '0 0 10px' }}>Enrolled Students</h3>
-            <p style={{ margin: 0, fontSize: '1.6rem', fontWeight: 800 }}>{schoolSummary.enrolledStudents}</p>
+            <p style={{ margin: 0, fontSize: '1.6rem', fontWeight: 800 }}>{schoolSummary.enrolledStudents.toLocaleString('en-IN')}</p>
             <p style={{ margin: '8px 0 0', color: '#64748b' }}>All grades and all divisions.</p>
           </div>
           <div style={cardStyle}>
             <h3 style={{ margin: '0 0 10px' }}>RTE Zero Fee</h3>
-            <p style={{ margin: 0, fontSize: '1.6rem', fontWeight: 800 }}>{schoolSummary.rteStudents}</p>
-            <p style={{ margin: '8px 0 0', color: '#64748b' }}>About 25% of each division under Right to Education.</p>
+            <p style={{ margin: 0, fontSize: '1.6rem', fontWeight: 800 }}>{schoolSummary.rteStudents.toLocaleString('en-IN')}</p>
+            <p style={{ margin: '8px 0 0', color: '#64748b' }}>25% of each division under Right to Education.</p>
           </div>
           <div style={cardStyle}>
-            <h3 style={{ margin: '0 0 10px' }}>Expected Fee</h3>
+            <h3 style={{ margin: '0 0 10px' }}>Annual Fee Expected</h3>
             <p style={{ margin: 0, fontSize: '1.6rem', fontWeight: 800 }}>{formatCurrency(schoolSummary.expectedAmount)}</p>
-            <p style={{ margin: '8px 0 0', color: '#64748b' }}>After excluding zero-fee RTE students.</p>
+            <p style={{ margin: '8px 0 0', color: '#64748b' }}>Excluding RTE students. ₹90,000/year per student.</p>
           </div>
           <div style={cardStyle}>
             <h3 style={{ margin: '0 0 10px' }}>Collected To Date</h3>
             <p style={{ margin: 0, fontSize: '1.6rem', fontWeight: 800 }}>{formatCurrency(schoolSummary.collectedAmount)}</p>
-            <p style={{ margin: '8px 0 0', color: '#64748b' }}>{formatCurrency(schoolSummary.pendingAmount)} still pending.</p>
+            <p style={{ margin: '8px 0 0', color: '#64748b' }}>{formatCurrency(schoolSummary.pendingAmount)} pending across all instalments.</p>
           </div>
         </div>
       </section>
 
+      {/* Installment progress */}
       <section style={sectionStyle}>
         <div style={{ display: 'flex', justifyContent: 'space-between', gap: '14px', flexWrap: 'wrap', alignItems: 'flex-start' }}>
           <div>
             <h3 style={{ margin: 0 }}>Instalment Progress</h3>
-            <p style={{ margin: '8px 0 0', color: '#64748b' }}>April, July and November rounds with delay, condonence and fully paid visibility.</p>
+            <p style={{ margin: '8px 0 0', color: '#64748b' }}>April collected, July and November mostly upcoming as of May 2026.</p>
           </div>
           <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-            {installmentSchedule.map((installment) => (
-              <button key={installment.id} type="button" style={filterButtonStyle(selectedInstallment === installment.id)} onClick={() => setSelectedInstallment(installment.id)}>
-                {installment.label}
+            {installmentSchedule.map((inst) => (
+              <button key={inst.id} type="button" style={filterButtonStyle(selectedInstallment === inst.id)} onClick={() => setSelectedInstallment(inst.id)}>
+                {inst.label}
               </button>
             ))}
           </div>
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px', marginTop: '18px' }}>
-          {installmentSummary.map((installment) => {
-            const percent = installment.expected > 0 ? Math.round((installment.collected / installment.expected) * 100) : 100;
-            const active = installment.id === selectedInstallment;
+          {installmentSummary.map((inst) => {
+            const percent = inst.expected > 0 ? Math.round((inst.collected / inst.expected) * 100) : 0;
+            const active = inst.id === selectedInstallment;
             return (
               <button
-                key={installment.id}
+                key={inst.id}
                 type="button"
-                onClick={() => setSelectedInstallment(installment.id)}
+                onClick={() => setSelectedInstallment(inst.id)}
                 style={{ ...cardStyle, textAlign: 'left', cursor: 'pointer', borderColor: active ? '#16a34a' : '#e2e8f0', background: active ? '#f0fdf4' : '#f8fafc' }}
               >
-                <h4 style={{ margin: 0 }}>{installment.label}</h4>
+                <h4 style={{ margin: 0 }}>{inst.label}</h4>
                 <p style={{ margin: '8px 0 0', color: '#475569' }}>{percent}% collected</p>
-                <div style={{ height: '10px', borderRadius: '999px', background: '#dcfce7', overflow: 'hidden', marginTop: '12px' }}>
+                <div style={{ height: '10px', borderRadius: '999px', background: '#dcfce7', overflow: 'hidden', marginTop: '10px' }}>
                   <div style={{ width: `${percent}%`, height: '100%', background: 'linear-gradient(90deg, #22c55e 0%, #16a34a 100%)' }} />
                 </div>
-                <p style={{ margin: '12px 0 0', color: '#0f172a' }}><strong>{formatCurrency(installment.collected)}</strong> of {formatCurrency(installment.expected)}</p>
+                <p style={{ margin: '10px 0 0', color: '#0f172a' }}><strong>{formatCurrency(inst.collected)}</strong> of {formatCurrency(inst.expected)}</p>
                 <div style={{ marginTop: '10px', display: 'grid', gap: '4px', color: '#475569', fontSize: '0.84rem' }}>
-                  <span>Delayed: {installment.delayedCount}</span>
-                  <span>Condonence: {installment.condonenceCount}</span>
-                  <span>Fully paid students: {installment.fullyPaidCount}</span>
-                  <span>RTE zero fee: {installment.rteCount}</span>
+                  <span>Paid: <strong>{inst.paidCount.toLocaleString('en-IN')}</strong></span>
+                  <span>Delayed: <strong style={{ color: inst.delayedCount > 0 ? '#b45309' : 'inherit' }}>{inst.delayedCount.toLocaleString('en-IN')}</strong></span>
+                  <span>Condonence: <strong>{inst.condonenceCount.toLocaleString('en-IN')}</strong></span>
+                  {inst.upcomingCount > 0 && <span>Upcoming: <strong>{inst.upcomingCount.toLocaleString('en-IN')}</strong></span>}
+                  <span style={{ color: '#166534' }}>RTE (zero fee): <strong>{inst.rteCount.toLocaleString('en-IN')}</strong></span>
                 </div>
               </button>
             );
@@ -365,16 +375,17 @@ const Finance = () => {
         </div>
       </section>
 
+      {/* Grade-wise collection */}
       <section style={sectionStyle}>
         <div style={{ display: 'flex', justifyContent: 'space-between', gap: '14px', flexWrap: 'wrap', alignItems: 'flex-start' }}>
           <div>
             <h3 style={{ margin: 0 }}>Grade-wise and Division-wise Collection</h3>
-            <p style={{ margin: '8px 0 0', color: '#64748b' }}>Every grade and every division is included in the selected instalment round.</p>
+            <p style={{ margin: '8px 0 0', color: '#64748b' }}>Showing {activeInstallmentSummary.label} stats per grade.</p>
           </div>
           <div style={{ ...cardStyle, minWidth: '240px', background: '#ecfdf5', borderColor: '#bbf7d0' }}>
             <div style={{ color: '#166534', fontWeight: 700 }}>Selected instalment</div>
-            <div style={{ marginTop: '8px', fontSize: '1.2rem', fontWeight: 800 }}>{activeInstallmentSummary.label}</div>
-            <div style={{ marginTop: '8px', color: '#166534' }}>Collected {formatCurrency(activeInstallmentSummary.collected)} of {formatCurrency(activeInstallmentSummary.expected)}</div>
+            <div style={{ marginTop: '8px', fontSize: '1.15rem', fontWeight: 800 }}>{activeInstallmentSummary.label}</div>
+            <div style={{ marginTop: '6px', color: '#166534', fontSize: '0.9rem' }}>Collected {formatCurrency(activeInstallmentSummary.collected)} of {formatCurrency(activeInstallmentSummary.expected)}</div>
           </div>
         </div>
 
@@ -384,15 +395,12 @@ const Finance = () => {
               <div style={{ display: 'flex', justifyContent: 'space-between', gap: '10px', alignItems: 'flex-start' }}>
                 <div>
                   <h4 style={{ margin: 0 }}>{grade.label}</h4>
-                  <p style={{ margin: '8px 0 0', color: '#64748b' }}>{grade.students.length} students</p>
+                  <p style={{ margin: '6px 0 0', color: '#64748b' }}>{grade.students.length} students</p>
                 </div>
                 <button
                   type="button"
                   style={filterButtonStyle(selectedGrade === String(grade.grade))}
-                  onClick={() => {
-                    setSelectedGrade(selectedGrade === String(grade.grade) ? 'all' : String(grade.grade));
-                    setSelectedDivision('all');
-                  }}
+                  onClick={() => { setSelectedGrade(selectedGrade === String(grade.grade) ? 'all' : String(grade.grade)); setSelectedDivision('all'); }}
                 >
                   {selectedGrade === String(grade.grade) ? 'Selected' : 'Drill down'}
                 </button>
@@ -401,8 +409,8 @@ const Finance = () => {
                 <span>Collected: <strong>{formatCurrency(grade.collectedAmount)}</strong></span>
                 <span>Pending: <strong>{formatCurrency(grade.pendingAmount)}</strong></span>
                 <span>RTE zero fee: <strong>{grade.rteCount}</strong></span>
-                <span>Fully paid: <strong>{grade.fullyPaidCount}</strong></span>
-                <span>Delayed: <strong>{grade.delayedCount}</strong></span>
+                <span>Paid ({activeInstallmentSummary.label}): <strong>{grade.paidCount}</strong></span>
+                <span>Delayed: <strong style={{ color: grade.delayedCount > 0 ? '#b45309' : 'inherit' }}>{grade.delayedCount}</strong></span>
                 <span>Condonence: <strong>{grade.condonenceCount}</strong></span>
               </div>
               <div style={{ height: '10px', borderRadius: '999px', background: '#e2e8f0', overflow: 'hidden', marginTop: '14px' }}>
@@ -413,29 +421,16 @@ const Finance = () => {
                   <button
                     key={division.division}
                     type="button"
-                    onClick={() => {
-                      setSelectedGrade(String(grade.grade));
-                      setSelectedDivision(division.division);
-                    }}
-                    style={{
-                      padding: '12px',
-                      borderRadius: '14px',
-                      border: `1px solid ${selectedGrade === String(grade.grade) && selectedDivision === division.division ? '#0ea5e9' : '#dbeafe'}`,
-                      background: selectedGrade === String(grade.grade) && selectedDivision === division.division ? '#eff6ff' : '#f8fafc',
-                      textAlign: 'left',
-                      cursor: 'pointer',
-                    }}
+                    onClick={() => { setSelectedGrade(String(grade.grade)); setSelectedDivision(division.division); }}
+                    style={{ padding: '12px', borderRadius: '14px', border: `1px solid ${selectedGrade === String(grade.grade) && selectedDivision === division.division ? '#0ea5e9' : '#dbeafe'}`, background: selectedGrade === String(grade.grade) && selectedDivision === division.division ? '#eff6ff' : '#f8fafc', textAlign: 'left', cursor: 'pointer' }}
                   >
                     <div style={{ display: 'flex', justifyContent: 'space-between', gap: '10px' }}>
                       <strong>{division.label}</strong>
                       <span>{division.collectionPercent}%</span>
                     </div>
                     <div style={{ marginTop: '8px', display: 'grid', gap: '4px', color: '#475569', fontSize: '0.82rem' }}>
-                      <span>Students: {division.students}</span>
-                      <span>RTE: {division.rteCount}</span>
-                      <span>Fully paid: {division.fullyPaidCount}</span>
-                      <span>Delayed: {division.delayedCount}</span>
-                      <span>Condonence: {division.condonenceCount}</span>
+                      <span>Students: {division.students} · RTE: {division.rteCount}</span>
+                      <span>Paid: {division.paidCount} · Delayed: {division.delayedCount} · Condonence: {division.condonenceCount}</span>
                     </div>
                   </button>
                 ))}
@@ -445,93 +440,125 @@ const Finance = () => {
         </div>
       </section>
 
+      {/* Student fee drill-down */}
       <section style={sectionStyle}>
         <div style={{ display: 'flex', justifyContent: 'space-between', gap: '14px', flexWrap: 'wrap', alignItems: 'flex-start' }}>
           <div>
             <h3 style={{ margin: 0 }}>Student Fee Drill-down</h3>
-            <p style={{ margin: '8px 0 0', color: '#64748b' }}>Rows include fully paid details, condonence notes, delayed payment remarks, and student profile links.</p>
+            <p style={{ margin: '8px 0 0', color: '#64748b' }}>
+              {selectedInstallment === 'april' && <span style={{ color: '#166534', fontWeight: 600 }}>Send Reminder available for Delayed students in April instalment.</span>}
+            </p>
           </div>
           <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
             {[
-              { id: 'all', label: 'All students' },
-              { id: 'fully-paid', label: 'Fully paid' },
-              { id: 'pending', label: 'Pending' },
+              { id: 'all', label: 'All' },
+              { id: 'on-track', label: 'On Track' },
+              { id: 'fully-paid', label: 'Fully Paid' },
               { id: 'delayed', label: 'Delayed' },
               { id: 'condonence', label: 'Condonence' },
-              { id: 'rte', label: 'RTE zero fee' },
-            ].map((option) => (
-              <button key={option.id} type="button" style={filterButtonStyle(selectedCategory === option.id)} onClick={() => setSelectedCategory(option.id)}>
-                {option.label}
+              { id: 'upcoming', label: 'Upcoming' },
+              { id: 'rte', label: 'RTE' },
+            ].map((opt) => (
+              <button key={opt.id} type="button" style={filterButtonStyle(selectedCategory === opt.id)} onClick={() => setSelectedCategory(opt.id)}>
+                {opt.label}
               </button>
             ))}
           </div>
         </div>
 
         <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginTop: '18px' }}>
-          <select value={selectedGrade} onChange={(event) => {
-            setSelectedGrade(event.target.value);
-            setSelectedDivision('all');
-          }} style={{ padding: '10px 12px', borderRadius: '12px', border: '1px solid #cbd5e1' }}>
+          <select value={selectedGrade} onChange={(e) => { setSelectedGrade(e.target.value); setSelectedDivision('all'); }} style={{ padding: '10px 12px', borderRadius: '12px', border: '1px solid #cbd5e1' }}>
             <option value="all">All grades</option>
-            {GRADES.map((grade) => <option key={grade} value={String(grade)}>Grade {grade}</option>)}
+            {GRADES.map((g) => <option key={g} value={String(g)}>Grade {g}</option>)}
           </select>
-          <select value={selectedDivision} onChange={(event) => setSelectedDivision(event.target.value)} style={{ padding: '10px 12px', borderRadius: '12px', border: '1px solid #cbd5e1' }}>
+          <select value={selectedDivision} onChange={(e) => setSelectedDivision(e.target.value)} style={{ padding: '10px 12px', borderRadius: '12px', border: '1px solid #cbd5e1' }}>
             <option value="all">All divisions</option>
-            {DIVISIONS.map((division) => <option key={division} value={division}>Division {formatDivision(division)}</option>)}
+            {DIVISIONS.map((d) => <option key={d} value={d}>Division {formatDivision(d)}</option>)}
           </select>
         </div>
 
         {isMobile ? (
           <div style={{ display: 'grid', gap: '12px', marginTop: '18px' }}>
             {filteredStudents.slice(0, 60).map((student) => {
-              const installment = student.installments.find((item) => item.id === selectedInstallment);
+              const inst = student.installments.find((i) => i.id === selectedInstallment);
+              const canRemind = showReminderBtn(inst);
+              const sent = remindersSent.has(student.id);
+              const loading = remindersLoading.has(student.id);
               return (
                 <article key={student.id} style={{ ...cardStyle, background: '#fff' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', gap: '10px' }}>
                     <div>
                       <Link to={`/sis/student/${student.id}`} style={{ color: '#0f172a', fontWeight: 800, textDecoration: 'none' }}>{student.name}</Link>
-                      <p style={{ margin: '6px 0 0', color: '#475569' }}>Grade {student.grade} · Division {formatDivision(student.division)} · Roll {student.rollNo}</p>
+                      <p style={{ margin: '6px 0 0', color: '#475569' }}>Grade {student.grade} · {formatDivision(student.division)} · Roll {student.rollNo}</p>
                     </div>
-                    <span style={{ color: student.isRte ? '#166534' : installment.status === 'Paid' ? '#166534' : installment.status === 'Delayed' ? '#b45309' : '#1d4ed8', fontWeight: 700 }}>{installment.status}</span>
+                    <span style={{ color: statusColor(inst.status), fontWeight: 700, fontSize: '0.9rem' }}>{inst.status}</span>
                   </div>
                   <div style={{ marginTop: '10px', display: 'grid', gap: '4px', color: '#334155', fontSize: '0.9rem' }}>
-                    <span>Current instalment: {formatCurrency(installment.amount)}</span>
-                    <span>Paid till date: {formatCurrency(student.paidAmount)}</span>
+                    <span>Instalment: {formatCurrency(inst.amount)}</span>
+                    <span>Paid to date: {formatCurrency(student.paidAmount)}</span>
                     <span>Pending: {formatCurrency(student.pendingAmount)}</span>
-                    <span>Note: {installment.note}</span>
+                    <span>Note: {inst.note}</span>
                   </div>
+                  {canRemind && (
+                    <button
+                      type="button"
+                      disabled={sent || loading}
+                      onClick={() => sendReminder(student.id)}
+                      style={{ marginTop: '10px', padding: '8px 14px', borderRadius: '10px', border: 'none', background: sent ? '#dcfce7' : loading ? '#f3f4f6' : '#25d366', color: sent ? '#166534' : loading ? '#64748b' : '#fff', fontWeight: 700, cursor: sent || loading ? 'default' : 'pointer', fontSize: '0.84rem' }}
+                    >
+                      {sent ? '✓ Reminder Sent' : loading ? 'Sending…' : '💬 WhatsApp Reminder'}
+                    </button>
+                  )}
                 </article>
               );
             })}
           </div>
         ) : (
           <div style={{ overflowX: 'auto', marginTop: '18px' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '1100px' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: selectedInstallment === 'april' ? '1200px' : '1100px' }}>
               <thead>
-                <tr style={{ textAlign: 'left', borderBottom: '2px solid #e2e8f0' }}>
+                <tr style={{ textAlign: 'left', borderBottom: '2px solid #e2e8f0', background: '#f8fafc' }}>
                   <th style={{ padding: '12px 16px' }}>Student</th>
                   <th style={{ padding: '12px 16px' }}>Grade</th>
                   <th style={{ padding: '12px 16px' }}>Division</th>
-                  <th style={{ padding: '12px 16px' }}>Category</th>
+                  <th style={{ padding: '12px 16px' }}>Overall Status</th>
                   <th style={{ padding: '12px 16px' }}>{activeInstallmentSummary.label}</th>
                   <th style={{ padding: '12px 16px' }}>Paid Till Date</th>
                   <th style={{ padding: '12px 16px' }}>Pending</th>
                   <th style={{ padding: '12px 16px' }}>Remarks</th>
+                  {selectedInstallment === 'april' && <th style={{ padding: '12px 16px' }}>Send Reminder</th>}
                 </tr>
               </thead>
               <tbody>
                 {filteredStudents.map((student) => {
-                  const installment = student.installments.find((item) => item.id === selectedInstallment);
+                  const inst = student.installments.find((i) => i.id === selectedInstallment);
+                  const canRemind = showReminderBtn(inst);
+                  const sent = remindersSent.has(student.id);
+                  const loading = remindersLoading.has(student.id);
                   return (
                     <tr key={student.id} style={{ borderBottom: '1px solid #e2e8f0' }}>
                       <td style={{ padding: '14px 16px' }}><Link to={`/sis/student/${student.id}`} style={{ color: '#0f172a', fontWeight: 700, textDecoration: 'none' }}>{student.name}</Link></td>
                       <td style={{ padding: '14px 16px' }}>Grade {student.grade}</td>
-                      <td style={{ padding: '14px 16px' }}>Division {formatDivision(student.division)}</td>
+                      <td style={{ padding: '14px 16px' }}>{formatDivision(student.division)}</td>
                       <td style={{ padding: '14px 16px' }}>{student.overallStatus}</td>
-                      <td style={{ padding: '14px 16px' }}>{installment.status} · {formatCurrency(installment.amount)}</td>
+                      <td style={{ padding: '14px 16px', color: statusColor(inst.status), fontWeight: 700 }}>{inst.status} · {formatCurrency(inst.amount)}</td>
                       <td style={{ padding: '14px 16px' }}>{formatCurrency(student.paidAmount)}</td>
                       <td style={{ padding: '14px 16px' }}>{formatCurrency(student.pendingAmount)}</td>
-                      <td style={{ padding: '14px 16px' }}>{installment.note}</td>
+                      <td style={{ padding: '14px 16px', color: '#64748b', fontSize: '0.88rem' }}>{inst.note}</td>
+                      {selectedInstallment === 'april' && (
+                        <td style={{ padding: '14px 16px' }}>
+                          {canRemind ? (
+                            <button
+                              type="button"
+                              disabled={sent || loading}
+                              onClick={() => sendReminder(student.id)}
+                              style={{ padding: '7px 13px', borderRadius: '8px', border: 'none', background: sent ? '#dcfce7' : loading ? '#f3f4f6' : '#25d366', color: sent ? '#166534' : loading ? '#64748b' : '#fff', fontWeight: 700, cursor: sent || loading ? 'default' : 'pointer', fontSize: '0.82rem', whiteSpace: 'nowrap', transition: 'opacity 180ms' }}
+                            >
+                              {sent ? '✓ Sent' : loading ? 'Sending…' : '💬 Remind'}
+                            </button>
+                          ) : <span style={{ color: '#cbd5e1' }}>—</span>}
+                        </td>
+                      )}
                     </tr>
                   );
                 })}

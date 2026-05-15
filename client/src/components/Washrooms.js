@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 
 const floors = [1, 2, 3, 4, 5, 6];
@@ -182,8 +182,45 @@ const detailCardStyle = {
   background: '#fff',
 };
 
+const PhotoUploadSlot = ({ label, photoData, onUpload }) => {
+  const handleFile = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => onUpload({ dataUrl: ev.target.result, timestamp: new Date().toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true }) });
+    reader.readAsDataURL(file);
+  };
+
+  return (
+    <div style={{ flex: '1 1 140px', minWidth: '140px' }}>
+      <div style={{ fontSize: '0.74rem', color: '#64748b', fontWeight: 700, marginBottom: '6px' }}>{label.toUpperCase()}</div>
+      {photoData ? (
+        <div style={{ position: 'relative', borderRadius: '10px', overflow: 'hidden', border: '1px solid #a5f3fc' }}>
+          <img src={photoData.dataUrl} alt={label} style={{ width: '100%', height: '110px', objectFit: 'cover', display: 'block' }} />
+          <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, background: 'rgba(15,23,42,0.65)', color: '#fff', fontSize: '0.68rem', padding: '4px 8px', fontWeight: 600 }}>{photoData.timestamp}</div>
+          <label style={{ position: 'absolute', top: 6, right: 6, background: 'rgba(255,255,255,0.9)', borderRadius: '6px', padding: '3px 7px', fontSize: '0.7rem', fontWeight: 700, color: '#0f172a', cursor: 'pointer' }}>
+            Change
+            <input type="file" accept="image/*" onChange={handleFile} style={{ display: 'none' }} />
+          </label>
+        </div>
+      ) : (
+        <label style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '110px', border: '2px dashed #a5f3fc', borderRadius: '10px', background: '#f0fdfa', cursor: 'pointer', gap: '6px' }}>
+          <span style={{ fontSize: '1.6rem' }}>📷</span>
+          <span style={{ fontSize: '0.76rem', color: '#0f766e', fontWeight: 700 }}>Upload {label}</span>
+          <input type="file" accept="image/*" onChange={handleFile} style={{ display: 'none' }} />
+        </label>
+      )}
+    </div>
+  );
+};
+
 const WashroomDetail = ({ record }) => {
+  const [photos, setPhotos] = useState({});
   const badge = badgeColor[record.status];
+
+  const setPhoto = (histIdx, slot, data) => {
+    setPhotos((prev) => ({ ...prev, [`${histIdx}-${slot}`]: data }));
+  };
 
   return (
     <main style={{ ...pageStyle, background: 'linear-gradient(180deg, #f0fdfa 0%, #f8fafc 46%, #fff7ed 100%)' }}>
@@ -281,6 +318,23 @@ const WashroomDetail = ({ record }) => {
                     <strong>Issue noted:</strong> {history.issue}
                   </div>
                 )}
+
+                {/* Before / After photo upload */}
+                <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid #e2e8f0' }}>
+                  <div style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 700, marginBottom: '8px' }}>CLEANING PHOTOGRAPHS</div>
+                  <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+                    <PhotoUploadSlot
+                      label="Before Cleaning"
+                      photoData={photos[`${idx}-before`] || null}
+                      onUpload={(data) => setPhoto(idx, 'before', data)}
+                    />
+                    <PhotoUploadSlot
+                      label="After Cleaning"
+                      photoData={photos[`${idx}-after`] || null}
+                      onUpload={(data) => setPhoto(idx, 'after', data)}
+                    />
+                  </div>
+                </div>
               </div>
             ))}
           </div>

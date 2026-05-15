@@ -73,7 +73,7 @@ const Timetable = () => {
     setCurrentDate(newDate);
   };
 
-  const { timetable, timeSlots } = useMemo(() => buildConsolidatedTimetable(), []);
+  const { timetable, timeSlots } = useMemo(() => buildConsolidatedTimetable(currentDate.getDay()), [currentDate]);
   const classNames = Object.keys(timetable);
   const [selectedClass, setSelectedClass] = useState(classNames[0]);
   const operationalDayStatus = useMemo(() => getOperationalDayStatus(currentDate), [currentDate]);

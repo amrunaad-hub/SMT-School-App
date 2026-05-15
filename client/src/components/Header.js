@@ -91,8 +91,8 @@ const Header = ({ role = 'admin', onLogout, homePath = '/' }) => {
             <Link to={homePath} style={{ display: 'flex', alignItems: 'center', gap: '12px', width: isMobile ? '100%' : 'auto', textDecoration: 'none', color: 'inherit' }}>
                 <img src="https://static.wixstatic.com/media/a4fde5_f372ba74431941a685e117d2257b701f~mv2.png/v1/fill/w_308,h_324,al_c,lg_1,q_85,enc_avif,quality_auto/a4fde5_f372ba74431941a685e117d2257b701f~mv2.png" alt="SMT English Medium School Logo" style={{ height: isMobile ? '42px' : '60px', width: 'auto', borderRadius: '6px' }} />
                 <div>
-                    <h1 style={{ margin: 0, fontSize: isMobile ? '1.05rem' : '1.6rem', fontWeight: '700' }}>📚 School ERP</h1>
-                    <p style={{ margin: '6px 0 0', color: '#dbeafe', fontSize: isMobile ? '0.82rem' : '1rem', fontWeight: '500' }}>Professional Educational Administration System • {role.toUpperCase()} ACCESS</p>
+                    <h1 style={{ margin: 0, fontSize: isMobile ? '1.05rem' : '1.6rem', fontWeight: '700' }}>EduCore Nexus</h1>
+                    <p style={{ margin: '6px 0 0', color: '#dbeafe', fontSize: isMobile ? '0.82rem' : '1rem', fontWeight: '500' }}>Smart School Management • {role.toUpperCase()}</p>
                 </div>
             </Link>
             <nav style={{ width: isMobile ? '100%' : 'auto', overflow: 'visible' }}>
