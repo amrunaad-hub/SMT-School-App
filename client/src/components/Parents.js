@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { jsPDF } from 'jspdf';
+import { api } from '../api';
 
 const Parents = () => {
   const [activeModule, setActiveModule] = useState('profile');
@@ -31,6 +32,7 @@ const Parents = () => {
     { id: 'LR-003', type: 'regularization', fromDate: '2026-04-06', toDate: '2026-04-06', reason: 'Fever — medical certificate attached', status: 'Pending', submittedAt: '2026-04-08 08:45 AM', approvedBy: null, approvedAt: null },
   ]);
   const [notifications, setNotifications] = useState([]);
+  const [apiNotices, setApiNotices] = useState([]);
 
   const apiBase = process.env.REACT_APP_API_BASE_URL || '';
 
@@ -42,6 +44,24 @@ const Parents = () => {
 
   useEffect(() => {
     setSelectedStudent(null);
+  }, [selectedChildId]);
+
+  // Fetch active notices for circular/message tabs
+  useEffect(() => {
+    api.get('/api/notices', { isActive: true })
+      .then((data) => setApiNotices(data.notices || []))
+      .catch(() => {});
+  }, []);
+
+  // Load leave requests from API for current student
+  useEffect(() => {
+    if (!selectedChildId) return;
+    api.get('/api/attendance/leave-requests', { studentId: selectedChildId })
+      .then((data) => {
+        const remote = data.leaveRequests || [];
+        if (remote.length > 0) setLeaveRequests(remote);
+      })
+      .catch(() => {});
   }, [selectedChildId]);
 
   useEffect(() => {
@@ -85,8 +105,8 @@ const Parents = () => {
     };
   }, [apiBase]);
 
-  // Parent login linked to multiple children
-  const linkedStudents = useMemo(() => [
+  // Parent login linked to multiple children — fetched from API, fallback to static data
+  const STATIC_LINKED_STUDENTS = useMemo(() => [
     {
       id: 'S-7A-15',
       name: 'Aarav Kulkarni',
@@ -133,6 +153,37 @@ const Parents = () => {
       admissionDate: '2024-06-01',
     },
   ], []);
+
+  const [linkedStudents, setLinkedStudents] = useState(STATIC_LINKED_STUDENTS);
+
+  // Attempt to load real linked students from API (search for Kulkarni)
+  useEffect(() => {
+    api.get('/api/students', { search: 'Kulkarni', limit: 5 })
+      .then((data) => {
+        const students = (data.students || []).slice(0, 2);
+        if (students.length >= 2) {
+          const mapped = students.map((s) => ({
+            id: s._id,
+            name: `${s.firstName} ${s.lastName}`,
+            grade: `Grade ${s.grade}`,
+            division: s.division ? s.division.charAt(0).toUpperCase() + s.division.slice(1) : '',
+            rollNo: `${s.grade}${s.division ? s.division[0].toUpperCase() : ''}-${String(s.rollNo).padStart(2, '0')}`,
+            dob: s.dob ? new Date(s.dob).toISOString().slice(0, 10) : '-',
+            address: s.address || 'Thane, Maharashtra',
+            phone: s.parentMobile || '-',
+            email: s.parentEmail || '-',
+            bloodGroup: '-',
+            emergencyContact: s.parentName || '-',
+            photo: `https://api.dicebear.com/7.x/adventurer/svg?seed=${encodeURIComponent(s.firstName + '-' + s.lastName)}`,
+            admissionDate: s.admissionYear ? `${s.admissionYear}-06-01` : '-',
+          }));
+          setLinkedStudents(mapped);
+        }
+      })
+      .catch(() => {
+        // Keep static fallback
+      });
+  }, []);
 
   const currentStudent = linkedStudents.find((child) => child.id === selectedChildId) || linkedStudents[0];
 
@@ -541,7 +592,20 @@ const Parents = () => {
 
   const selectedTimetableEntries = timetable.filter((entry) => entry.date === formatDateKey(selectedTimetableDate));
 
-  const filteredCircularNotices = circularNotices.filter((notice) => {
+  // Merge static circulars with API notices for the circular tab
+  const mergedCircularNotices = useMemo(() => {
+    const apiMapped = apiNotices
+      .filter((n) => ['General', 'Academic', 'Event', 'Holiday', 'Exam', 'Urgent'].includes(n.category))
+      .map((n) => ({
+        date: n.publishedAt ? new Date(n.publishedAt).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10),
+        title: n.title,
+        body: n.body,
+        attachments: n.attachmentUrl ? [n.attachmentUrl] : [],
+      }));
+    return apiMapped.length > 0 ? apiMapped : circularNotices;
+  }, [apiNotices, circularNotices]);
+
+  const filteredCircularNotices = mergedCircularNotices.filter((notice) => {
     const query = circularSearch.trim().toLowerCase();
     if (!query) {
       return true;
@@ -678,15 +742,31 @@ const Parents = () => {
           if (!leaveForm.reason.trim()) errors.reason = 'Reason is required.';
           if (Object.keys(errors).length > 0) { setLeaveFormErrors(errors); return; }
           setLeaveSubmitting(true);
-          setTimeout(() => {
-            const newReq = { id: `LR-${String(leaveRequests.length + 1).padStart(3, '0')}`, type: leaveForm.type, fromDate: leaveForm.fromDate, toDate: leaveForm.toDate, reason: leaveForm.reason, status: 'Pending', submittedAt: new Date().toLocaleString('en-IN'), approvedBy: null, approvedAt: null };
-            setLeaveRequests((prev) => [...prev, newReq]);
-            setLeaveSubmitting(false);
-            setShowLeaveModal(false);
-            setLeaveForm({ type: 'advance', fromDate: '', toDate: '', reason: '', document: null, docName: '' });
-            setLeaveFormErrors({});
-            pushNotification(leaveForm.type === 'advance' ? 'Leave application submitted. Awaiting teacher approval.' : 'Regularization request submitted.');
-          }, 1200);
+          api.post('/api/attendance/leave-requests', {
+            studentId: selectedChildId,
+            type: leaveForm.type,
+            fromDate: leaveForm.fromDate,
+            toDate: leaveForm.toDate,
+            reason: leaveForm.reason,
+          })
+            .then((newReq) => {
+              setLeaveRequests((prev) => [...prev, newReq]);
+              setLeaveSubmitting(false);
+              setShowLeaveModal(false);
+              setLeaveForm({ type: 'advance', fromDate: '', toDate: '', reason: '', document: null, docName: '' });
+              setLeaveFormErrors({});
+              pushNotification(leaveForm.type === 'advance' ? 'Leave application submitted. Awaiting teacher approval.' : 'Regularization request submitted.');
+            })
+            .catch(() => {
+              // Fallback: optimistic local update
+              const newReq = { id: `LR-${String(leaveRequests.length + 1).padStart(3, '0')}`, type: leaveForm.type, fromDate: leaveForm.fromDate, toDate: leaveForm.toDate, reason: leaveForm.reason, status: 'Pending', submittedAt: new Date().toLocaleString('en-IN'), approvedBy: null, approvedAt: null };
+              setLeaveRequests((prev) => [...prev, newReq]);
+              setLeaveSubmitting(false);
+              setShowLeaveModal(false);
+              setLeaveForm({ type: 'advance', fromDate: '', toDate: '', reason: '', document: null, docName: '' });
+              setLeaveFormErrors({});
+              pushNotification(leaveForm.type === 'advance' ? 'Leave application submitted. Awaiting teacher approval.' : 'Regularization request submitted.');
+            });
         };
 
         const fieldStyle = { width: '100%', padding: '9px 11px', borderRadius: '9px', border: '1px solid #cbd5e1', fontSize: '0.88rem', boxSizing: 'border-box' };

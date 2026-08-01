@@ -1,0 +1,177 @@
+const express = require('express');
+const router = express.Router();
+const db = require('../db/database');
+const auth = require('../middleware/auth');
+const authorize = require('../middleware/authorize');
+const { serializeRow, serializeRows } = require('../utils/serialize');
+
+const BOOL_FIELDS = ['is_rte', 'is_maharashtrian'];
+const serialize = (row) => serializeRow(row, { boolFields: BOOL_FIELDS });
+
+// Helper: auto-generate studentCode like "G1-ALPHA-001"
+const generateStudentCode = (grade, division, rollNo) => {
+  const divUpper = String(division).toUpperCase();
+  const rollPadded = String(rollNo).padStart(3, '0');
+  return `G${grade}-${divUpper}-${rollPadded}`;
+};
+
+// GET /api/students
+router.get('/', auth, async (req, res) => {
+  try {
+    const { grade, division, search, page = 1, limit = 40 } = req.query;
+    let query = db('students');
+
+    if (grade && grade !== 'all') query = query.where({ grade: Number(grade) });
+    if (division && division !== 'all') query = query.where({ division: String(division).toLowerCase() });
+    if (search && search.trim()) {
+      const keyword = `%${search.trim()}%`;
+      query = query.where((qb) => {
+        qb.whereRaw('first_name LIKE ? COLLATE NOCASE', [keyword])
+          .orWhereRaw('last_name LIKE ? COLLATE NOCASE', [keyword])
+          .orWhereRaw('student_code LIKE ? COLLATE NOCASE', [keyword]);
+      });
+    }
+
+    const pageNum = Math.max(1, parseInt(page, 10) || 1);
+    const limitNum = Math.min(200, Math.max(1, parseInt(limit, 10) || 40));
+    const offset = (pageNum - 1) * limitNum;
+
+    const [{ count: total }] = await query.clone().count({ count: '*' });
+    const rows = await query.clone().orderBy([{ column: 'grade' }, { column: 'division' }, { column: 'roll_no' }])
+      .offset(offset).limit(limitNum);
+
+    return res.json({
+      students: serializeRows(rows, { boolFields: BOOL_FIELDS }),
+      total: Number(total),
+      page: pageNum,
+      pages: Math.ceil(Number(total) / limitNum),
+    });
+  } catch (err) {
+    console.error('GET /api/students error:', err.message);
+    return res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// GET /api/students/:id
+router.get('/:id', auth, async (req, res) => {
+  try {
+    const student = await db('students').where({ id: req.params.id }).first();
+    if (!student) {
+      return res.status(404).json({ message: 'Student not found.' });
+    }
+    return res.json(serialize(student));
+  } catch (err) {
+    console.error('GET /api/students/:id error:', err.message);
+    return res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// POST /api/students
+router.post('/', auth, authorize(['admin']), async (req, res) => {
+  try {
+    const {
+      firstName, lastName, grade, division, rollNo, gender, dob,
+      parentName, parentMobile, parentEmail, address, photoUrl,
+      isRte, isMaharashtrian, admissionYear, status,
+    } = req.body;
+
+    if (!firstName || !grade || !division) {
+      return res.status(400).json({ message: 'firstName, grade, and division are required.' });
+    }
+
+    const gradeNum = Number(grade);
+    const divisionLower = String(division).toLowerCase();
+
+    // Determine rollNo if not provided: find next available
+    let assignedRollNo = rollNo;
+    if (!assignedRollNo) {
+      const lastStudent = await db('students')
+        .where({ grade: gradeNum, division: divisionLower })
+        .orderBy('roll_no', 'desc').first();
+      assignedRollNo = lastStudent ? lastStudent.roll_no + 1 : 1;
+    }
+
+    const studentCode = generateStudentCode(gradeNum, divisionLower, assignedRollNo);
+    const now = new Date().toISOString();
+
+    const [id] = await db('students').insert({
+      student_code: studentCode,
+      first_name: firstName.trim(),
+      last_name: (lastName || '').trim(),
+      grade: gradeNum,
+      division: divisionLower,
+      roll_no: Number(assignedRollNo),
+      gender: gender || 'Male',
+      dob: dob || null,
+      parent_name: parentName || null,
+      parent_mobile: parentMobile || null,
+      parent_email: parentEmail || null,
+      address: address || null,
+      photo_url: photoUrl || null,
+      is_rte: !!isRte,
+      is_maharashtrian: !!isMaharashtrian,
+      admission_year: admissionYear || new Date().getFullYear(),
+      status: status || 'Active',
+      created_at: now,
+      updated_at: now,
+    });
+
+    const student = await db('students').where({ id }).first();
+    return res.status(201).json(serialize(student));
+  } catch (err) {
+    console.error('POST /api/students error:', err.message);
+    if (err.message && err.message.includes('UNIQUE constraint failed')) {
+      return res.status(409).json({ message: 'A student with this roll number already exists in that class.' });
+    }
+    return res.status(500).json({ message: err.message || 'Server error' });
+  }
+});
+
+const CAMEL_TO_SNAKE = {
+  firstName: 'first_name', lastName: 'last_name', parentName: 'parent_name',
+  parentMobile: 'parent_mobile', parentEmail: 'parent_email', photoUrl: 'photo_url',
+  isRte: 'is_rte', isMaharashtrian: 'is_maharashtrian', admissionYear: 'admission_year',
+  grade: 'grade', division: 'division', rollNo: 'roll_no', gender: 'gender',
+  dob: 'dob', address: 'address', status: 'status',
+};
+
+// PUT /api/students/:id
+router.put('/:id', auth, authorize(['admin']), async (req, res) => {
+  try {
+    const updates = {};
+    Object.entries(req.body).forEach(([key, value]) => {
+      const column = CAMEL_TO_SNAKE[key];
+      if (column) updates[column] = value;
+    });
+    if (Object.keys(updates).length === 0) {
+      return res.status(400).json({ message: 'No valid fields to update.' });
+    }
+    updates.updated_at = new Date().toISOString();
+
+    const count = await db('students').where({ id: req.params.id }).update(updates);
+    if (!count) {
+      return res.status(404).json({ message: 'Student not found.' });
+    }
+    const student = await db('students').where({ id: req.params.id }).first();
+    return res.json(serialize(student));
+  } catch (err) {
+    console.error('PUT /api/students/:id error:', err.message);
+    return res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// DELETE /api/students/:id
+router.delete('/:id', auth, authorize(['admin']), async (req, res) => {
+  try {
+    const count = await db('students').where({ id: req.params.id }).delete();
+    if (!count) {
+      return res.status(404).json({ message: 'Student not found.' });
+    }
+    return res.json({ message: 'Student deleted.' });
+  } catch (err) {
+    console.error('DELETE /api/students/:id error:', err.message);
+    return res.status(500).json({ message: 'Server error' });
+  }
+});
+
+module.exports = router;

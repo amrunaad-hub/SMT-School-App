@@ -1,15 +1,19 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const User = require('../models/User');
+const db = require('../db/database');
+const { encryptText, decryptText } = require('../utils/crypto');
 const auth = require('../middleware/auth');
 const authorize = require('../middleware/authorize');
 const router = express.Router();
+
+const ROLES = ['admin', 'parent', 'teacher', 'principal'];
 
 const FALLBACK_USERS = {
     admin: { password: 'admin', role: 'admin' },
     parent: { password: 'parent', role: 'parent' },
     teacher: { password: 'teacher', role: 'teacher' },
+    principal: { password: 'principal', role: 'principal' },
 };
 
 const issueToken = (user) => {
@@ -42,33 +46,25 @@ router.post('/register', auth, authorize(['admin']), async (req, res) => {
             return res.status(400).json({ message: 'Username and password are required.' });
         }
 
-        if (!['admin', 'parent', 'teacher'].includes(role)) {
+        if (!ROLES.includes(role)) {
             return res.status(400).json({ message: 'Invalid role.' });
         }
 
-        // Check if user already exists
-        let user = await User.findOne({ username });
-        if (user) {
+        const existing = await db('users').where({ username }).first();
+        if (existing) {
             return res.status(400).json({ message: 'User already exists' });
         }
 
-        // Create new user
-        user = new User({
+        const [id] = await db('users').insert({
             username,
             role,
-            password: await bcrypt.hash(password, 12)
+            password: await bcrypt.hash(password, 12),
+            email_encrypted: encryptText(email),
         });
-        user.setEmail(email);
-
-        await user.save();
 
         return res.status(201).json({
             message: 'User registered successfully.',
-            user: {
-                id: user.id,
-                username: user.username,
-                role: user.role,
-            },
+            user: { id, username, role },
         });
     } catch (err) {
         console.error('Register error:', err.message);
@@ -81,39 +77,25 @@ router.post('/login', async (req, res) => {
     const { username, password } = req.body;
 
     try {
-        const isDbConnected = User.db && User.db.readyState === 1;
+        const user = await db('users').where({ username }).first();
 
-        // Temporary fail-open for demo credentials when DB is unavailable.
-        if (!isDbConnected) {
+        // Temporary fail-open for demo credentials when the DB has no users yet
+        // (fresh install before seeding has run).
+        if (!user) {
             const demoUser = FALLBACK_USERS[username];
             if (!demoUser || demoUser.password !== password) {
                 return res.status(401).json({ message: 'Invalid credentials' });
             }
 
-            const token = issueToken({
-                id: `demo-${username}`,
-                username,
-                role: demoUser.role,
-            });
+            const token = issueToken({ id: `demo-${username}`, username, role: demoUser.role });
 
             return res.json({
                 token,
-                user: {
-                    id: `demo-${username}`,
-                    username,
-                    role: demoUser.role,
-                },
-                warning: 'Database unavailable. Signed in using temporary demo mode.',
+                user: { id: `demo-${username}`, username, role: demoUser.role },
+                warning: 'No users found. Signed in using temporary demo mode.',
             });
         }
 
-        // Check if user exists
-        const user = await User.findOne({ username });
-        if (!user) {
-            return res.status(401).json({ message: 'Invalid credentials' });
-        }
-
-        // Check password
         const isMatch = await bcrypt.compare(password, user.password);
         if (!isMatch) {
             return res.status(401).json({ message: 'Invalid credentials' });
@@ -122,11 +104,7 @@ router.post('/login', async (req, res) => {
         const token = issueToken(user);
         return res.json({
             token,
-            user: {
-                id: user.id,
-                username: user.username,
-                role: user.role,
-            },
+            user: { id: user.id, username: user.username, role: user.role },
         });
     } catch (err) {
         console.error('Login error:', err.message);
@@ -136,7 +114,7 @@ router.post('/login', async (req, res) => {
 
 router.get('/me', auth, async (req, res) => {
     try {
-        const user = await User.findById(req.user.id);
+        const user = await db('users').where({ id: req.user.id }).first();
         if (!user) {
             return res.status(404).json({ message: 'User not found.' });
         }
@@ -146,7 +124,7 @@ router.get('/me', auth, async (req, res) => {
                 id: user.id,
                 username: user.username,
                 role: user.role,
-                email: user.getEmail(),
+                email: decryptText(user.email_encrypted),
             },
         });
     } catch (err) {

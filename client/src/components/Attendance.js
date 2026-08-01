@@ -1,7 +1,10 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { DIVISIONS, GRADES, getStudentById } from '../data/studentDirectory';
-import { DEFAULT_ATTENDANCE_DATE, advanceLeaveRequests, getAttendanceStatsForDate, lateArrivals, weeklyAttendanceTrend } from '../data/attendanceAnalytics';
+import { DIVISIONS, GRADES } from '../data/studentDirectory';
+import { api } from '../api';
+
+const DEFAULT_ATTENDANCE_DATE = '2026-04-18';
+const STUDENTS_PER_DIVISION = 40;
 
 const getAcademicYearLabel = (date) => {
   const year = date.getFullYear();
@@ -30,11 +33,81 @@ const getOperationalDayStatus = (date) => {
 
 const formatDivision = (division) => `${division.charAt(0).toUpperCase()}${division.slice(1)}`;
 
+// Build attendance snapshot from API records (absentees only = status Absent)
+const buildAttendanceSnapshot = (records) => {
+  const absentees = records
+    .filter((r) => r.status === 'Absent')
+    .map((r) => ({
+      studentId: r.student?._id || r.student,
+      studentName: r.student ? `${r.student.firstName} ${r.student.lastName}` : '—',
+      grade: r.grade,
+      division: r.division,
+      rollNo: r.rollNo,
+      reason: r.reason || '',
+      intimation: r.intimation || '',
+      followUp: r.followUp || '',
+    }));
+
+  const byClass = new Map();
+  GRADES.forEach((grade) => {
+    DIVISIONS.forEach((division) => {
+      byClass.set(`${grade}-${division}`, []);
+    });
+  });
+
+  absentees.forEach((entry) => {
+    const key = `${entry.grade}-${entry.division}`;
+    if (byClass.has(key)) byClass.get(key).push(entry);
+  });
+
+  const gradeStats = GRADES.map((grade) => {
+    const divisions = DIVISIONS.map((division) => {
+      const absentStudents = byClass.get(`${grade}-${division}`) || [];
+      const absent = absentStudents.length;
+      const present = STUDENTS_PER_DIVISION - absent;
+      const attendancePercent = Math.round((present / STUDENTS_PER_DIVISION) * 100);
+      return {
+        division,
+        label: `Division ${formatDivision(division)}`,
+        present,
+        absent,
+        attendancePercent,
+        absentStudents,
+      };
+    });
+    const present = divisions.reduce((s, d) => s + d.present, 0);
+    const absent = divisions.reduce((s, d) => s + d.absent, 0);
+    const attendancePercent = Math.round((present / (STUDENTS_PER_DIVISION * DIVISIONS.length)) * 100);
+    return { grade, label: `Grade ${grade}`, present, absent, attendancePercent, divisions };
+  });
+
+  const totalPresent = gradeStats.reduce((s, g) => s + g.present, 0);
+  const totalAbsent = gradeStats.reduce((s, g) => s + g.absent, 0);
+  const totalStrength = totalPresent + totalAbsent;
+
+  return {
+    absentees,
+    gradeStats,
+    totals: {
+      present: totalPresent,
+      absent: totalAbsent,
+      attendancePercent: totalStrength > 0 ? Math.round((totalPresent / totalStrength) * 100) : 0,
+      noIntimationCount: absentees.filter((e) => e.intimation === 'No prior intimation').length,
+      advanceLeaveCount: absentees.filter((e) => e.intimation === 'Advance leave').length,
+      lateArrivalCount: 0,
+    },
+  };
+};
+
+const EMPTY_SNAPSHOT = buildAttendanceSnapshot([]);
+
 const Attendance = () => {
   const [isMobile, setIsMobile] = useState(() => window.innerWidth < 900);
   const [searchParams, setSearchParams] = useSearchParams();
-  const [wasSent, setWasSent] = useState({});   // { [studentId]: { wa: bool, email: bool } }
-  const [sending, setSending] = useState({});   // { [studentId]: { wa: bool, email: bool } }
+  const [wasSent, setWasSent] = useState({});
+  const [sending, setSending] = useState({});
+  const [attendanceRecords, setAttendanceRecords] = useState([]);
+  const [loadingAttendance, setLoadingAttendance] = useState(false);
 
   const sendNotification = (studentId, channel) => {
     setSending((prev) => ({ ...prev, [studentId]: { ...prev[studentId], [channel]: true } }));
@@ -58,7 +131,25 @@ const Attendance = () => {
   const selectedDateObject = useMemo(() => new Date(`${selectedDate}T00:00:00`), [selectedDate]);
   const operationalDayStatus = useMemo(() => getOperationalDayStatus(selectedDateObject), [selectedDateObject]);
   const academicYearLabel = useMemo(() => getAcademicYearLabel(selectedDateObject), [selectedDateObject]);
-  const attendanceSnapshot = useMemo(() => getAttendanceStatsForDate(selectedDate), [selectedDate]);
+
+  const fetchAttendance = useCallback(async (date) => {
+    if (!date) return;
+    setLoadingAttendance(true);
+    try {
+      const records = await api.get('/api/attendance', { date });
+      setAttendanceRecords(Array.isArray(records) ? records : []);
+    } catch (err) {
+      setAttendanceRecords([]);
+    } finally {
+      setLoadingAttendance(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchAttendance(selectedDate);
+  }, [selectedDate, fetchAttendance]);
+
+  const attendanceSnapshot = useMemo(() => buildAttendanceSnapshot(attendanceRecords), [attendanceRecords]);
 
   const updateFilters = (updates) => {
     const nextParams = new URLSearchParams(searchParams);
@@ -72,12 +163,10 @@ const Attendance = () => {
     setSearchParams(nextParams);
   };
 
-  const selectedGradeStats = attendanceSnapshot.gradeStats.find((grade) => String(grade.grade) === selectedGrade) || null;
+  const selectedGradeStats = attendanceSnapshot.gradeStats.find((g) => String(g.grade) === selectedGrade) || null;
 
   const filteredAbsentees = useMemo(() => {
-    if (!operationalDayStatus.isWorkingDay) {
-      return [];
-    }
+    if (!operationalDayStatus.isWorkingDay) return [];
     return attendanceSnapshot.absentees.filter((entry) => {
       const gradeMatch = selectedGrade === 'all' ? true : String(entry.grade) === selectedGrade;
       const divisionMatch = selectedDivision === 'all' ? true : entry.division === selectedDivision;
@@ -89,50 +178,6 @@ const Attendance = () => {
       return gradeMatch && divisionMatch && viewMatch;
     });
   }, [attendanceSnapshot.absentees, operationalDayStatus, selectedDivision, selectedGrade, selectedView]);
-
-  const filteredAdvanceLeave = useMemo(() => {
-    return advanceLeaveRequests
-      .map((request) => {
-        const student = getStudentById(request.studentId);
-        if (!student || request.date !== selectedDate) {
-          return null;
-        }
-        return {
-          ...request,
-          studentName: student.name,
-          grade: student.grade,
-          division: student.division,
-        };
-      })
-      .filter(Boolean)
-      .filter((request) => {
-        const gradeMatch = selectedGrade === 'all' ? true : String(request.grade) === selectedGrade;
-        const divisionMatch = selectedDivision === 'all' ? true : request.division === selectedDivision;
-        return gradeMatch && divisionMatch;
-      });
-  }, [selectedDate, selectedDivision, selectedGrade]);
-
-  const filteredLateArrivals = useMemo(() => {
-    return (lateArrivals[selectedDate] || [])
-      .map((entry) => {
-        const student = getStudentById(entry.studentId);
-        if (!student) {
-          return null;
-        }
-        return {
-          ...entry,
-          studentName: student.name,
-          grade: student.grade,
-          division: student.division,
-        };
-      })
-      .filter(Boolean)
-      .filter((entry) => {
-        const gradeMatch = selectedGrade === 'all' ? true : String(entry.grade) === selectedGrade;
-        const divisionMatch = selectedDivision === 'all' ? true : entry.division === selectedDivision;
-        return gradeMatch && divisionMatch;
-      });
-  }, [selectedDate, selectedDivision, selectedGrade]);
 
   const sectionStyle = {
     marginTop: '24px',
@@ -159,12 +204,14 @@ const Attendance = () => {
     cursor: 'pointer',
   });
 
+  const snapshot = loadingAttendance ? EMPTY_SNAPSHOT : attendanceSnapshot;
+
   return (
     <main style={{ padding: isMobile ? '16px' : '28px', maxWidth: '1280px', margin: '0 auto', color: '#0f172a' }}>
       <section>
         <h2>Attendance Dashboards</h2>
         <p style={{ color: '#475569', marginTop: '8px', maxWidth: '920px' }}>
-          Attendance analytics now drill down from school totals to grade, division, and the actual absent student roster with reasons, prior intimation status, and profile links. Academic Year {academicYearLabel}.
+          Attendance analytics drill down from school totals to grade, division, and the actual absent student roster. Academic Year {academicYearLabel}.
         </p>
         <div style={{ marginTop: '14px', padding: '12px 14px', borderRadius: '12px', border: `2px solid ${operationalDayStatus.isWorkingDay ? '#22c55e' : '#f59e0b'}`, background: operationalDayStatus.isWorkingDay ? '#f0fdf4' : '#fffbeb' }}>
           <strong style={{ color: operationalDayStatus.isWorkingDay ? '#166534' : '#92400e' }}>Attendance Policy Status: {operationalDayStatus.label}</strong>
@@ -176,7 +223,7 @@ const Attendance = () => {
         <div style={{ display: 'flex', justifyContent: 'space-between', gap: '14px', flexWrap: 'wrap', alignItems: 'flex-start' }}>
           <div>
             <h3 style={{ margin: 0 }}>Daily Attendance Drill-down</h3>
-            <p style={{ margin: '8px 0 0', color: '#64748b' }}>Pick a date, then narrow by grade, division, and absentee type.</p>
+            <p style={{ margin: '8px 0 0', color: '#64748b' }}>Pick a date, then narrow by grade, division, and absentee type.{loadingAttendance ? ' Loading...' : ''}</p>
           </div>
           <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
             <input type="date" value={selectedDate} onChange={(event) => updateFilters({ date: event.target.value })} style={{ padding: '10px 12px', borderRadius: '12px', border: '1px solid #cbd5e1' }} />
@@ -194,22 +241,22 @@ const Attendance = () => {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px', marginTop: '18px' }}>
           <button type="button" onClick={() => updateFilters({ view: 'all' })} style={{ ...cardStyle, textAlign: 'left', cursor: 'pointer', borderColor: selectedView === 'all' ? '#0284c7' : '#e2e8f0', background: selectedView === 'all' ? '#f0f9ff' : '#f8fafc' }}>
             <h4 style={{ margin: '0 0 10px' }}>Overall Attendance</h4>
-            <p style={{ margin: 0, fontSize: '1.7rem', fontWeight: 800 }}>{attendanceSnapshot.totals.attendancePercent}%</p>
-            <p style={{ margin: '8px 0 0', color: '#64748b' }}>{attendanceSnapshot.totals.present} present · {attendanceSnapshot.totals.absent} absent</p>
+            <p style={{ margin: 0, fontSize: '1.7rem', fontWeight: 800 }}>{snapshot.totals.attendancePercent}%</p>
+            <p style={{ margin: '8px 0 0', color: '#64748b' }}>{snapshot.totals.present} present {snapshot.totals.absent} absent</p>
           </button>
           <button type="button" onClick={() => updateFilters({ view: 'advance-leave' })} style={{ ...cardStyle, textAlign: 'left', cursor: 'pointer', borderColor: selectedView === 'advance-leave' ? '#0284c7' : '#e2e8f0', background: selectedView === 'advance-leave' ? '#f0f9ff' : '#f8fafc' }}>
             <h4 style={{ margin: '0 0 10px' }}>Advance Leave</h4>
-            <p style={{ margin: 0, fontSize: '1.7rem', fontWeight: 800 }}>{attendanceSnapshot.totals.advanceLeaveCount}</p>
+            <p style={{ margin: 0, fontSize: '1.7rem', fontWeight: 800 }}>{snapshot.totals.advanceLeaveCount}</p>
             <p style={{ margin: '8px 0 0', color: '#64748b' }}>Absences with prior intimation.</p>
           </button>
           <button type="button" onClick={() => updateFilters({ view: 'no-intimation' })} style={{ ...cardStyle, textAlign: 'left', cursor: 'pointer', borderColor: selectedView === 'no-intimation' ? '#0284c7' : '#e2e8f0', background: selectedView === 'no-intimation' ? '#f0f9ff' : '#f8fafc' }}>
             <h4 style={{ margin: '0 0 10px' }}>No Prior Intimation</h4>
-            <p style={{ margin: 0, fontSize: '1.7rem', fontWeight: 800 }}>{attendanceSnapshot.totals.noIntimationCount}</p>
+            <p style={{ margin: 0, fontSize: '1.7rem', fontWeight: 800 }}>{snapshot.totals.noIntimationCount}</p>
             <p style={{ margin: '8px 0 0', color: '#64748b' }}>Follow-up required by class team.</p>
           </button>
           <div style={cardStyle}>
             <h4 style={{ margin: '0 0 10px' }}>Late Arrivals</h4>
-            <p style={{ margin: 0, fontSize: '1.7rem', fontWeight: 800 }}>{attendanceSnapshot.totals.lateArrivalCount}</p>
+            <p style={{ margin: 0, fontSize: '1.7rem', fontWeight: 800 }}>{snapshot.totals.lateArrivalCount}</p>
             <p style={{ margin: '8px 0 0', color: '#64748b' }}>Students who entered after assembly.</p>
           </div>
         </div>
@@ -223,7 +270,7 @@ const Attendance = () => {
           </div>
           <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
             <button type="button" style={pillButton(selectedGrade === 'all')} onClick={() => updateFilters({ grade: 'all', division: 'all' })}>All grades</button>
-            {attendanceSnapshot.gradeStats.filter((grade) => grade.absent > 0).map((grade) => (
+            {snapshot.gradeStats.filter((grade) => grade.absent > 0).map((grade) => (
               <button key={grade.grade} type="button" style={pillButton(selectedGrade === String(grade.grade))} onClick={() => updateFilters({ grade: String(grade.grade), division: 'all' })}>
                 Grade {grade.grade}
               </button>
@@ -232,7 +279,7 @@ const Attendance = () => {
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '16px', marginTop: '18px' }}>
-          {attendanceSnapshot.gradeStats.map((grade) => (
+          {snapshot.gradeStats.map((grade) => (
             <button
               key={grade.grade}
               type="button"
@@ -289,8 +336,8 @@ const Attendance = () => {
             <h3 style={{ margin: 0 }}>Absent Student Roster</h3>
             <p style={{ margin: '8px 0 0', color: '#64748b' }}>
               {selectedGrade === 'all' ? 'All grades' : `Grade ${selectedGrade}`}
-              {selectedDivision === 'all' ? '' : ` · Division ${formatDivision(selectedDivision)}`}
-              {' · '}
+              {selectedDivision === 'all' ? '' : ` Division ${formatDivision(selectedDivision)}`}
+              {' '}
               {selectedView === 'all' ? 'All absentees' : selectedView === 'no-intimation' ? 'No prior intimation only' : 'Advance leave only'}
             </p>
           </div>
@@ -303,34 +350,38 @@ const Attendance = () => {
 
         {!operationalDayStatus.isWorkingDay ? (
           <p style={{ color: '#64748b', marginTop: '16px' }}>School is off for the selected date, so absentee drill-down is not applicable.</p>
+        ) : loadingAttendance ? (
+          <p style={{ color: '#64748b', marginTop: '16px' }}>Loading attendance data...</p>
         ) : isMobile ? (
           <div style={{ display: 'grid', gap: '12px', marginTop: '18px' }}>
             {filteredAbsentees.map((entry) => {
               const isNoIntimation = entry.intimation === 'No prior intimation';
-              const waSent = wasSent[entry.studentId]?.wa;
-              const emailSent = wasSent[entry.studentId]?.email;
-              const waSending = sending[entry.studentId]?.wa;
-              const emailSending = sending[entry.studentId]?.email;
+              const sid = entry.studentId;
+              const waSent = wasSent[sid]?.wa;
+              const emailSent = wasSent[sid]?.email;
+              const waSending = sending[sid]?.wa;
+              const emailSending = sending[sid]?.email;
               return (
-                <article key={entry.studentId} style={{ ...cardStyle, background: '#fff' }}>
-                  <Link to={`/sis/student/${entry.studentId}`} style={{ color: '#0f172a', fontWeight: 800, textDecoration: 'none' }}>{entry.studentName}</Link>
-                  <p style={{ margin: '6px 0 0', color: '#475569' }}>Grade {entry.grade} · Division {formatDivision(entry.division)} · Roll {entry.rollNo}</p>
+                <article key={sid} style={{ ...cardStyle, background: '#fff' }}>
+                  <Link to={`/sis/student/${sid}`} style={{ color: '#0f172a', fontWeight: 800, textDecoration: 'none' }}>{entry.studentName}</Link>
+                  <p style={{ margin: '6px 0 0', color: '#475569' }}>Grade {entry.grade} Division {formatDivision(entry.division)} Roll {entry.rollNo}</p>
                   <p style={{ margin: '8px 0 0', color: '#334155' }}>Reason: {entry.reason}</p>
-                  <p style={{ margin: '6px 0 0', color: isNoIntimation ? '#b45309' : '#166534', fontWeight: 700 }}>{entry.intimation}</p>
+                  <p style={{ margin: '6px 0 0', color: isNoIntimation ? '#b45309' : '#166534', fontWeight: 700 }}>{entry.intimation || '—'}</p>
                   <p style={{ margin: '6px 0 0', color: '#64748b' }}>{entry.followUp}</p>
                   {isNoIntimation && (
                     <div style={{ display: 'flex', gap: '8px', marginTop: '10px', flexWrap: 'wrap' }}>
-                      <button type="button" disabled={waSent || waSending} onClick={() => sendNotification(entry.studentId, 'wa')} style={{ padding: '8px 14px', borderRadius: '8px', border: 'none', background: waSent ? '#dcfce7' : waSending ? '#f3f4f6' : '#25d366', color: waSent ? '#166534' : waSending ? '#64748b' : '#fff', fontWeight: 700, cursor: waSent || waSending ? 'default' : 'pointer', fontSize: '0.84rem' }}>
-                        {waSent ? '✓ WA Sent' : waSending ? 'Sending…' : '💬 WhatsApp'}
+                      <button type="button" disabled={waSent || waSending} onClick={() => sendNotification(sid, 'wa')} style={{ padding: '8px 14px', borderRadius: '8px', border: 'none', background: waSent ? '#dcfce7' : waSending ? '#f3f4f6' : '#25d366', color: waSent ? '#166534' : waSending ? '#64748b' : '#fff', fontWeight: 700, cursor: waSent || waSending ? 'default' : 'pointer', fontSize: '0.84rem' }}>
+                        {waSent ? 'WA Sent' : waSending ? 'Sending...' : 'WhatsApp'}
                       </button>
-                      <button type="button" disabled={emailSent || emailSending} onClick={() => sendNotification(entry.studentId, 'email')} style={{ padding: '8px 14px', borderRadius: '8px', border: 'none', background: emailSent ? '#dbeafe' : emailSending ? '#f3f4f6' : '#2563eb', color: emailSent ? '#1d4ed8' : emailSending ? '#64748b' : '#fff', fontWeight: 700, cursor: emailSent || emailSending ? 'default' : 'pointer', fontSize: '0.84rem' }}>
-                        {emailSent ? '✓ Email Sent' : emailSending ? 'Sending…' : '✉ Email'}
+                      <button type="button" disabled={emailSent || emailSending} onClick={() => sendNotification(sid, 'email')} style={{ padding: '8px 14px', borderRadius: '8px', border: 'none', background: emailSent ? '#dbeafe' : emailSending ? '#f3f4f6' : '#2563eb', color: emailSent ? '#1d4ed8' : emailSending ? '#64748b' : '#fff', fontWeight: 700, cursor: emailSent || emailSending ? 'default' : 'pointer', fontSize: '0.84rem' }}>
+                        {emailSent ? 'Email Sent' : emailSending ? 'Sending...' : 'Email'}
                       </button>
                     </div>
                   )}
                 </article>
               );
             })}
+            {filteredAbsentees.length === 0 && <p style={{ color: '#64748b' }}>No absentees for this selection.</p>}
           </div>
         ) : (
           <div style={{ overflowX: 'auto', marginTop: '18px' }}>
@@ -350,153 +401,44 @@ const Attendance = () => {
               <tbody>
                 {filteredAbsentees.map((entry) => {
                   const isNoIntimation = entry.intimation === 'No prior intimation';
-                  const waSent = wasSent[entry.studentId]?.wa;
-                  const emailSent = wasSent[entry.studentId]?.email;
-                  const waSending = sending[entry.studentId]?.wa;
-                  const emailSending = sending[entry.studentId]?.email;
+                  const sid = entry.studentId;
+                  const waSent = wasSent[sid]?.wa;
+                  const emailSent = wasSent[sid]?.email;
+                  const waSending = sending[sid]?.wa;
+                  const emailSending = sending[sid]?.email;
                   return (
-                    <tr key={entry.studentId} style={{ borderBottom: '1px solid #e2e8f0' }}>
-                      <td style={{ padding: '14px 16px' }}><Link to={`/sis/student/${entry.studentId}`} style={{ color: '#0f172a', fontWeight: 700, textDecoration: 'none' }}>{entry.studentName}</Link></td>
+                    <tr key={sid} style={{ borderBottom: '1px solid #e2e8f0' }}>
+                      <td style={{ padding: '14px 16px' }}><Link to={`/sis/student/${sid}`} style={{ color: '#0f172a', fontWeight: 700, textDecoration: 'none' }}>{entry.studentName}</Link></td>
                       <td style={{ padding: '14px 16px' }}>Grade {entry.grade}</td>
                       <td style={{ padding: '14px 16px' }}>Division {formatDivision(entry.division)}</td>
                       <td style={{ padding: '14px 16px' }}>{entry.rollNo}</td>
                       <td style={{ padding: '14px 16px' }}>{entry.reason}</td>
-                      <td style={{ padding: '14px 16px', color: isNoIntimation ? '#b45309' : '#166534', fontWeight: 700 }}>{entry.intimation}</td>
+                      <td style={{ padding: '14px 16px', color: isNoIntimation ? '#b45309' : '#166534', fontWeight: 700 }}>{entry.intimation || '—'}</td>
                       <td style={{ padding: '14px 16px' }}>{entry.followUp}</td>
                       <td style={{ padding: '14px 16px' }}>
                         {isNoIntimation ? (
                           <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-                            <button
-                              type="button"
-                              disabled={waSent || waSending}
-                              onClick={() => sendNotification(entry.studentId, 'wa')}
-                              style={{ padding: '6px 11px', borderRadius: '8px', border: 'none', background: waSent ? '#dcfce7' : waSending ? '#f3f4f6' : '#25d366', color: waSent ? '#166534' : waSending ? '#64748b' : '#fff', fontWeight: 700, cursor: waSent || waSending ? 'default' : 'pointer', fontSize: '0.78rem', whiteSpace: 'nowrap', transition: 'opacity 180ms' }}
-                            >
-                              {waSent ? '✓ WA Sent' : waSending ? 'Sending…' : '💬 WhatsApp'}
+                            <button type="button" disabled={waSent || waSending} onClick={() => sendNotification(sid, 'wa')} style={{ padding: '6px 11px', borderRadius: '8px', border: 'none', background: waSent ? '#dcfce7' : waSending ? '#f3f4f6' : '#25d366', color: waSent ? '#166534' : waSending ? '#64748b' : '#fff', fontWeight: 700, cursor: waSent || waSending ? 'default' : 'pointer', fontSize: '0.78rem', whiteSpace: 'nowrap' }}>
+                              {waSent ? 'WA Sent' : waSending ? 'Sending...' : 'WhatsApp'}
                             </button>
-                            <button
-                              type="button"
-                              disabled={emailSent || emailSending}
-                              onClick={() => sendNotification(entry.studentId, 'email')}
-                              style={{ padding: '6px 11px', borderRadius: '8px', border: 'none', background: emailSent ? '#dbeafe' : emailSending ? '#f3f4f6' : '#2563eb', color: emailSent ? '#1d4ed8' : emailSending ? '#64748b' : '#fff', fontWeight: 700, cursor: emailSent || emailSending ? 'default' : 'pointer', fontSize: '0.78rem', whiteSpace: 'nowrap', transition: 'opacity 180ms' }}
-                            >
-                              {emailSent ? '✓ Email Sent' : emailSending ? 'Sending…' : '✉ Email'}
+                            <button type="button" disabled={emailSent || emailSending} onClick={() => sendNotification(sid, 'email')} style={{ padding: '6px 11px', borderRadius: '8px', border: 'none', background: emailSent ? '#dbeafe' : emailSending ? '#f3f4f6' : '#2563eb', color: emailSent ? '#1d4ed8' : emailSending ? '#64748b' : '#fff', fontWeight: 700, cursor: emailSent || emailSending ? 'default' : 'pointer', fontSize: '0.78rem', whiteSpace: 'nowrap' }}>
+                              {emailSent ? 'Email Sent' : emailSending ? 'Sending...' : 'Email'}
                             </button>
                           </div>
-                        ) : <span style={{ color: '#cbd5e1', fontSize: '0.84rem' }}>—</span>}
+                        ) : <span style={{ color: '#cbd5e1', fontSize: '0.84rem' }}>--</span>}
                       </td>
                     </tr>
                   );
                 })}
+                {filteredAbsentees.length === 0 && (
+                  <tr>
+                    <td colSpan={8} style={{ padding: '20px 16px', color: '#64748b', textAlign: 'center' }}>No absentees for this selection.</td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>
         )}
-      </section>
-
-      <section style={sectionStyle}>
-        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1.15fr 0.85fr', gap: '18px' }}>
-          <div>
-            <h3 style={{ margin: 0 }}>Weekly Absentee Trend</h3>
-            <p style={{ margin: '8px 0 14px', color: '#64748b' }}>Daily attendance percentages and absence counts with visual representation and labeled values.</p>
-            
-            <div style={{ ...cardStyle, marginBottom: '16px', background: '#fff' }}>
-              <div style={{ marginBottom: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.85rem', color: '#64748b' }}>
-                <span>Attendance Rate</span>
-                <span>Absences</span>
-              </div>
-              <svg style={{ width: '100%', height: '240px', minHeight: '240px' }} viewBox={`0 0 ${weeklyAttendanceTrend.length * 80} 240`} preserveAspectRatio="none">
-                {weeklyAttendanceTrend.map((point, idx) => {
-                  const x = idx * 80 + 20;
-                  const maxHeight = 180;
-                  const barHeight = (point.attendancePercent / 100) * maxHeight;
-                  const yStart = 200 - barHeight;
-                  const isSelected = selectedDate === point.date;
-                  
-                  return (
-                    <g key={point.date}>
-                      <rect
-                        x={x}
-                        y={yStart}
-                        width="50"
-                        height={barHeight}
-                        fill={isSelected ? '#0284c7' : '#38bdf8'}
-                        rx="4"
-                        onClick={() => updateFilters({ date: point.date })}
-                        style={{ cursor: 'pointer', opacity: isSelected ? 1 : 0.8 }}
-                      />
-                      <text x={x + 25} y={yStart - 6} textAnchor="middle" fontSize="12" fontWeight="700" fill="#0f172a" onClick={() => updateFilters({ date: point.date })} style={{ cursor: 'pointer' }}>
-                        {point.attendancePercent}%
-                      </text>
-                      <text x={x + 25} y="220" textAnchor="middle" fontSize="10" fill="#64748b">
-                        {point.label}
-                      </text>
-                      {point.absent > 0 && (
-                        <circle
-                          cx={x + 25}
-                          cy={yStart - 20}
-                          r="14"
-                          fill="#ff6b6b"
-                          onClick={() => updateFilters({ date: point.date })}
-                          style={{ cursor: 'pointer' }}
-                        />
-                      )}
-                      {point.absent > 0 && (
-                        <text x={x + 25} y={yStart - 15} textAnchor="middle" fontSize="11" fontWeight="700" fill="#fff" onClick={() => updateFilters({ date: point.date })} style={{ cursor: 'pointer', pointerEvents: 'none' }}>
-                          {point.absent}
-                        </text>
-                      )}
-                    </g>
-                  );
-                })}
-              </svg>
-            </div>
-            
-            <div style={{ display: 'grid', gap: '10px' }}>
-              {weeklyAttendanceTrend.map((point) => (
-                <button key={point.date} type="button" onClick={() => updateFilters({ date: point.date })} style={{ ...cardStyle, textAlign: 'left', cursor: 'pointer', borderColor: selectedDate === point.date ? '#0284c7' : '#e2e8f0', background: selectedDate === point.date ? '#f0f9ff' : '#f8fafc' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: '10px', alignItems: 'center' }}>
-                    <strong>{point.label}</strong>
-                    <span>{point.attendancePercent}% attendance</span>
-                  </div>
-                  <div style={{ marginTop: '8px', display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: '8px', color: '#334155', fontSize: '0.88rem' }}>
-                    <span>Absent: {point.absent}</span>
-                    <span>No intimation: {point.noIntimationCount}</span>
-                    <span>Date: {point.date}</span>
-                  </div>
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div>
-            <h3 style={{ margin: 0 }}>Related Actions</h3>
-            <div style={{ display: 'grid', gap: '12px', marginTop: '14px' }}>
-              <div style={cardStyle}>
-                <h4 style={{ margin: '0 0 10px' }}>Advance Leave Requests</h4>
-                {filteredAdvanceLeave.length === 0 ? <p style={{ margin: 0, color: '#64748b' }}>No advance leave requests for the current filter.</p> : filteredAdvanceLeave.map((request, index) => (
-                  <div key={request.id} style={{ padding: '10px 0', borderBottom: index === filteredAdvanceLeave.length - 1 ? 'none' : '1px solid #e2e8f0' }}>
-                    <p style={{ margin: 0, fontWeight: 700 }}>{request.studentName}</p>
-                    <p style={{ margin: '4px 0 0', color: '#475569' }}>Grade {request.grade} · Division {formatDivision(request.division)}</p>
-                    <p style={{ margin: '4px 0 0', color: '#334155' }}>{request.type}</p>
-                    <p style={{ margin: '4px 0 0', color: '#64748b' }}>{request.notice}</p>
-                  </div>
-                ))}
-              </div>
-              <div style={cardStyle}>
-                <h4 style={{ margin: '0 0 10px' }}>Late Arrival Watch</h4>
-                {filteredLateArrivals.length === 0 ? <p style={{ margin: 0, color: '#64748b' }}>No late arrival alerts for the selected date.</p> : filteredLateArrivals.map((entry, index) => (
-                  <div key={entry.studentId} style={{ padding: '10px 0', borderBottom: index === filteredLateArrivals.length - 1 ? 'none' : '1px solid #e2e8f0' }}>
-                    <p style={{ margin: 0, fontWeight: 700 }}>{entry.studentName}</p>
-                    <p style={{ margin: '4px 0 0', color: '#475569' }}>Grade {entry.grade} · Division {formatDivision(entry.division)}</p>
-                    <p style={{ margin: '4px 0 0', color: '#334155' }}>{entry.minutesLate} minutes late</p>
-                    <p style={{ margin: '4px 0 0', color: '#64748b' }}>{entry.note}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
       </section>
     </main>
   );

@@ -1,8 +1,9 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { api } from '../api';
 import SearchBar from './SearchBar';
 
-const topMetrics = [
+const DEFAULT_TOP_METRICS = [
   { label: 'Overall Attendance', value: '96.0%', trend: '+1.8%', detail: 'Last 7 days avg', link: '/attendance', accent: '#0ea5e9' },
   { label: 'Impromptu Absenteeism', value: '4.2%', trend: '-1.1%', detail: 'Unplanned teacher + student leave', link: '/attendance', accent: '#f97316' },
   { label: 'Fee Collection', value: '₹19.7L', trend: 'April round', detail: 'April installment collected', link: '/finance', accent: '#10b981' },
@@ -11,7 +12,7 @@ const topMetrics = [
   { label: 'Upcoming Stakeholder Meetings', value: '7', trend: 'Next 14 days', detail: 'PTM, trustees, CBSE', link: '/communication', accent: '#ef4444' },
 ];
 
-const kraFactors = [
+const DEFAULT_KRA_FACTORS = [
   { label: 'Student Attendance Rate', weight: 25, score: 96, color: '#0ea5e9' },
   { label: 'Fee Collection Efficiency', weight: 20, score: 73, color: '#10b981' },
   { label: 'Hygiene & Cleanliness Compliance', weight: 15, score: 91, color: '#06b6d4' },
@@ -24,6 +25,8 @@ const CommandCenter = () => {
   const [query, setQuery] = useState('');
   const [isMobile, setIsMobile] = useState(() => window.innerWidth < 900);
   const [showKraModal, setShowKraModal] = useState(false);
+  const [topMetrics, setTopMetrics] = useState(DEFAULT_TOP_METRICS);
+  const [kraFactors, setKraFactors] = useState(DEFAULT_KRA_FACTORS);
 
   useEffect(() => {
     const onResize = () => setIsMobile(window.innerWidth < 900);
@@ -38,6 +41,22 @@ const CommandCenter = () => {
     return () => window.removeEventListener('keydown', onKey);
   }, [showKraModal]);
 
+  // Fetch real stats from API
+  useEffect(() => {
+    api.get('/api/command-center/stats')
+      .then((data) => {
+        if (data.topMetrics && Array.isArray(data.topMetrics)) {
+          setTopMetrics(data.topMetrics);
+        }
+        if (data.kraFactors && Array.isArray(data.kraFactors)) {
+          setKraFactors(data.kraFactors);
+        }
+      })
+      .catch(() => {
+        // Keep defaults on error
+      });
+  }, []);
+
   const weightedScore = kraFactors.reduce((sum, f) => sum + (f.score * f.weight) / 100, 0);
 
   const filteredMetrics = useMemo(() => {
@@ -46,7 +65,7 @@ const CommandCenter = () => {
     return topMetrics.filter((m) =>
       `${m.label} ${m.value} ${m.detail}`.toLowerCase().includes(kw)
     );
-  }, [query]);
+  }, [query, topMetrics]);
 
   const cardStyle = {
     padding: isMobile ? '14px' : '18px',

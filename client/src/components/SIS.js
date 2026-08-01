@@ -1,17 +1,19 @@
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import SearchBar from './SearchBar';
-import { GRADES, DIVISIONS, searchStudentsByName } from '../data/studentDirectory';
+import { api } from '../api';
 
-const grades = GRADES;
+const GRADES = Array.from({ length: 10 }, (_, i) => i + 1);
+const DIVISIONS = ['alpha', 'beta', 'gamma'];
 
 const EMPTY_FORM = { name: '', mobile: '', grade: '', division: '', photo: null, photoPreview: '' };
 
-const AdmissionModal = ({ onClose }) => {
+const AdmissionModal = ({ onClose, onSuccess }) => {
   const [form, setForm] = useState(EMPTY_FORM);
   const [errors, setErrors] = useState({});
   const [submitted, setSubmitted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [apiError, setApiError] = useState('');
 
   useEffect(() => {
     const onKey = (e) => { if (e.key === 'Escape') onClose(); };
@@ -26,7 +28,6 @@ const AdmissionModal = ({ onClose }) => {
     else if (!/^[6-9]\d{9}$/.test(form.mobile.trim())) e.mobile = 'Enter a valid 10-digit Indian mobile number.';
     if (!form.grade) e.grade = 'Please select a grade.';
     if (!form.division) e.division = 'Please select a division.';
-    if (!form.photo) e.photo = 'Student photo is required.';
     return e;
   };
 
@@ -38,12 +39,31 @@ const AdmissionModal = ({ onClose }) => {
     reader.readAsDataURL(file);
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     const errs = validate();
     if (Object.keys(errs).length > 0) { setErrors(errs); return; }
     setSubmitting(true);
-    setTimeout(() => { setSubmitting(false); setSubmitted(true); }, 1200);
+    setApiError('');
+    try {
+      const nameParts = form.name.trim().split(/\s+/);
+      const firstName = nameParts[0];
+      const lastName = nameParts.slice(1).join(' ') || '';
+      await api.post('/api/students', {
+        firstName,
+        lastName,
+        grade: Number(form.grade),
+        division: form.division,
+        parentMobile: form.mobile.trim(),
+      });
+      setSubmitted(true);
+      if (onSuccess) onSuccess(form.name.trim());
+      setTimeout(() => onClose(), 1800);
+    } catch (err) {
+      setApiError(err.message || 'Failed to save student.');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const fieldStyle = {
@@ -68,28 +88,27 @@ const AdmissionModal = ({ onClose }) => {
       <div style={{ background: '#fff', borderRadius: '20px', padding: '28px', maxWidth: '520px', width: '100%', boxShadow: '0 24px 60px rgba(15,23,42,0.28)', maxHeight: '92vh', overflowY: 'auto' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '18px' }}>
           <h3 style={{ margin: 0, color: '#1e3a8a', fontWeight: 800, fontSize: '1.15rem' }}>New Student Admission</h3>
-          <button type="button" onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '1.4rem', cursor: 'pointer', color: '#64748b', lineHeight: 1 }}>×</button>
+          <button type="button" onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '1.4rem', cursor: 'pointer', color: '#64748b', lineHeight: 1 }}>x</button>
         </div>
 
         {submitted ? (
           <div style={{ textAlign: 'center', padding: '24px 0' }}>
-            <div style={{ fontSize: '3rem' }}>✅</div>
+            <div style={{ fontSize: '3rem' }}>ok</div>
             <h4 style={{ margin: '12px 0 6px', color: '#166534' }}>Admission Registered!</h4>
             <p style={{ color: '#475569', margin: '0 0 8px' }}><strong>{form.name}</strong> has been added to Grade {form.grade} {form.division.charAt(0).toUpperCase() + form.division.slice(1)}.</p>
-            <p style={{ color: '#64748b', fontSize: '0.84rem', margin: 0 }}>This is a demo save — data will be persisted when the backend is connected.</p>
             <button type="button" onClick={onClose} style={{ marginTop: '18px', padding: '10px 24px', borderRadius: '10px', background: '#1e3a8a', color: '#fff', fontWeight: 700, border: 'none', cursor: 'pointer' }}>Close</button>
           </div>
         ) : (
           <form onSubmit={handleSubmit} noValidate>
             {/* Photo upload */}
             <div style={{ marginBottom: '18px' }}>
-              <label style={labelStyle}>Student Photo <span style={{ color: '#dc2626' }}>*</span></label>
+              <label style={labelStyle}>Student Photo</label>
               <div style={{ display: 'flex', gap: '14px', alignItems: 'center' }}>
                 <div style={{ width: '72px', height: '72px', borderRadius: '12px', border: '2px dashed #cbd5e1', background: '#f8fafc', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', flexShrink: 0 }}>
                   {form.photoPreview ? (
                     <img src={form.photoPreview} alt="Preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                   ) : (
-                    <span style={{ color: '#94a3b8', fontSize: '1.6rem' }}>📷</span>
+                    <span style={{ color: '#94a3b8', fontSize: '1.6rem' }}>P</span>
                   )}
                 </div>
                 <div>
@@ -100,7 +119,6 @@ const AdmissionModal = ({ onClose }) => {
                   <p style={{ margin: '4px 0 0', color: '#64748b', fontSize: '0.78rem' }}>JPG or PNG, max 5 MB</p>
                 </div>
               </div>
-              {errors.photo && <p style={errStyle}>{errors.photo}</p>}
             </div>
 
             {/* Student Name */}
@@ -140,7 +158,7 @@ const AdmissionModal = ({ onClose }) => {
                   style={{ ...fieldStyle, borderColor: errors.grade ? '#dc2626' : '#cbd5e1' }}
                 >
                   <option value="">Select grade</option>
-                  {grades.map((g) => <option key={g} value={g}>Grade {g}</option>)}
+                  {GRADES.map((g) => <option key={g} value={g}>Grade {g}</option>)}
                 </select>
                 {errors.grade && <p style={errStyle}>{errors.grade}</p>}
               </div>
@@ -158,12 +176,14 @@ const AdmissionModal = ({ onClose }) => {
               </div>
             </div>
 
+            {apiError && <p style={{ ...errStyle, marginBottom: '10px' }}>{apiError}</p>}
+
             <button
               type="submit"
               disabled={submitting}
               style={{ width: '100%', padding: '12px', borderRadius: '12px', border: 'none', background: submitting ? '#94a3b8' : 'linear-gradient(135deg, #1e3a8a 0%, #1d4ed8 100%)', color: '#fff', fontWeight: 800, fontSize: '0.95rem', cursor: submitting ? 'default' : 'pointer', marginTop: '6px' }}
             >
-              {submitting ? 'Saving…' : 'Register Admission'}
+              {submitting ? 'Saving...' : 'Register Admission'}
             </button>
           </form>
         )}
@@ -175,10 +195,27 @@ const AdmissionModal = ({ onClose }) => {
 const SIS = () => {
   const [studentQuery, setStudentQuery] = useState('');
   const [showAdmission, setShowAdmission] = useState(false);
+  const [searchResults, setSearchResults] = useState([]);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [successBanner, setSuccessBanner] = useState('');
 
-  const filteredStudents = useMemo(() => {
-    return searchStudentsByName(studentQuery, 30);
-  }, [studentQuery]);
+  const fetchSearch = useCallback(async (query) => {
+    if (!query.trim()) { setSearchResults([]); return; }
+    setSearchLoading(true);
+    try {
+      const data = await api.get('/api/students', { search: query, limit: 30 });
+      setSearchResults(data.students || []);
+    } catch (err) {
+      setSearchResults([]);
+    } finally {
+      setSearchLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    const timer = setTimeout(() => fetchSearch(studentQuery), 300);
+    return () => clearTimeout(timer);
+  }, [studentQuery, fetchSearch]);
 
   const cardStyle = {
     padding: '20px',
@@ -222,12 +259,14 @@ const SIS = () => {
         {studentQuery.trim() && (
           <div style={{ marginTop: '12px', padding: '14px', borderRadius: '12px', border: '1px solid #dbeafe', background: '#f8fbff' }}>
             <h3 style={{ marginTop: 0, marginBottom: '8px', color: '#1e3a8a' }}>Student Search Results</h3>
-            {filteredStudents.length > 0 ? (
+            {searchLoading ? (
+              <p style={{ margin: 0, color: '#64748b' }}>Loading...</p>
+            ) : searchResults.length > 0 ? (
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '10px' }}>
-                {filteredStudents.map((student) => (
-                  <Link key={student.id} to={`/sis/student/${student.id}`} style={{ textDecoration: 'none', color: '#0f172a', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '10px', background: '#fff' }}>
-                    <strong>{student.name}</strong>
-                    <p style={{ margin: '6px 0 0', color: '#64748b' }}>Grade {student.grade} {student.division.charAt(0).toUpperCase() + student.division.slice(1)} • Roll {student.rollNo}</p>
+                {searchResults.map((student) => (
+                  <Link key={student._id} to={`/sis/student/${student._id}`} style={{ textDecoration: 'none', color: '#0f172a', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '10px', background: '#fff' }}>
+                    <strong>{student.firstName} {student.lastName}</strong>
+                    <p style={{ margin: '6px 0 0', color: '#64748b' }}>Grade {student.grade} {student.division.charAt(0).toUpperCase() + student.division.slice(1)} Roll {student.rollNo}</p>
                   </Link>
                 ))}
               </div>
@@ -238,7 +277,7 @@ const SIS = () => {
         )}
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', marginTop: '20px' }}>
-          {grades.map((grade) => (
+          {GRADES.map((grade) => (
             <Link key={grade} to={`/sis/grade/${grade}`} style={cardStyle}>
               <h3>Grade {grade}</h3>
               <p>3 Divisions: Alpha, Beta, Gamma</p>
@@ -247,7 +286,23 @@ const SIS = () => {
         </div>
       </section>
 
-      {showAdmission && <AdmissionModal onClose={() => setShowAdmission(false)} />}
+      {successBanner && (
+        <div style={{ position: 'fixed', bottom: '24px', left: '50%', transform: 'translateX(-50%)', background: '#166534', color: '#fff', padding: '12px 24px', borderRadius: '12px', fontWeight: 700, fontSize: '0.92rem', boxShadow: '0 8px 24px rgba(0,0,0,0.18)', zIndex: 2000 }}>
+          ✓ {successBanner}
+        </div>
+      )}
+
+      {showAdmission && (
+        <AdmissionModal
+          onClose={() => setShowAdmission(false)}
+          onSuccess={(name) => {
+            setShowAdmission(false);
+            setSuccessBanner(`${name} added successfully`);
+            setTimeout(() => setSuccessBanner(''), 4000);
+            if (studentQuery.trim()) fetchSearch(studentQuery);
+          }}
+        />
+      )}
     </main>
   );
 };

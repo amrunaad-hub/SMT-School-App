@@ -1,12 +1,57 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
-import { getPeriodById } from '../data/facultyScheduler';
+import { api } from '../api';
 
 const PeriodDetails = () => {
   const { id } = useParams();
   const navigate = useNavigate();
 
-  const period = getPeriodById(id);
+  const [period, setPeriod] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [notFound, setNotFound] = useState(false);
+
+  useEffect(() => {
+    if (!id) {
+      setNotFound(true);
+      setLoading(false);
+      return;
+    }
+
+    // Parse id as "${grade}-${division}-${periodIndex}"
+    const parts = id.split('-');
+    if (parts.length < 3) {
+      setNotFound(true);
+      setLoading(false);
+      return;
+    }
+
+    const grade = parts[0];
+    const division = parts[1];
+    const periodIndex = parseInt(parts[2], 10);
+    const dayOfWeek = new Date().getDay();
+
+    api.get('/api/timetable', { grade, division, day: dayOfWeek })
+      .then((data) => {
+        const schedule = data.schedule || data.timetable || [];
+        const todaySchedule = Array.isArray(schedule)
+          ? schedule.find((s) => s.day === dayOfWeek || s.dayIndex === dayOfWeek)
+          : null;
+        const periods = todaySchedule
+          ? (todaySchedule.periods || [])
+          : (Array.isArray(schedule) ? schedule : []);
+
+        const found = periods[periodIndex];
+        if (found) {
+          setPeriod({ ...found, grade: Number(grade), division, id });
+        } else {
+          setNotFound(true);
+        }
+      })
+      .catch(() => {
+        setNotFound(true);
+      })
+      .finally(() => setLoading(false));
+  }, [id]);
 
   const objectives = {
     'English': 'Develop phonics, reading fluency, listening comprehension, and spoken confidence.',
@@ -32,11 +77,27 @@ const PeriodDetails = () => {
     'Cyber / Computer': 'Computer lab access, keyboard worksheet, projector support',
   };
 
-  const periodAttendance = period && period.subject !== 'Break' && period.subject !== 'Assembly'
-    ? `${32 + ((period.grade + period.id.length) % 8)} students present`
-    : 'All students';
+  const backButtonStyle = {
+    padding: '12px 24px',
+    background: '#2563eb',
+    color: 'white',
+    border: 'none',
+    borderRadius: '6px',
+    cursor: 'pointer',
+    textDecoration: 'none',
+    display: 'inline-block',
+    marginBottom: '20px'
+  };
 
-  if (!period) {
+  if (loading) {
+    return (
+      <main style={{ padding: '24px', maxWidth: '1000px', margin: '0 auto' }}>
+        <div style={{ padding: '40px', textAlign: 'center', color: '#64748b' }}>Loading period details...</div>
+      </main>
+    );
+  }
+
+  if (notFound || !period) {
     return (
       <main style={{ padding: '24px', maxWidth: '1000px', margin: '0 auto' }}>
         <section>
@@ -47,6 +108,10 @@ const PeriodDetails = () => {
       </main>
     );
   }
+
+  const periodAttendance = period.subject !== 'Break' && period.subject !== 'Assembly'
+    ? `${32 + ((period.grade + id.length) % 8)} students present`
+    : 'All students';
 
   const detailStyle = {
     display: 'grid',
@@ -60,18 +125,6 @@ const PeriodDetails = () => {
     border: '1px solid #e5e7eb',
     borderRadius: '8px',
     background: '#f9fafb'
-  };
-
-  const backButtonStyle = {
-    padding: '12px 24px',
-    background: '#2563eb',
-    color: 'white',
-    border: 'none',
-    borderRadius: '6px',
-    cursor: 'pointer',
-    textDecoration: 'none',
-    display: 'inline-block',
-    marginBottom: '20px'
   };
 
   return (
@@ -99,7 +152,7 @@ const PeriodDetails = () => {
             <strong>Grade:</strong> {period.grade}
           </div>
           <div style={fieldStyle}>
-            <strong>Attendance:</strong> {period.attendance}
+            <strong>Attendance:</strong> {period.attendance || '-'}
           </div>
           <div style={fieldStyle}>
             <strong>Live Attendance Snapshot:</strong> {periodAttendance}

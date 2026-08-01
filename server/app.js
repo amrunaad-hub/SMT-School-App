@@ -1,17 +1,28 @@
 const express = require('express');
-const mongoose = require('mongoose');
 const cors = require('cors');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const path = require('path');
 require('dotenv').config();
+const db = require('./db/database');
 const authRoutes = require('./routes/auth');
 const attachmentRoutes = require('./routes/attachments');
 const { ensureDefaultUsers } = require('./utils/seedUsers');
+const studentRoutes = require('./routes/students');
+const staffRoutes = require('./routes/staff');
+const attendanceRoutes = require('./routes/attendance');
+const timetableRoutes = require('./routes/timetable');
+const feesRoutes = require('./routes/fees');
+const examsRoutes = require('./routes/exams');
+const admissionsRoutes = require('./routes/admissions');
+const transportRoutes = require('./routes/transport');
+const inventoryRoutes = require('./routes/inventory');
+const noticesRoutes = require('./routes/notices');
+const washroomsRoutes = require('./routes/washrooms');
+const commandCenterRoutes = require('./routes/command-center');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
-const MONGODB_URI = process.env.MONGODB_URI || (process.env.NODE_ENV === 'production' ? '' : 'mongodb://localhost:27017/school-erp');
 const allowedOrigin = process.env.CLIENT_ORIGIN || '*';
 
 app.set('trust proxy', 1);
@@ -63,34 +74,27 @@ app.use((req, res, next) => {
 app.use(express.json());
 
 // Database connection
-let mongoConnected = false;
+let dbReady = false;
 
-if (!MONGODB_URI) {
-    console.error('MongoDB connection skipped: MONGODB_URI is missing.');
-} else {
-    mongoose.connect(MONGODB_URI, {
-        useNewUrlParser: true,
-        useUnifiedTopology: true,
-    })
+db.migrate.latest()
     .then(async () => {
-        mongoConnected = true;
-        console.log('MongoDB connected');
+        dbReady = true;
+        console.log('SQLite migrated');
         await ensureDefaultUsers();
         console.log('Default role users ensured');
     })
     .catch(err => {
-        mongoConnected = false;
-        console.error('MongoDB connection error:', err.message);
+        dbReady = false;
+        console.error('Database migration error:', err.message);
     });
-}
 
-// Middleware to check MongoDB connection
+// Middleware to check DB readiness
 app.use((req, res, next) => {
     const isApiRequest = req.path.startsWith('/api');
     const allowWithoutDb = new Set(['/api/health', '/api/auth/login']);
 
-    if (isApiRequest && !allowWithoutDb.has(req.path) && !mongoConnected) {
-        return res.status(503).json({ message: 'Service temporarily unavailable. Database connection failed. Check MongoDB configuration.' });
+    if (isApiRequest && !allowWithoutDb.has(req.path) && !dbReady) {
+        return res.status(503).json({ message: 'Service temporarily unavailable. Database migration failed.' });
     }
 
     next();
@@ -99,13 +103,25 @@ app.use((req, res, next) => {
 // Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/attachments', attachmentRoutes);
+app.use('/api/students', studentRoutes);
+app.use('/api/staff', staffRoutes);
+app.use('/api/attendance', attendanceRoutes);
+app.use('/api/timetable', timetableRoutes);
+app.use('/api/fees', feesRoutes);
+app.use('/api/exams', examsRoutes);
+app.use('/api/admissions', admissionsRoutes);
+app.use('/api/transport', transportRoutes);
+app.use('/api/inventory', inventoryRoutes);
+app.use('/api/notices', noticesRoutes);
+app.use('/api/washrooms', washroomsRoutes);
+app.use('/api/command-center', commandCenterRoutes);
 
 // Health check endpoint - must be before static files and wildcard
 app.get('/api/health', (req, res) => {
     res.json({
         status: 'ok',
         timestamp: new Date().toISOString(),
-        mongoConnected,
+        dbReady,
         commit: process.env.RAILWAY_GIT_COMMIT_SHA || 'unknown',
     });
 });

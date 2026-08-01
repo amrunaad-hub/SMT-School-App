@@ -1,9 +1,22 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { api } from '../api';
 
 const Admissions = () => {
   const [selectedGrade, setSelectedGrade] = useState(null);
   const [isMobile, setIsMobile] = useState(() => window.innerWidth < 900);
   const detailsRef = useRef(null);
+
+  const [admissions, setAdmissions] = useState([]);
+  const [stats, setStats] = useState({
+    totalEnquiries: 0,
+    enquiries: 0,
+    inProcess: 0,
+    confirmed: 0,
+    rejected: 0,
+    byGrade: [],
+  });
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
     const onResize = () => setIsMobile(window.innerWidth < 900);
@@ -11,61 +24,47 @@ const Admissions = () => {
     return () => window.removeEventListener('resize', onResize);
   }, []);
 
-  const gradeStats = [
-    { grade: 'Grade 1', enquiries: 48, inProcess: 18, confirmed: 12, rejected: 4 },
-    { grade: 'Grade 2', enquiries: 40, inProcess: 14, confirmed: 10, rejected: 3 },
-    { grade: 'Grade 3', enquiries: 36, inProcess: 10, confirmed: 8, rejected: 2 },
-    { grade: 'Grade 4', enquiries: 28, inProcess: 8, confirmed: 6, rejected: 1 },
-  ];
+  useEffect(() => {
+    setLoading(true);
+    api.get('/api/admissions', { academicYear: '2025-26' })
+      .then((data) => {
+        setAdmissions(data.admissions || []);
+        if (data.stats) setStats(data.stats);
+        setError(null);
+      })
+      .catch((err) => setError(err.message))
+      .finally(() => setLoading(false));
+  }, []);
 
-  const enquiryDetails = useMemo(() => [
-    {
-      id: 1,
-      name: 'Aanya Roy',
-      currentSchool: 'Green Valley Public School',
-      grade: 'Grade 1',
-      enquiryType: 'New admission',
-      area: 'Andheri West',
-      followUp: 'Interested in mid-April intake',
-      source: 'Website enquiry',
-    },
-    {
-      id: 2,
-      name: 'Riya Shah',
-      currentSchool: 'Sunrise Academy',
-      grade: 'Grade 2',
-      enquiryType: 'Transfer',
-      area: 'Bandra East',
-      followUp: 'Needs fee details for sibling discount',
-      source: 'Phone call',
-    },
-    {
-      id: 3,
-      name: 'Kabir Singh',
-      currentSchool: 'Little Stars Kindergarten',
-      grade: 'Grade 1',
-      enquiryType: 'New admission',
-      area: 'Malad',
-      followUp: 'Documents pending',
-      source: 'Referral',
-    },
-    {
-      id: 4,
-      name: 'Mira Joshi',
-      currentSchool: 'Oxford International',
-      grade: 'Grade 3',
-      enquiryType: 'Transfer',
-      area: 'Khar',
-      followUp: 'Parent wants school tour',
-      source: 'Walk-in',
-    },
-  ], []);
+  const gradeStats = stats.byGrade || [];
 
-  const rejectedApplications = [
-    { id: 1, name: 'Tanya Bhat', grade: 'Grade 1', reason: 'Incomplete documents', status: 'Rejected' },
-    { id: 2, name: 'Rohan Iyer', grade: 'Grade 2', reason: 'Seat not available', status: 'Rejected' },
-    { id: 3, name: 'Simran Kapoor', grade: 'Grade 3', reason: 'Does not meet admission criteria', status: 'Rejected' },
-  ];
+  const enquiryDetails = useMemo(() =>
+    admissions
+      .filter((a) => !['Rejected'].includes(a.status))
+      .map((a) => ({
+        id: a._id,
+        name: a.childName,
+        currentSchool: a.currentSchool || '-',
+        grade: `Grade ${a.applyingForGrade}`,
+        enquiryType: a.enquiryType,
+        area: a.area || '-',
+        followUp: a.followUpNote || '-',
+        source: a.source,
+        status: a.status,
+      })),
+  [admissions]);
+
+  const rejectedApplications = useMemo(() =>
+    admissions
+      .filter((a) => a.status === 'Rejected')
+      .map((a) => ({
+        id: a._id,
+        name: a.childName,
+        grade: `Grade ${a.applyingForGrade}`,
+        reason: a.rejectionReason || 'Not specified',
+        status: a.status,
+      })),
+  [admissions]);
 
   const sectionStyle = {
     marginTop: '28px',
@@ -92,6 +91,24 @@ const Admissions = () => {
     [selectedGrade, enquiryDetails]
   );
 
+  if (loading) {
+    return (
+      <main style={{ padding: '28px', maxWidth: '1240px', margin: '0 auto', color: '#0f172a' }}>
+        <div style={{ padding: '60px', textAlign: 'center', color: '#64748b' }}>Loading admissions data...</div>
+      </main>
+    );
+  }
+
+  if (error) {
+    return (
+      <main style={{ padding: '28px', maxWidth: '1240px', margin: '0 auto', color: '#0f172a' }}>
+        <div style={{ padding: '20px', background: '#fee2e2', borderRadius: '10px', color: '#991b1b' }}>
+          Failed to load admissions: {error}
+        </div>
+      </main>
+    );
+  }
+
   return (
     <main style={{ padding: isMobile ? '16px' : '28px', maxWidth: '1240px', margin: '0 auto', color: '#0f172a', background: 'linear-gradient(to bottom, #f0f9ff 0%, #f9fafb 100%)', minHeight: 'calc(100vh - 100px)' }}>
       <section>
@@ -105,22 +122,22 @@ const Admissions = () => {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '18px' }}>
           <div style={{ ...cardStyle, background: 'linear-gradient(135deg, #fef2f2 0%, #fef9f8 100%)', border: '2px solid #dc2626', boxShadow: '0 4px 12px rgba(220, 38, 38, 0.15)' }}>
             <h3 style={{ marginBottom: '10px', color: '#991b1b', fontWeight: '700' }}>📧 Total Enquiries</h3>
-            <p style={{ margin: 0, fontSize: '1.8rem', fontWeight: 700, color: '#dc2626' }}>152</p>
+            <p style={{ margin: 0, fontSize: '1.8rem', fontWeight: 700, color: '#dc2626' }}>{stats.totalEnquiries}</p>
             <p style={{ marginTop: '8px', color: '#7f1d1d' }}>New admission and transfer enquiries received.</p>
           </div>
           <div style={{ ...cardStyle, background: 'linear-gradient(135deg, #fef3c7 0%, #fef9e7 100%)', border: '2px solid #f59e0b', boxShadow: '0 4px 12px rgba(245, 158, 11, 0.15)' }}>
             <h3 style={{ marginBottom: '10px', color: '#92400e', fontWeight: '700' }}>⏳ In Process</h3>
-            <p style={{ margin: 0, fontSize: '1.8rem', fontWeight: 700, color: '#f59e0b' }}>50</p>
+            <p style={{ margin: 0, fontSize: '1.8rem', fontWeight: 700, color: '#f59e0b' }}>{stats.inProcess}</p>
             <p style={{ marginTop: '8px', color: '#7c2d12' }}>Applications pending document verification or interview.</p>
           </div>
           <div style={{ ...cardStyle, background: 'linear-gradient(135deg, #f0fdf4 0%, #f7fee7 100%)', border: '2px solid #10b981', boxShadow: '0 4px 12px rgba(16, 185, 129, 0.15)' }}>
             <h3 style={{ marginBottom: '10px', color: '#166534', fontWeight: '700' }}>✅ Confirmed</h3>
-            <p style={{ margin: 0, fontSize: '1.8rem', fontWeight: 700, color: '#10b981' }}>36</p>
+            <p style={{ margin: 0, fontSize: '1.8rem', fontWeight: 700, color: '#10b981' }}>{stats.confirmed}</p>
             <p style={{ marginTop: '8px', color: '#3f6319' }}>Students whose admission has been finalized.</p>
           </div>
           <div style={{ ...cardStyle, background: 'linear-gradient(135deg, #f3f4f6 0%, #f9fafb 100%)', border: '2px solid #6b7280', boxShadow: '0 4px 12px rgba(107, 114, 128, 0.15)' }}>
             <h3 style={{ marginBottom: '10px', color: '#374151', fontWeight: '700' }}>❌ Rejected</h3>
-            <p style={{ margin: 0, fontSize: '1.8rem', fontWeight: 700, color: '#6b7280' }}>9</p>
+            <p style={{ margin: 0, fontSize: '1.8rem', fontWeight: 700, color: '#6b7280' }}>{stats.rejected}</p>
             <p style={{ marginTop: '8px', color: '#4b5563' }}>Applications rejected with detailed reasons.</p>
           </div>
         </div>
@@ -171,6 +188,9 @@ const Admissions = () => {
             </div>
           ))}
         </div>
+        {gradeStats.length === 0 && (
+          <p style={{ color: '#64748b' }}>No grade-wise data available.</p>
+        )}
       </section>
 
       <section style={{ ...sectionStyle, padding: isMobile ? '16px' : sectionStyle.padding }} ref={detailsRef}>
@@ -210,7 +230,7 @@ const Admissions = () => {
                 <p style={{ marginTop: '6px', color: '#64748b', fontSize: '0.82rem' }}>Source: {detail.source}</p>
               </article>
             )) : (
-              <p style={{ color: '#64748b' }}>No enquiries found for {selectedGrade}.</p>
+              <p style={{ color: '#64748b' }}>No enquiries found{selectedGrade ? ` for ${selectedGrade}` : ''}.</p>
             )}
           </div>
         ) : (
@@ -243,7 +263,7 @@ const Admissions = () => {
                 ) : (
                   <tr>
                     <td colSpan="7" style={{ padding: '18px 16px', color: '#64748b', textAlign: 'center' }}>
-                      No enquiries found for {selectedGrade}.
+                      No enquiries found{selectedGrade ? ` for ${selectedGrade}` : ''}.
                     </td>
                   </tr>
                 )}
@@ -255,7 +275,9 @@ const Admissions = () => {
 
       <section style={{ ...sectionStyle, padding: isMobile ? '16px' : sectionStyle.padding }}>
         <h3 style={{ marginBottom: '18px' }}>Rejected Applications</h3>
-        {isMobile ? (
+        {rejectedApplications.length === 0 ? (
+          <p style={{ color: '#64748b' }}>No rejected applications.</p>
+        ) : isMobile ? (
           <div style={{ display: 'grid', gap: '10px' }}>
             {rejectedApplications.map((app) => (
               <article key={app.id} style={{ border: '1px solid #e2e8f0', borderRadius: '12px', padding: '12px', background: '#fff' }}>

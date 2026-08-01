@@ -1,32 +1,30 @@
 const bcrypt = require('bcryptjs');
-const User = require('../models/User');
+const db = require('../db/database');
+const { encryptText } = require('./crypto');
 
 const DEFAULT_USERS = [
     { username: 'admin', password: 'admin', role: 'admin', email: 'admin@smtthane.edu' },
     { username: 'parent', password: 'parent', role: 'parent', email: 'parent@smtthane.edu' },
     { username: 'teacher', password: 'teacher', role: 'teacher', email: 'teacher@smtthane.edu' },
+    { username: 'principal', password: 'principal', role: 'principal', email: 'principal@smtthane.edu' },
 ];
 
 const ensureDefaultUsers = async () => {
     for (const entry of DEFAULT_USERS) {
-        const existing = await User.findOne({ username: entry.username });
+        const existing = await db('users').where({ username: entry.username }).first();
         if (existing) {
             if (existing.role !== entry.role) {
-                existing.role = entry.role;
-                await existing.save();
+                await db('users').where({ id: existing.id }).update({ role: entry.role });
             }
             continue;
         }
 
-        const passwordHash = await bcrypt.hash(entry.password, 12);
-        const user = new User({
+        await db('users').insert({
             username: entry.username,
             role: entry.role,
-            password: passwordHash,
+            password: await bcrypt.hash(entry.password, 12),
+            email_encrypted: encryptText(entry.email),
         });
-
-        user.setEmail(entry.email);
-        await user.save();
     }
 };
 

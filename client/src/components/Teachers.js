@@ -1,6 +1,5 @@
-import React, { useMemo, useState } from 'react';
-import { SCHOOL_STUDENT_DIRECTORY } from '../data/studentDirectory';
-import { buildClassTimetable } from '../data/facultyScheduler';
+import React, { useEffect, useMemo, useState } from 'react';
+import { api } from '../api';
 
 // Teacher identity (would come from auth context in a real app)
 const TEACHER = {
@@ -51,13 +50,37 @@ const AttendanceModal = ({ students, period, onClose, onSubmit }) => {
     };
   }, [marks]);
 
-  const handleSubmit = (final) => {
+  const handleSubmit = async (final) => {
     if (final && counts.pending > 0) return;
     setSubmitting(true);
-    setTimeout(() => {
+
+    if (final) {
+      try {
+        const records = students.map((s) => ({
+          studentId: s.id,
+          status: marks[s.id]?.status === 'present' ? 'Present'
+            : marks[s.id]?.status === 'absent' ? 'Absent'
+            : marks[s.id]?.status === 'late' ? 'Late'
+            : 'Present',
+          reason: marks[s.id]?.remark || '',
+        }));
+
+        await api.post('/api/attendance/bulk', {
+          date: TODAY_STR,
+          grade: TEACHER.classGrade,
+          division: TEACHER.classDivision,
+          records,
+        });
+      } catch (err) {
+        // Silently proceed even if API fails (offline or token mismatch)
+        console.warn('Attendance API error:', err.message);
+      }
       setSubmitting(false);
-      if (final) { setSubmitted(true); onSubmit(marks); }
-    }, 1000);
+      setSubmitted(true);
+      onSubmit(marks);
+    } else {
+      setSubmitting(false);
+    }
   };
 
   const btnBase = { border: 'none', borderRadius: '6px', fontWeight: 700, cursor: 'pointer', padding: '5px 10px', fontSize: '0.78rem', transition: 'opacity 150ms' };
@@ -175,20 +198,63 @@ const Teachers = () => {
   const [attendanceSubmitted, setAttendanceSubmitted] = useState(false);
   const [submittedMarks, setSubmittedMarks] = useState(null);
   const [selectedPeriod, setSelectedPeriod] = useState(null);
+  const [classStudents, setClassStudents] = useState([]);
+  const [todayPeriods, setTodayPeriods] = useState([]);
 
   const dayOfWeek = TODAY.getDay();
   const isWorkingDay = dayOfWeek !== 0 && !(dayOfWeek === 6 && ([2, 4].includes(Math.floor((TODAY.getDate() - 1) / 7) + 1)));
 
-  const todayPeriods = useMemo(() => buildClassTimetable(TEACHER.classGrade, TEACHER.classDivision, dayOfWeek), [dayOfWeek]);
+  // Load students from API
+  useEffect(() => {
+    api.get('/api/students', {
+      grade: TEACHER.classGrade,
+      division: TEACHER.classDivision,
+      limit: 40,
+    })
+      .then((data) => {
+        const students = (data.students || []).map((s) => ({
+          id: s._id,
+          name: `${s.firstName} ${s.lastName}`,
+          rollNo: s.rollNo,
+          grade: s.grade,
+          division: s.division,
+        }));
+        setClassStudents(students);
+      })
+      .catch(() => {
+        setClassStudents([]);
+      });
+  }, []);
 
-  const classStudents = useMemo(() =>
-    SCHOOL_STUDENT_DIRECTORY
-      .filter((s) => s.grade === TEACHER.classGrade && s.division === TEACHER.classDivision)
-      .sort((a, b) => a.rollNo - b.rollNo),
-  []);
+  // Load timetable from API
+  useEffect(() => {
+    if (!isWorkingDay) {
+      setTodayPeriods([]);
+      return;
+    }
+    api.get('/api/timetable', {
+      grade: TEACHER.classGrade,
+      division: TEACHER.classDivision,
+      day: dayOfWeek,
+    })
+      .then((data) => {
+        // Timetable API returns { schedule: [{ day, periods: [...] }] } or similar
+        const schedule = data.schedule || data.timetable || [];
+        // Find today's schedule
+        const todaySchedule = schedule.find
+          ? schedule.find((s) => s.day === dayOfWeek || s.dayIndex === dayOfWeek)
+          : null;
+        const periods = todaySchedule
+          ? (todaySchedule.periods || [])
+          : (Array.isArray(schedule) ? schedule : []);
+        setTodayPeriods(periods);
+      })
+      .catch(() => {
+        setTodayPeriods([]);
+      });
+  }, [dayOfWeek, isWorkingDay]);
 
-  // First teaching period (not Assembly or Break)
-  const firstPeriod = useMemo(() => todayPeriods.find((p) => p.type.startsWith('Period')), [todayPeriods]);
+  const firstPeriod = useMemo(() => todayPeriods.find((p) => p.type && p.type.startsWith('Period')), [todayPeriods]);
 
   const handleSubmitAttendance = (marks) => {
     setSubmittedMarks(marks);
@@ -223,10 +289,14 @@ const Teachers = () => {
 
       {!isWorkingDay ? (
         <div style={{ ...cardBase, textAlign: 'center', color: '#92400e' }}>No timetable for today — non-working day.</div>
+      ) : todayPeriods.length === 0 ? (
+        <div style={{ ...cardBase, textAlign: 'center', color: '#64748b' }}>
+          <div style={{ marginBottom: '8px', fontSize: '0.9rem' }}>No timetable data available for today.</div>
+        </div>
       ) : (
         <div style={{ display: 'grid', gap: '10px' }}>
           {todayPeriods.map((period, idx) => {
-            const isBreak = period.type.includes('Break') || period.type === 'Prayer & Assembly';
+            const isBreak = period.type && (period.type.includes('Break') || period.type === 'Prayer & Assembly');
             const isFirst = period === firstPeriod;
             const isSubmitted = attendanceSubmitted && submittedMarks;
 
