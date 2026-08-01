@@ -5,6 +5,7 @@ const rateLimit = require('express-rate-limit');
 const path = require('path');
 require('dotenv').config();
 const db = require('./db/database');
+const { startBackupCron } = require('./cron/backup');
 const authRoutes = require('./routes/auth');
 const attachmentRoutes = require('./routes/attachments');
 const { ensureDefaultUsers } = require('./utils/seedUsers');
@@ -82,6 +83,7 @@ db.migrate.latest()
         console.log('SQLite migrated');
         await ensureDefaultUsers();
         console.log('Default role users ensured');
+        startBackupCron();
     })
     .catch(err => {
         dbReady = false;

@@ -1,32 +1,35 @@
 const express = require('express');
 const router = express.Router();
-const Timetable = require('../models/Timetable');
+const db = require('../db/database');
 const auth = require('../middleware/auth');
 const authorize = require('../middleware/authorize');
+const { serializeRow, serializeRows } = require('../utils/serialize');
+
+const JSON_FIELDS = ['periods'];
+const serialize = (row) => serializeRow(row, { jsonFields: JSON_FIELDS });
 
 // GET /api/timetable?grade=&division=&day=
 router.get('/', auth, async (req, res) => {
   try {
     const { grade, division, day, academicYear = '2025-26' } = req.query;
 
-    const filter = { academicYear };
+    let query = db('timetables').where({ academic_year: academicYear });
+    if (grade) query = query.where({ grade: Number(grade) });
+    if (division) query = query.where({ division: String(division).toLowerCase() });
+    if (day) query = query.where({ day_of_week: Number(day) });
 
-    if (grade) filter.grade = Number(grade);
-    if (division) filter.division = String(division).toLowerCase();
-    if (day) filter.dayOfWeek = Number(day);
-
-    // If specific grade+division+day, return single doc
+    // If specific grade+division+day, return single row
     if (grade && division && day) {
-      const doc = await Timetable.findOne(filter).lean();
-      if (!doc) {
+      const row = await query.first();
+      if (!row) {
         return res.status(404).json({ message: 'Timetable not found for the specified class and day.' });
       }
-      return res.json(doc);
+      return res.json(serialize(row));
     }
 
     // Otherwise return all matching
-    const docs = await Timetable.find(filter).sort({ grade: 1, division: 1, dayOfWeek: 1 }).lean();
-    return res.json(docs);
+    const rows = await query.orderBy([{ column: 'grade' }, { column: 'division' }, { column: 'day_of_week' }]);
+    return res.json(serializeRows(rows, { jsonFields: JSON_FIELDS }));
   } catch (err) {
     console.error('GET /api/timetable error:', err.message);
     return res.status(500).json({ message: 'Server error' });
@@ -35,7 +38,7 @@ router.get('/', auth, async (req, res) => {
 
 // PUT /api/timetable (upsert)
 // body: { grade, division, dayOfWeek, academicYear, periods: [] }
-router.put('/', auth, authorize(['admin']), async (req, res) => {
+router.put('/', auth, authorize(['admin', 'principal']), async (req, res) => {
   try {
     const { grade, division, dayOfWeek, academicYear = '2025-26', periods } = req.body;
 
@@ -43,20 +46,21 @@ router.put('/', auth, authorize(['admin']), async (req, res) => {
       return res.status(400).json({ message: 'grade, division, and dayOfWeek are required.' });
     }
 
-    const filter = {
+    const key = {
       grade: Number(grade),
       division: String(division).toLowerCase(),
-      dayOfWeek: Number(dayOfWeek),
-      academicYear,
+      day_of_week: Number(dayOfWeek),
+      academic_year: academicYear,
     };
+    const now = new Date().toISOString();
 
-    const doc = await Timetable.findOneAndUpdate(
-      filter,
-      { $set: { ...filter, periods: periods || [] } },
-      { new: true, upsert: true, runValidators: true }
-    );
+    await db('timetables')
+      .insert({ ...key, periods: JSON.stringify(periods || []), created_at: now, updated_at: now })
+      .onConflict(['grade', 'division', 'day_of_week', 'academic_year'])
+      .merge(['periods', 'updated_at']);
 
-    return res.json(doc);
+    const row = await db('timetables').where(key).first();
+    return res.json(serialize(row));
   } catch (err) {
     console.error('PUT /api/timetable error:', err.message);
     return res.status(500).json({ message: 'Server error' });

@@ -1,72 +1,88 @@
 const express = require('express');
 const router = express.Router();
-const Fee = require('../models/Fee');
-const Student = require('../models/Student');
+const db = require('../db/database');
 const auth = require('../middleware/auth');
 const authorize = require('../middleware/authorize');
+const { serializeRow } = require('../utils/serialize');
+
+const JSON_FIELDS = ['installments'];
+const BOOL_FIELDS = ['is_rte'];
+
+// Mirrors the old Mongoose virtuals (paidAmount/pendingAmount), computed from the
+// parsed installments array rather than stored, same as before.
+function withVirtuals(row) {
+  const fee = serializeRow(row, { jsonFields: JSON_FIELDS, boolFields: BOOL_FIELDS });
+  const paidAmount = (fee.installments || []).reduce((sum, i) => sum + (i.status === 'Paid' ? (i.amount || 0) : 0), 0);
+  const pendingAmount = fee.isRte ? 0 : Math.max((fee.annualFee || 90000) - paidAmount, 0);
+  return { ...fee, paidAmount, pendingAmount };
+}
+
+function withStudent(row) {
+  const fee = withVirtuals(row);
+  fee.student = {
+    _id: String(row.student_id),
+    firstName: row.s_first_name,
+    lastName: row.s_last_name,
+    grade: row.s_grade,
+    division: row.s_division,
+    rollNo: row.s_roll_no,
+    studentCode: row.s_student_code,
+    isRte: !!row.s_is_rte,
+  };
+  return fee;
+}
+
+const STUDENT_JOIN_COLUMNS = [
+  'fees.*',
+  'students.first_name as s_first_name', 'students.last_name as s_last_name',
+  'students.grade as s_grade', 'students.division as s_division',
+  'students.roll_no as s_roll_no', 'students.student_code as s_student_code',
+  'students.is_rte as s_is_rte',
+];
 
 // GET /api/fees?grade=&division=&status=&search=&page=&limit=
 router.get('/', auth, async (req, res) => {
   try {
     const { grade, division, status, search, page = 1, limit = 50, academicYear = '2025-26' } = req.query;
 
-    // Build student filter first if grade/division/search provided
-    const studentFilter = {};
-    if (grade && grade !== 'all') studentFilter.grade = Number(grade);
-    if (division && division !== 'all') studentFilter.division = String(division).toLowerCase();
+    let query = db('fees').join('students', 'students.id', 'fees.student_id')
+      .select(STUDENT_JOIN_COLUMNS)
+      .where('fees.academic_year', academicYear);
+
+    if (grade && grade !== 'all') query = query.where('students.grade', Number(grade));
+    if (division && division !== 'all') query = query.where('students.division', String(division).toLowerCase());
     if (search && search.trim()) {
-      const keyword = search.trim();
-      studentFilter.$or = [
-        { firstName: { $regex: keyword, $options: 'i' } },
-        { lastName: { $regex: keyword, $options: 'i' } },
-        { studentCode: { $regex: keyword, $options: 'i' } },
-      ];
+      const keyword = `%${search.trim()}%`;
+      query = query.where((qb) => {
+        qb.whereRaw('students.first_name LIKE ? COLLATE NOCASE', [keyword])
+          .orWhereRaw('students.last_name LIKE ? COLLATE NOCASE', [keyword])
+          .orWhereRaw('students.student_code LIKE ? COLLATE NOCASE', [keyword]);
+      });
     }
 
-    let feeFilter = { academicYear };
+    const rows = await query;
+    let fees = rows.map(withStudent);
 
-    if (Object.keys(studentFilter).length > 0) {
-      const matchingStudents = await Student.find(studentFilter).select('_id').lean();
-      const studentIds = matchingStudents.map((s) => s._id);
-      feeFilter.student = { $in: studentIds };
-    }
-
-    const pageNum = Math.max(1, parseInt(page, 10) || 1);
-    const limitNum = Math.min(500, Math.max(1, parseInt(limit, 10) || 50));
-    const skip = (pageNum - 1) * limitNum;
-
-    let query = Fee.find(feeFilter).populate('student', 'firstName lastName grade division rollNo studentCode isRte');
-
-    // Apply status filter post-populate via aggregation or in-memory
-    // For simplicity, fetch all then filter
-    const allFees = await Fee.find(feeFilter)
-      .populate('student', 'firstName lastName grade division rollNo studentCode isRte')
-      .lean({ virtuals: true });
-
-    let filtered = allFees;
     if (status && status !== 'all') {
-      filtered = allFees.filter((fee) => {
+      fees = fees.filter((fee) => {
         if (status === 'rte') return fee.isRte;
-        const hasInstallmentStatus = fee.installments.some((inst) => {
+        return (fee.installments || []).some((inst) => {
           if (status === 'paid') return inst.status === 'Paid';
           if (status === 'delayed') return inst.status === 'Delayed';
           if (status === 'upcoming') return inst.status === 'Upcoming';
           if (status === 'condonence') return inst.status.toLowerCase().includes('condonence');
           return false;
         });
-        return hasInstallmentStatus;
       });
     }
 
-    const total = filtered.length;
-    const paginated = filtered.slice(skip, skip + limitNum);
+    const pageNum = Math.max(1, parseInt(page, 10) || 1);
+    const limitNum = Math.min(500, Math.max(1, parseInt(limit, 10) || 50));
+    const offset = (pageNum - 1) * limitNum;
+    const total = fees.length;
+    const paginated = fees.slice(offset, offset + limitNum);
 
-    return res.json({
-      fees: paginated,
-      total,
-      page: pageNum,
-      pages: Math.ceil(total / limitNum),
-    });
+    return res.json({ fees: paginated, total, page: pageNum, pages: Math.ceil(total / limitNum) });
   } catch (err) {
     console.error('GET /api/fees error:', err.message);
     return res.status(500).json({ message: 'Server error' });
@@ -77,8 +93,8 @@ router.get('/', auth, async (req, res) => {
 router.get('/summary', auth, async (req, res) => {
   try {
     const { academicYear = '2025-26' } = req.query;
-
-    const fees = await Fee.find({ academicYear }).lean({ virtuals: true });
+    const rows = await db('fees').where({ academic_year: academicYear });
+    const fees = rows.map((r) => serializeRow(r, { jsonFields: JSON_FIELDS, boolFields: BOOL_FIELDS }));
 
     const totalStudents = fees.length;
     const rteStudents = fees.filter((f) => f.isRte).length;
@@ -92,7 +108,6 @@ router.get('/summary', auth, async (req, res) => {
       return sum + Math.max((f.annualFee || 90000) - paid, 0);
     }, 0);
 
-    // Per-installment breakdown
     const installmentIds = ['april', 'july', 'november'];
     const byInstallment = installmentIds.map((instId) => {
       const records = fees.map((f) => (f.installments || []).find((i) => i.installmentId === instId));
@@ -104,13 +119,7 @@ router.get('/summary', auth, async (req, res) => {
       return { installmentId: instId, paidCount, paidAmount, delayedCount, upcomingCount, rteCount };
     });
 
-    return res.json({
-      totalStudents,
-      rteStudents,
-      totalPaid,
-      totalPending,
-      byInstallment,
-    });
+    return res.json({ totalStudents, rteStudents, totalPaid, totalPending, byInstallment });
   } catch (err) {
     console.error('GET /api/fees/summary error:', err.message);
     return res.status(500).json({ message: 'Server error' });
@@ -120,14 +129,14 @@ router.get('/summary', auth, async (req, res) => {
 // GET /api/fees/student/:studentId
 router.get('/student/:studentId', auth, async (req, res) => {
   try {
-    const fee = await Fee.findOne({ student: req.params.studentId })
-      .populate('student', 'firstName lastName grade division rollNo studentCode isRte')
-      .lean({ virtuals: true });
+    const row = await db('fees').join('students', 'students.id', 'fees.student_id')
+      .select(STUDENT_JOIN_COLUMNS)
+      .where('fees.student_id', req.params.studentId).first();
 
-    if (!fee) {
+    if (!row) {
       return res.status(404).json({ message: 'Fee record not found for this student.' });
     }
-    return res.json(fee);
+    return res.json(withStudent(row));
   } catch (err) {
     console.error('GET /api/fees/student/:studentId error:', err.message);
     return res.status(500).json({ message: 'Server error' });
@@ -144,12 +153,13 @@ router.put('/student/:studentId/pay', auth, authorize(['admin']), async (req, re
       return res.status(400).json({ message: 'installmentId is required.' });
     }
 
-    const fee = await Fee.findOne({ student: req.params.studentId });
-    if (!fee) {
+    const feeRow = await db('fees').where({ student_id: req.params.studentId }).first();
+    if (!feeRow) {
       return res.status(404).json({ message: 'Fee record not found.' });
     }
 
-    const installment = fee.installments.find((i) => i.installmentId === installmentId);
+    const installments = JSON.parse(feeRow.installments || '[]');
+    const installment = installments.find((i) => i.installmentId === installmentId);
     if (!installment) {
       return res.status(404).json({ message: `Installment '${installmentId}' not found.` });
     }
@@ -161,13 +171,15 @@ router.put('/student/:studentId/pay', auth, authorize(['admin']), async (req, re
     if (amount !== undefined) installment.amount = Number(amount);
     if (note) installment.note = note;
 
-    await fee.save();
+    await db('fees').where({ id: feeRow.id }).update({
+      installments: JSON.stringify(installments),
+      updated_at: new Date().toISOString(),
+    });
 
-    const populated = await Fee.findById(fee._id)
-      .populate('student', 'firstName lastName grade division rollNo studentCode')
-      .lean({ virtuals: true });
-
-    return res.json(populated);
+    const row = await db('fees').join('students', 'students.id', 'fees.student_id')
+      .select(STUDENT_JOIN_COLUMNS)
+      .where('fees.id', feeRow.id).first();
+    return res.json(withStudent(row));
   } catch (err) {
     console.error('PUT /api/fees/student/:studentId/pay error:', err.message);
     return res.status(500).json({ message: 'Server error' });

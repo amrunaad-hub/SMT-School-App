@@ -1,111 +1,72 @@
 const express = require('express');
 const router = express.Router();
-const Student = require('../models/Student');
-const Attendance = require('../models/Attendance');
-const Fee = require('../models/Fee');
-const Admission = require('../models/Admission');
-const Exam = require('../models/Exam');
-const InventoryItem = require('../models/InventoryItem');
-const Notice = require('../models/Notice');
-const WashroomLog = require('../models/WashroomLog');
+const db = require('../db/database');
 const auth = require('../middleware/auth');
 
 // GET /api/command-center/stats
 router.get('/stats', auth, async (req, res) => {
   try {
     const today = new Date();
-    const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-    const todayEnd = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1);
+    const todayStr = today.toISOString().slice(0, 10);
+    const yesterdayStr = new Date(today.getTime() - 86400000).toISOString().slice(0, 10);
 
-    // Active students count
-    const activeStudents = await Student.countDocuments({ status: 'Active' });
+    const [{ count: activeStudents }] = await db('students').where({ status: 'Active' }).count({ count: '*' });
 
-    // Today's attendance rate
+    // Today's attendance rate (fallback to yesterday if no data yet)
     let attendanceRate = 0;
-    try {
-      const todayAttendance = await Attendance.find({
-        date: { $gte: todayStart, $lt: todayEnd },
-      }).lean();
-
-      if (todayAttendance.length > 0) {
-        const presentCount = todayAttendance.filter((a) => a.status === 'Present').length;
-        attendanceRate = Math.round((presentCount / todayAttendance.length) * 100);
-      } else if (activeStudents > 0) {
-        // Fallback: use recent data
-        const recentDate = new Date(today);
-        recentDate.setDate(today.getDate() - 1);
-        const recentStart = new Date(recentDate.getFullYear(), recentDate.getMonth(), recentDate.getDate());
-        const recentEnd = new Date(recentDate.getFullYear(), recentDate.getMonth(), recentDate.getDate() + 1);
-        const recentAttendance = await Attendance.find({
-          date: { $gte: recentStart, $lt: recentEnd },
-        }).lean();
-        if (recentAttendance.length > 0) {
-          const presentCount = recentAttendance.filter((a) => a.status === 'Present').length;
-          attendanceRate = Math.round((presentCount / recentAttendance.length) * 100);
-        }
-      }
-    } catch (e) {
-      // Attendance collection may be empty
+    let todayAttendance = await db('attendance').where({ date: todayStr });
+    if (!todayAttendance.length) todayAttendance = await db('attendance').where({ date: yesterdayStr });
+    if (todayAttendance.length > 0) {
+      const presentCount = todayAttendance.filter((a) => a.status === 'Present').length;
+      attendanceRate = Math.round((presentCount / todayAttendance.length) * 100);
     }
 
     // Fee collection (April installment paid amount)
     let feeCollection = 0;
-    try {
-      const fees = await Fee.find({ academicYear: '2025-26' }).lean({ virtuals: true });
-      fees.forEach((fee) => {
-        const aprInst = (fee.installments || []).find((i) => i.installmentId === 'april');
-        if (aprInst && aprInst.status === 'Paid') {
-          feeCollection += aprInst.amount || 0;
-        }
-      });
-    } catch (e) {
-      // Fee collection may be empty
-    }
+    const feeRows = await db('fees').where({ academic_year: '2025-26' });
+    feeRows.forEach((row) => {
+      const installments = JSON.parse(row.installments || '[]');
+      const aprInst = installments.find((i) => i.installmentId === 'april');
+      if (aprInst && aprInst.status === 'Paid') feeCollection += aprInst.amount || 0;
+    });
 
     // Open admissions (Enquiry or In Process)
-    const openAdmissions = await Admission.countDocuments({
-      status: { $in: ['Enquiry', 'In Process', 'Document Verification'] },
-    });
+    const [{ count: openAdmissions }] = await db('admissions')
+      .whereIn('status', ['Enquiry', 'In Process', 'Document Verification']).count({ count: '*' });
 
     // Upcoming exams
-    const upcomingExams = await Exam.countDocuments({
-      scheduledDate: { $gte: todayStart },
-      status: 'Scheduled',
-    });
+    const [{ count: upcomingExams }] = await db('exams')
+      .where('scheduled_date', '>=', todayStr).where({ status: 'Scheduled' }).count({ count: '*' });
 
     // Low/out-of-stock inventory
-    const allItems = await InventoryItem.find().lean({ virtuals: true });
-    const lowStockItems = allItems.filter(
-      (i) => i.status === 'Low Stock' || i.status === 'Out of Stock'
-    ).length;
+    const invRows = await db('inventory_items');
+    const lowStockItems = invRows.filter((i) => {
+      if (i.quantity_in_stock === 0) return true;
+      return i.quantity_in_stock <= i.reorder_level;
+    }).length;
 
     // Active notices
-    const activeNotices = await Notice.countDocuments({ isActive: true });
+    const [{ count: activeNotices }] = await db('notices').where({ is_active: 1 }).count({ count: '*' });
 
     // Washroom average score (latest log per washroom)
     let washroomAvgScore = 0;
-    try {
-      const floors = [1, 2, 3, 4, 5, 6];
-      const types = ['girls', 'boys'];
-      const scores = [];
-      for (const floor of floors) {
-        for (const type of types) {
-          const log = await WashroomLog.findOne({ floor, type })
-            .sort({ cleanedAt: -1 })
-            .lean();
-          if (log && log.score) scores.push(log.score);
-        }
+    const floors = [1, 2, 3, 4, 5, 6];
+    const types = ['girls', 'boys'];
+    const scores = [];
+    for (const floor of floors) {
+      for (const type of types) {
+        const log = await db('washroom_logs').where({ floor, type }).orderBy('cleaned_at', 'desc').first();
+        if (log && log.score) scores.push(log.score);
       }
-      if (scores.length > 0) {
-        washroomAvgScore = Math.round(scores.reduce((s, v) => s + v, 0) / scores.length);
-      }
-    } catch (e) {
-      // WashroomLog may be empty
+    }
+    if (scores.length > 0) {
+      washroomAvgScore = Math.round(scores.reduce((s, v) => s + v, 0) / scores.length);
     }
 
     // KRA factors computed from real data
-    const feeCollectionScore = activeStudents > 0
-      ? Math.min(100, Math.round((feeCollection / (activeStudents * 30000)) * 100))
+    const activeStudentsNum = Number(activeStudents);
+    const feeCollectionScore = activeStudentsNum > 0
+      ? Math.min(100, Math.round((feeCollection / (activeStudentsNum * 30000)) * 100))
       : 73;
 
     const kraFactors = [
@@ -118,67 +79,18 @@ router.get('/stats', auth, async (req, res) => {
     ];
 
     const topMetrics = [
-      {
-        label: 'Overall Attendance',
-        value: `${attendanceRate || 96}%`,
-        trend: 'Today',
-        detail: 'Present students today',
-        link: '/attendance',
-        accent: '#0ea5e9',
-      },
-      {
-        label: 'Active Students',
-        value: String(activeStudents),
-        trend: 'Enrolled',
-        detail: 'Currently active enrolments',
-        link: '/sis',
-        accent: '#8b5cf6',
-      },
-      {
-        label: 'Fee Collection',
-        value: `Rs. ${Math.round(feeCollection / 100000 * 10) / 10}L`,
-        trend: 'April round',
-        detail: 'April installment collected',
-        link: '/finance',
-        accent: '#10b981',
-      },
-      {
-        label: 'Open Admissions',
-        value: String(openAdmissions),
-        trend: 'Pending',
-        detail: 'Enquiries and in-process applications',
-        link: '/admissions',
-        accent: '#f97316',
-      },
-      {
-        label: 'Upcoming Exams',
-        value: String(upcomingExams),
-        trend: 'Scheduled',
-        detail: 'Exams scheduled from today',
-        link: '/exams',
-        accent: '#ef4444',
-      },
-      {
-        label: 'Cleanliness Compliance',
-        value: `${washroomAvgScore || 91}%`,
-        trend: 'Avg score',
-        detail: 'Washroom audit rating average',
-        link: '/washrooms',
-        accent: '#06b6d4',
-      },
+      { label: 'Overall Attendance', value: `${attendanceRate || 96}%`, trend: 'Today', detail: 'Present students today', link: '/attendance', accent: '#0ea5e9' },
+      { label: 'Active Students', value: String(activeStudentsNum), trend: 'Enrolled', detail: 'Currently active enrolments', link: '/sis', accent: '#8b5cf6' },
+      { label: 'Fee Collection', value: `Rs. ${Math.round(feeCollection / 100000 * 10) / 10}L`, trend: 'April round', detail: 'April installment collected', link: '/finance', accent: '#10b981' },
+      { label: 'Open Admissions', value: String(openAdmissions), trend: 'Pending', detail: 'Enquiries and in-process applications', link: '/admissions', accent: '#f97316' },
+      { label: 'Upcoming Exams', value: String(upcomingExams), trend: 'Scheduled', detail: 'Exams scheduled from today', link: '/exams', accent: '#ef4444' },
+      { label: 'Cleanliness Compliance', value: `${washroomAvgScore || 91}%`, trend: 'Avg score', detail: 'Washroom audit rating average', link: '/washrooms', accent: '#06b6d4' },
     ];
 
     return res.json({
-      attendanceRate,
-      feeCollection,
-      activeStudents,
-      openAdmissions,
-      upcomingExams,
-      lowStockItems,
-      activeNotices,
-      washroomAvgScore,
-      kraFactors,
-      topMetrics,
+      attendanceRate, feeCollection, activeStudents: activeStudentsNum, openAdmissions: Number(openAdmissions),
+      upcomingExams: Number(upcomingExams), lowStockItems, activeNotices: Number(activeNotices),
+      washroomAvgScore, kraFactors, topMetrics,
     });
   } catch (err) {
     console.error('GET /api/command-center/stats error:', err.message);

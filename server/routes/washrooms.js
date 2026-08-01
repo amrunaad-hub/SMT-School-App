@@ -1,8 +1,9 @@
 const express = require('express');
 const router = express.Router();
-const WashroomLog = require('../models/WashroomLog');
+const db = require('../db/database');
 const auth = require('../middleware/auth');
 const authorize = require('../middleware/authorize');
+const { serializeRow } = require('../utils/serialize');
 
 const floors = [1, 2, 3, 4, 5, 6];
 const washroomTypes = ['girls', 'boys'];
@@ -14,13 +15,21 @@ const defaultChecklist = [
   'Supervisor sign-off captured',
 ];
 
+function parseLog(row) {
+  return serializeRow(row, { jsonFields: ['checklist'], jsonDefault: [] });
+}
+
+const fmtDateTime = (val) => (val
+  ? new Date(val).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true })
+  : '');
+
 /**
- * Format a WashroomLog document into the shape the component expects.
+ * Format a washroom log row into the shape the component expects.
  */
-const formatRecord = (log) => {
-  if (!log) return null;
-  const floor = log.floor;
-  const type = log.type;
+const formatRecord = (row) => {
+  if (!row) return null;
+  const log = parseLog(row);
+  const { floor, type } = log;
   return {
     id: `floor-${floor}-${type}`,
     floor,
@@ -30,18 +39,8 @@ const formatRecord = (log) => {
     score: log.score || 80,
     cleanedBy: log.cleanedBy || '',
     cleaningType: log.cleaningType || 'Mopping',
-    lastCleanedAt: log.cleanedAt
-      ? new Date(log.cleanedAt).toLocaleString('en-IN', {
-          day: '2-digit', month: 'short', year: 'numeric',
-          hour: '2-digit', minute: '2-digit', hour12: true,
-        })
-      : '',
-    lastAuditAt: log.auditedAt
-      ? new Date(log.auditedAt).toLocaleString('en-IN', {
-          day: '2-digit', month: 'short', year: 'numeric',
-          hour: '2-digit', minute: '2-digit', hour12: true,
-        })
-      : '',
+    lastCleanedAt: fmtDateTime(log.cleanedAt) || (log.cleanedAt ? '' : ''),
+    lastAuditAt: fmtDateTime(log.auditedAt),
     supervisor: log.auditedBy || '',
     supplyStatus: log.supplyStatus || 'In stock',
     issue: log.issue || 'No issue reported',
@@ -53,26 +52,19 @@ const formatRecord = (log) => {
   };
 };
 
-const formatHistoryEntry = (log) => ({
-  cleanedAt: log.cleanedAt
-    ? new Date(log.cleanedAt).toLocaleString('en-IN', {
-        day: '2-digit', month: 'short', year: 'numeric',
-        hour: '2-digit', minute: '2-digit', hour12: true,
-      })
-    : '',
-  cleanedBy: log.cleanedBy || '',
-  cleaningType: log.cleaningType || 'Mopping',
-  auditedAt: log.auditedAt
-    ? new Date(log.auditedAt).toLocaleString('en-IN', {
-        day: '2-digit', month: 'short', year: 'numeric',
-        hour: '2-digit', minute: '2-digit', hour12: true,
-      })
-    : '',
-  auditedBy: log.auditedBy || '',
-  score: log.score || 80,
-  issue: log.issue || 'No issue reported',
-  comments: log.comments || '',
-});
+const formatHistoryEntry = (row) => {
+  const log = parseLog(row);
+  return {
+    cleanedAt: fmtDateTime(log.cleanedAt),
+    cleanedBy: log.cleanedBy || '',
+    cleaningType: log.cleaningType || 'Mopping',
+    auditedAt: fmtDateTime(log.auditedAt),
+    auditedBy: log.auditedBy || '',
+    score: log.score || 80,
+    issue: log.issue || 'No issue reported',
+    comments: log.comments || '',
+  };
+};
 
 // GET /api/washrooms/latest — latest log per (floor, type)
 router.get('/latest', auth, async (req, res) => {
@@ -81,11 +73,9 @@ router.get('/latest', auth, async (req, res) => {
 
     for (const floor of floors) {
       for (const type of washroomTypes) {
-        const log = await WashroomLog.findOne({ floor, type })
-          .sort({ cleanedAt: -1 })
-          .lean();
-        if (log) {
-          records.push(formatRecord(log));
+        const row = await db('washroom_logs').where({ floor, type }).orderBy('cleaned_at', 'desc').first();
+        if (row) {
+          records.push(formatRecord(row));
         } else {
           // Push a placeholder so component always has all 12
           records.push({
@@ -127,34 +117,42 @@ router.get('/:floor/:type/history', auth, async (req, res) => {
       return res.status(400).json({ message: 'Invalid floor or type.' });
     }
 
-    const logs = await WashroomLog.find({ floor, type })
-      .sort({ cleanedAt: -1 })
-      .limit(limit)
-      .lean();
+    const rows = await db('washroom_logs').where({ floor, type }).orderBy('cleaned_at', 'desc').limit(limit);
 
-    const latestLog = logs[0];
-    const record = latestLog ? formatRecord(latestLog) : null;
-    const cleaningHistory = logs.map(formatHistoryEntry);
+    const record = rows[0] ? formatRecord(rows[0]) : null;
+    const cleaningHistory = rows.map(formatHistoryEntry);
 
-    return res.json({
-      record,
-      cleaningHistory,
-      floor,
-      type,
-      total: logs.length,
-    });
+    return res.json({ record, cleaningHistory, floor, type, total: rows.length });
   } catch (err) {
     console.error('GET /api/washrooms/:floor/:type/history error:', err.message);
     return res.status(500).json({ message: 'Server error' });
   }
 });
 
+const CAMEL_TO_SNAKE = {
+  location: 'location', floor: 'floor', type: 'type', cleanedAt: 'cleaned_at', cleanedBy: 'cleaned_by',
+  cleaningType: 'cleaning_type', auditedAt: 'audited_at', auditedBy: 'audited_by', score: 'score',
+  status: 'status', supplyStatus: 'supply_status', issue: 'issue', comments: 'comments',
+  beforePhotoUrl: 'before_photo_url', afterPhotoUrl: 'after_photo_url',
+};
+
+function bodyToRow(body) {
+  const row = {};
+  Object.entries(body).forEach(([key, value]) => {
+    if (key === 'checklist') { row.checklist = JSON.stringify(value || []); return; }
+    const column = CAMEL_TO_SNAKE[key];
+    if (column) row[column] = value;
+  });
+  return row;
+}
+
 // POST /api/washrooms/log (admin)
 router.post('/log', auth, authorize(['admin']), async (req, res) => {
   try {
-    const log = new WashroomLog(req.body);
-    await log.save();
-    return res.status(201).json(log);
+    const now = new Date().toISOString();
+    const [id] = await db('washroom_logs').insert({ ...bodyToRow(req.body), created_at: now, updated_at: now });
+    const log = await db('washroom_logs').where({ id }).first();
+    return res.status(201).json(parseLog(log));
   } catch (err) {
     console.error('POST /api/washrooms/log error:', err.message);
     return res.status(500).json({ message: 'Server error' });
@@ -164,13 +162,11 @@ router.post('/log', auth, authorize(['admin']), async (req, res) => {
 // PUT /api/washrooms/log/:id (admin)
 router.put('/log/:id', auth, authorize(['admin']), async (req, res) => {
   try {
-    const log = await WashroomLog.findByIdAndUpdate(
-      req.params.id,
-      { $set: req.body },
-      { new: true, runValidators: true }
-    );
-    if (!log) return res.status(404).json({ message: 'Washroom log not found.' });
-    return res.json(log);
+    const updates = { ...bodyToRow(req.body), updated_at: new Date().toISOString() };
+    const count = await db('washroom_logs').where({ id: req.params.id }).update(updates);
+    if (!count) return res.status(404).json({ message: 'Washroom log not found.' });
+    const log = await db('washroom_logs').where({ id: req.params.id }).first();
+    return res.json(parseLog(log));
   } catch (err) {
     console.error('PUT /api/washrooms/log/:id error:', err.message);
     return res.status(500).json({ message: 'Server error' });
