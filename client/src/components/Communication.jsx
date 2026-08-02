@@ -536,6 +536,7 @@ const Communication = () => {
                   {!notice.isActive && <span style={{ padding: '2px 8px', borderRadius: '6px', background: '#f1f5f9', color: '#94a3b8', fontSize: '0.72rem', fontWeight: 700, whiteSpace: 'nowrap' }}>Deactivated</span>}
                   <span style={{ fontSize: '0.76rem', color: '#64748b', whiteSpace: 'nowrap' }}>Published: {formatDate(notice.publishedAt)}</span>
                   {notice.eventDate && <span style={{ fontSize: '0.76rem', color: '#64748b', whiteSpace: 'nowrap' }}>Event: {formatDate(notice.eventDate)}</span>}
+                  {notice.issuedBy && <span style={{ fontSize: '0.76rem', color: '#64748b', whiteSpace: 'nowrap' }}>By {notice.issuedBy}</span>}
                   {canManage && <span style={{ fontSize: '0.76rem', color: '#64748b', whiteSpace: 'nowrap' }}>👥 {notice.reachCount ?? 0} · 👁 {notice.openCount ?? 0}</span>}
                   {canModify(notice) && (
                     <div style={{ display: 'flex', gap: '6px' }}>
@@ -570,6 +571,7 @@ const Communication = () => {
                     ))}
                     {!notice.isActive && <span style={{ padding: '2px 8px', borderRadius: '6px', background: '#f1f5f9', color: '#94a3b8', fontSize: '0.72rem', fontWeight: 700 }}>Deactivated</span>}
                   </div>
+                  {notice.issuedBy && <p style={{ margin: '0 0 8px', color: '#64748b', fontSize: '0.78rem', fontWeight: 600 }}>By {notice.issuedBy}</p>}
                   <div
                     style={{ margin: '0 0 10px', color: '#475569', fontSize: '0.84rem', lineHeight: 1.55, maxHeight: '4.6em', overflow: 'hidden' }}
                     dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(notice.body) }}

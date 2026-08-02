@@ -15,6 +15,20 @@ const serialize = (row) => {
   return out;
 };
 
+// Human-readable sender label for a notice — "Admin"/"Principal" for those
+// roles (no personal name on file for them), or the teacher's actual name
+// from their staff record (falling back to their username if for some
+// reason they have no linked staff row).
+const resolveSenderLabel = async (user) => {
+  if (user.role === 'teacher') {
+    const staff = await db('staff').where({ user_id: user.id }).first();
+    if (staff) return staff.display_name;
+  }
+  if (user.role === 'admin') return 'Admin';
+  if (user.role === 'principal') return 'Principal';
+  return user.username;
+};
+
 // Auto-generate noticeCode
 const generateNoticeCode = async () => {
   const last = await db('notices').where('notice_code', 'like', 'NTC-%').orderBy('notice_code', 'desc').first();
@@ -121,6 +135,7 @@ async function notifySubscribers(notice) {
   if (!matched.length) return;
 
   const snippet = stripHtml(notice.body).slice(0, 120);
+  const body = notice.issuedBy ? `${notice.issuedBy}: ${snippet}` : snippet;
   // Parents view notices inside the Parents SPA's own tab state (there's no
   // dedicated route), while /communication is staff-only (admin/principal/
   // teacher) and 404s the route guard for a parent — that mismatch is why
@@ -129,8 +144,8 @@ async function notifySubscribers(notice) {
   matched.forEach((sub) => byRole[sub.role]?.push(sub));
 
   await Promise.all([
-    sendToSubscriptions(db, byRole.parent, { title: notice.title, body: snippet, url: `/parents?module=circular&noticeId=${notice.id}` }),
-    sendToSubscriptions(db, byRole.teacher, { title: notice.title, body: snippet, url: `/communication?noticeId=${notice.id}` }),
+    sendToSubscriptions(db, byRole.parent, { title: notice.title, body, url: `/parents?module=circular&noticeId=${notice.id}` }),
+    sendToSubscriptions(db, byRole.teacher, { title: notice.title, body, url: `/communication?noticeId=${notice.id}` }),
   ]);
 }
 
@@ -154,7 +169,7 @@ router.post('/', auth, authorize(['admin', 'principal', 'teacher']), async (req,
       body,
       category: category || 'General',
       target_audience: JSON.stringify(targetAudience || AUDIENCE_DEFAULT),
-      issued_by: issuedBy || req.user.username,
+      issued_by: issuedBy || await resolveSenderLabel(req.user),
       created_by_user_id: req.user.id,
       published_at: publishedAt || now,
       event_date: eventDate || null,

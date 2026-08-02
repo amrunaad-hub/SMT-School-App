@@ -758,6 +758,7 @@ const Parents = () => {
         eventDate: n.eventDate || null,
         title: n.title,
         body: n.body,
+        issuedBy: n.issuedBy || '',
         attachments: n.attachmentUrl ? [n.attachmentUrl] : [],
         isRead: !!n.isRead,
       }));
@@ -1387,7 +1388,7 @@ const Parents = () => {
         return (
           <div style={{ padding: isMobile ? '16px' : '24px', borderRadius: '16px', background: 'linear-gradient(135deg, #fff7ed 0%, #fff1f2 100%)', border: '2px solid #fb7185', boxShadow: '0 4px 16px rgba(244, 63, 94, 0.1)' }}>
             <h3 style={{ color: '#9f1239', fontSize: isMobile ? '1.2rem' : '1.4rem', fontWeight: '700', marginBottom: '12px' }}>
-              📢 Communication <span style={{ fontSize: isMobile ? '0.75rem' : '0.85rem', fontWeight: 600, color: '#be123c' }}>(from School Admin)</span>
+              📢 Communication <span style={{ fontSize: isMobile ? '0.75rem' : '0.85rem', fontWeight: 600, color: '#be123c' }}>(from School)</span>
             </h3>
             <input
               value={circularSearch}
@@ -1404,6 +1405,9 @@ const Parents = () => {
                   <button onClick={() => toggleCircularAccordion(notice, cardId, index)} style={{ width: '100%', border: 'none', background: '#fff', padding: isMobile ? '12px' : '14px', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <div style={{ textAlign: 'left' }}>
                       <p style={{ margin: 0, color: '#9f1239', fontWeight: 800, fontSize: isMobile ? '0.95rem' : '1rem' }}>{notice.title}</p>
+                      {notice.issuedBy && (
+                        <p style={{ margin: '2px 0 0', color: '#9f1239', fontWeight: 600, fontSize: isMobile ? '0.72rem' : '0.78rem' }}>By {notice.issuedBy}</p>
+                      )}
                       <p style={{ margin: '4px 0 0', color: '#be123c', fontWeight: 700, fontSize: isMobile ? '0.75rem' : '0.82rem' }}>
                         Received: {new Date(notice.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
                         {notice.eventDate && ` · Important: ${new Date(notice.eventDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}`}
