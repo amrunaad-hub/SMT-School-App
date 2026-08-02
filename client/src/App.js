@@ -25,6 +25,7 @@ import Login from './components/Login';
 const getHomePath = (role) => {
   if (role === 'parent') return '/parents';
   if (role === 'teacher') return '/teachers';
+  if (role === 'principal') return '/command-center';
   return '/';
 };
 
@@ -91,7 +92,7 @@ function App() {
           <Route
             path="/"
             element={
-              <ProtectedRoute authRole={authRole} allowedRoles={['admin', 'parent', 'teacher']}>
+              <ProtectedRoute authRole={authRole} allowedRoles={['admin', 'parent', 'teacher', 'principal']}>
                 {authRole === 'admin' ? <Dashboard /> : <Navigate to={getHomePath(authRole)} replace />}
               </ProtectedRoute>
             }
@@ -99,23 +100,28 @@ function App() {
           <Route path="/parents" element={<ProtectedRoute authRole={authRole} allowedRoles={['admin', 'parent']}><Parents /></ProtectedRoute>} />
           <Route path="/teachers" element={<ProtectedRoute authRole={authRole} allowedRoles={['admin', 'teacher']}><Teachers /></ProtectedRoute>} />
 
-          <Route path="/command-center" element={<ProtectedRoute authRole={authRole} allowedRoles={['admin']}><CommandCenter /></ProtectedRoute>} />
-          <Route path="/sis" element={<ProtectedRoute authRole={authRole} allowedRoles={['admin']}><SIS /></ProtectedRoute>} />
-          <Route path="/sis/grade/:grade" element={<ProtectedRoute authRole={authRole} allowedRoles={['admin']}><GradeDivisions /></ProtectedRoute>} />
-          <Route path="/sis/grade/:grade/:division" element={<ProtectedRoute authRole={authRole} allowedRoles={['admin']}><DivisionStudents /></ProtectedRoute>} />
-          <Route path="/sis/student/:id" element={<ProtectedRoute authRole={authRole} allowedRoles={['admin']}><StudentProfile /></ProtectedRoute>} />
-          <Route path="/finance" element={<ProtectedRoute authRole={authRole} allowedRoles={['admin']}><Finance /></ProtectedRoute>} />
-          <Route path="/admissions" element={<ProtectedRoute authRole={authRole} allowedRoles={['admin']}><Admissions /></ProtectedRoute>} />
-          <Route path="/timetable" element={<ProtectedRoute authRole={authRole} allowedRoles={['admin']}><Timetable /></ProtectedRoute>} />
-          <Route path="/timetable/period/:id" element={<ProtectedRoute authRole={authRole} allowedRoles={['admin']}><PeriodDetails /></ProtectedRoute>} />
+          {/* Principal: same school-wide oversight access as admin (command center,
+              SIS, attendance, finance, exams, admissions, communication/notices).
+              HR/Transport/Inventory/Washrooms stay admin-only back-office operations. */}
+          <Route path="/command-center" element={<ProtectedRoute authRole={authRole} allowedRoles={['admin', 'principal']}><CommandCenter /></ProtectedRoute>} />
+          <Route path="/sis" element={<ProtectedRoute authRole={authRole} allowedRoles={['admin', 'principal']}><SIS /></ProtectedRoute>} />
+          <Route path="/sis/grade/:grade" element={<ProtectedRoute authRole={authRole} allowedRoles={['admin', 'principal']}><GradeDivisions /></ProtectedRoute>} />
+          <Route path="/sis/grade/:grade/:division" element={<ProtectedRoute authRole={authRole} allowedRoles={['admin', 'principal']}><DivisionStudents /></ProtectedRoute>} />
+          <Route path="/sis/student/:id" element={<ProtectedRoute authRole={authRole} allowedRoles={['admin', 'principal']}><StudentProfile /></ProtectedRoute>} />
+          <Route path="/finance" element={<ProtectedRoute authRole={authRole} allowedRoles={['admin', 'principal']}><Finance /></ProtectedRoute>} />
+          <Route path="/admissions" element={<ProtectedRoute authRole={authRole} allowedRoles={['admin', 'principal']}><Admissions /></ProtectedRoute>} />
+          <Route path="/timetable" element={<ProtectedRoute authRole={authRole} allowedRoles={['admin', 'principal']}><Timetable /></ProtectedRoute>} />
+          <Route path="/timetable/period/:id" element={<ProtectedRoute authRole={authRole} allowedRoles={['admin', 'principal']}><PeriodDetails /></ProtectedRoute>} />
           <Route path="/hr" element={<ProtectedRoute authRole={authRole} allowedRoles={['admin']}><HR /></ProtectedRoute>} />
-          <Route path="/exams" element={<ProtectedRoute authRole={authRole} allowedRoles={['admin']}><Exams /></ProtectedRoute>} />
-          <Route path="/attendance" element={<ProtectedRoute authRole={authRole} allowedRoles={['admin']}><Attendance /></ProtectedRoute>} />
+          <Route path="/exams" element={<ProtectedRoute authRole={authRole} allowedRoles={['admin', 'principal']}><Exams /></ProtectedRoute>} />
+          {/* Teachers mark their own class's attendance — this route previously excluded
+              them entirely despite Attendance.js already supporting it. */}
+          <Route path="/attendance" element={<ProtectedRoute authRole={authRole} allowedRoles={['admin', 'principal', 'teacher']}><Attendance /></ProtectedRoute>} />
           <Route path="/transport" element={<ProtectedRoute authRole={authRole} allowedRoles={['admin']}><Transport /></ProtectedRoute>} />
           <Route path="/inventory" element={<ProtectedRoute authRole={authRole} allowedRoles={['admin']}><Inventory /></ProtectedRoute>} />
           <Route path="/washrooms" element={<ProtectedRoute authRole={authRole} allowedRoles={['admin']}><Washrooms /></ProtectedRoute>} />
           <Route path="/washrooms/:washroomId" element={<ProtectedRoute authRole={authRole} allowedRoles={['admin']}><Washrooms /></ProtectedRoute>} />
-          <Route path="/communication" element={<ProtectedRoute authRole={authRole} allowedRoles={['admin']}><Communication /></ProtectedRoute>} />
+          <Route path="/communication" element={<ProtectedRoute authRole={authRole} allowedRoles={['admin', 'principal']}><Communication /></ProtectedRoute>} />
 
           <Route path="*" element={<Navigate to={authRole ? getHomePath(authRole) : '/login'} replace />} />
         </Routes>

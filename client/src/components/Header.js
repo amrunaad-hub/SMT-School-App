@@ -85,6 +85,17 @@ const Header = ({ role = 'admin', onLogout, homePath = '/' }) => {
 
     const mobileNavItemStyle = isMobile ? { flex: '1 1 calc(50% - 10px)', minWidth: '140px' } : {};
     const isAdmin = role === 'admin';
+    const isPrincipal = role === 'principal';
+
+    // Principal gets the same oversight groups as admin, minus the back-office-only
+    // items (Transport, Inventory, HR, Teachers-as-admin-view) that stay admin-only
+    // in App.js's route guards.
+    const principalNav = groupedNav
+        .map((group) => ({
+            ...group,
+            items: group.items.filter((item) => !['/transport', '/inventory', '/hr', '/teachers'].includes(item.to)),
+        }))
+        .filter((group) => group.items.length > 0);
 
     return (
         <header style={{ background: 'linear-gradient(135deg, #1e40af 0%, #1e3a8a 100%)', color: 'white', padding: isMobile ? '14px 12px' : '20px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px', boxShadow: '0 4px 16px rgba(0, 0, 0, 0.15)', position: 'relative', zIndex: 50 }}>
@@ -97,15 +108,17 @@ const Header = ({ role = 'admin', onLogout, homePath = '/' }) => {
             </Link>
             <nav style={{ width: isMobile ? '100%' : 'auto', overflow: 'visible' }}>
                 <ul style={{ display: 'flex', gap: '10px', listStyle: 'none', margin: 0, padding: 0, flexWrap: isMobile ? 'wrap' : 'nowrap', overflow: 'visible', scrollbarWidth: 'thin' }}>
-                    {isAdmin ? (
+                    {(isAdmin || isPrincipal) ? (
                         <>
                             <li style={mobileNavItemStyle}>
-                                <Link style={{ ...topLinkStyle, width: isMobile ? '100%' : 'auto', textAlign: 'center', background: 'rgba(16,185,129,0.25)', border: '2px solid rgba(16,185,129,0.55)' }} to="/">🏠 Home</Link>
+                                <Link style={{ ...topLinkStyle, width: isMobile ? '100%' : 'auto', textAlign: 'center', background: 'rgba(16,185,129,0.25)', border: '2px solid rgba(16,185,129,0.55)' }} to={isAdmin ? '/' : '/command-center'}>🏠 Home</Link>
                             </li>
-                            <li style={mobileNavItemStyle}>
-                                <Link style={{ ...topLinkStyle, width: isMobile ? '100%' : 'auto', textAlign: 'center' }} to="/command-center">🎛️ Command</Link>
-                            </li>
-                            {groupedNav.map((group) => {
+                            {isAdmin && (
+                                <li style={mobileNavItemStyle}>
+                                    <Link style={{ ...topLinkStyle, width: isMobile ? '100%' : 'auto', textAlign: 'center' }} to="/command-center">🎛️ Command</Link>
+                                </li>
+                            )}
+                            {(isAdmin ? groupedNav : principalNav).map((group) => {
                                 const isOpen = openGroup === group.key;
                                 return (
                                     <li
