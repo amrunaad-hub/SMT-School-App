@@ -117,8 +117,8 @@ async function notifySubscribers(notice) {
   await sendToSubscriptions(db, matched, { title: notice.title, body: snippet, url: '/communication' });
 }
 
-// POST /api/notices (admin, principal)
-router.post('/', auth, authorize(['admin', 'principal']), async (req, res) => {
+// POST /api/notices (admin, principal, teacher)
+router.post('/', auth, authorize(['admin', 'principal', 'teacher']), async (req, res) => {
   try {
     const noticeCode = await generateNoticeCode();
     const now = new Date().toISOString();
@@ -137,7 +137,8 @@ router.post('/', auth, authorize(['admin', 'principal']), async (req, res) => {
       body,
       category: category || 'General',
       target_audience: JSON.stringify(targetAudience || AUDIENCE_DEFAULT),
-      issued_by: issuedBy || null,
+      issued_by: issuedBy || req.user.username,
+      created_by_user_id: req.user.id,
       published_at: publishedAt || now,
       event_date: eventDate || null,
       expires_at: expiresAt || null,
@@ -149,8 +150,9 @@ router.post('/', auth, authorize(['admin', 'principal']), async (req, res) => {
     });
 
     const notice = await db('notices').where({ id }).first();
-    if (notice.is_active) notifySubscribers(notice).catch((err) => console.error('[push] notifySubscribers failed:', err.message));
-    return res.status(201).json(serialize(notice));
+    const serializedNotice = serialize(notice);
+    if (notice.is_active) notifySubscribers(serializedNotice).catch((err) => console.error('[push] notifySubscribers failed:', err.message));
+    return res.status(201).json(serializedNotice);
   } catch (err) {
     console.error('POST /api/notices error:', err.message);
     if (err.message && err.message.includes('UNIQUE constraint failed')) {
@@ -166,9 +168,24 @@ const CAMEL_TO_SNAKE = {
   attachmentUrl: 'attachment_url', priority: 'priority', isActive: 'is_active',
 };
 
-// PUT /api/notices/:id (admin, principal)
-router.put('/:id', auth, authorize(['admin', 'principal']), async (req, res) => {
+// A teacher may only touch notices they created themselves; admin/principal
+// can touch anything. Rows created before created_by_user_id existed have it
+// null, which no teacher can match — effectively admin/principal-only, which
+// is the safe default for ownerless legacy notices.
+const canModifyNotice = (notice, user) => {
+  if (user.role === 'admin' || user.role === 'principal') return true;
+  return notice.created_by_user_id === user.id;
+};
+
+// PUT /api/notices/:id (admin, principal, or the teacher who created it)
+router.put('/:id', auth, authorize(['admin', 'principal', 'teacher']), async (req, res) => {
   try {
+    const existing = await db('notices').where({ id: req.params.id }).first();
+    if (!existing) return res.status(404).json({ message: 'Notice not found.' });
+    if (!canModifyNotice(existing, req.user)) {
+      return res.status(403).json({ message: 'You can only edit notices you created.' });
+    }
+
     const updates = {};
     Object.entries(req.body).forEach(([key, value]) => {
       if (key === 'targetAudience') { updates.target_audience = JSON.stringify(value); return; }
@@ -208,9 +225,15 @@ router.post('/:id/read', auth, async (req, res) => {
   }
 });
 
-// DELETE /api/notices/:id (admin, principal)
-router.delete('/:id', auth, authorize(['admin', 'principal']), async (req, res) => {
+// DELETE /api/notices/:id (admin, principal, or the teacher who created it)
+router.delete('/:id', auth, authorize(['admin', 'principal', 'teacher']), async (req, res) => {
   try {
+    const existing = await db('notices').where({ id: req.params.id }).first();
+    if (!existing) return res.status(404).json({ message: 'Notice not found.' });
+    if (!canModifyNotice(existing, req.user)) {
+      return res.status(403).json({ message: 'You can only delete notices you created.' });
+    }
+
     const count = await db('notices').where({ id: req.params.id }).delete();
     if (!count) return res.status(404).json({ message: 'Notice not found.' });
     return res.json({ message: 'Notice deleted.' });
