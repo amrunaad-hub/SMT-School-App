@@ -749,8 +749,12 @@ const Parents = () => {
   // here (matches the same Active/Archived split as the admin Communication screen).
   const mergedCircularNotices = useMemo(() => {
     const todayStr = new Date().toISOString().slice(0, 10);
+    // /mine already resolved which notices are actually addressed to this
+    // parent server-side — no reason to further filter by category here.
+    // This used to whitelist a fixed category list that didn't include
+    // "Fee", silently dropping any notice in that category (or any future
+    // category) from the feed entirely.
     const apiMapped = apiNotices
-      .filter((n) => ['General', 'Academic', 'Event', 'Holiday', 'Exam', 'Urgent'].includes(n.category))
       .filter((n) => !n.expiresAt || n.expiresAt.slice(0, 10) >= todayStr)
       .map((n) => ({
         id: n._id,
