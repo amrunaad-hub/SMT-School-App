@@ -330,8 +330,8 @@ router.post('/:id/approve', auth, authorize(['admin']), async (req, res) => {
         }
 
         if (createParentLogin && !guardian.user_id) {
-          const username = await generateUsername(trx, g.mobile);
-          const tempPassword = generateTempPassword();
+          const username = await generateUsername(trx, g.fullName);
+          const tempPassword = generateTempPassword(g.fullName);
           const [userId] = await trx('users').insert({
             username,
             role: 'parent',

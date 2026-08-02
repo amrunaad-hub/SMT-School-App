@@ -268,8 +268,8 @@ router.post('/:id/guardians', auth, authorize(['admin']), async (req, res) => {
 
       let credentials = null;
       if (createParentLogin && !guardian.user_id) {
-        const username = await generateUsername(trx, mobile);
-        const tempPassword = generateTempPassword();
+        const username = await generateUsername(trx, fullName);
+        const tempPassword = generateTempPassword(fullName);
         const [userId] = await trx('users').insert({
           username, role: 'parent', password: await bcrypt.hash(tempPassword, 12),
         });

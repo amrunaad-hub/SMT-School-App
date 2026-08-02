@@ -279,8 +279,8 @@ router.post('/:code/link-login', auth, authorize(['admin']), async (req, res) =>
       return res.json({ linked: { username: existingUser.username, role: existingUser.role } });
     }
 
-    const generatedUsername = await generateUsername(db, staffMember.phone || staffMember.staff_code);
-    const tempPassword = generateTempPassword();
+    const generatedUsername = await generateUsername(db, staffMember.display_name);
+    const tempPassword = generateTempPassword(staffMember.display_name);
     const [userId] = await db('users').insert({
       username: generatedUsername, role, password: await bcrypt.hash(tempPassword, 12),
     });
