@@ -1,13 +1,12 @@
-// One-off maintenance script: creates parent-role login accounts linked to 2
-// real Grade 3 students per division (alpha/beta/gamma), for manual QA of the
-// parent dashboard against actual student data instead of the generic
-// parent/parent demo account. Idempotent — safe to re-run.
+// One-off maintenance script: creates parent-role login accounts linked to
+// every real Grade 3 student across all divisions (alpha/beta/gamma), for
+// manual QA of the parent dashboard against actual student data instead of
+// the generic parent/parent demo account. Idempotent — safe to re-run.
 const bcrypt = require('bcryptjs');
 const db = require('../db/database');
 const { encryptText } = require('./crypto');
 
 const DIVISIONS = ['alpha', 'beta', 'gamma'];
-const STUDENTS_PER_DIVISION = 2;
 
 async function run() {
   const results = [];
@@ -15,8 +14,7 @@ async function run() {
   for (const division of DIVISIONS) {
     const students = await db('students')
       .where({ grade: 3, division, status: 'Active' })
-      .orderBy('roll_no', 'asc')
-      .limit(STUDENTS_PER_DIVISION);
+      .orderBy('roll_no', 'asc');
 
     for (const student of students) {
       const primaryLink = await db('student_guardians')
