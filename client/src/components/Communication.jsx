@@ -1,16 +1,32 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import ReactQuill, { Quill } from 'react-quill';
+import ReactQuill, { Quill } from 'react-quill-new';
+import QuillTableBetter from 'quill-table-better';
 import MagicUrl from 'quill-magic-url';
 import DOMPurify from 'dompurify';
-import 'react-quill/dist/quill.snow.css';
+import 'react-quill-new/dist/quill.snow.css';
+import 'quill-table-better/dist/quill-table-better.css';
 import { api } from '../api';
 
-// quill-better-table requires Quill 2.x; this app runs react-quill 2.0.0,
-// which bundles Quill 1.3.7 — the table module crashed on mount (blank page)
-// due to that version mismatch, so it's been removed. See the plan doc for
-// what a compatible table solution would need (an upgrade to Quill 2.x /
-// react-quill-new, not a drop-in module swap).
+// react-quill-new bundles Quill 2.x directly (unlike the old react-quill,
+// which was stuck on Quill 1.3.7) — quill-table-better is the Quill-2.x-native
+// table module, replacing the earlier quill-better-table attempt that crashed
+// the editor on mount due to a Quill 1.x/2.x version mismatch.
+Quill.register({ 'modules/table-better': QuillTableBetter }, true);
 Quill.register('modules/magicUrl', MagicUrl);
+
+// If Quill/its modules ever throw on mount again, contain the blast radius to
+// the message box instead of blanking the whole page (this is exactly the
+// failure mode that hit production earlier today).
+class EditorErrorBoundary extends React.Component {
+  constructor(props) { super(props); this.state = { hasError: false }; }
+  static getDerivedStateFromError() { return { hasError: true }; }
+  render() {
+    if (this.state.hasError) {
+      return <div style={{ padding: '14px', background: '#fee2e2', borderRadius: '8px', color: '#991b1b', fontSize: '0.85rem' }}>Message editor failed to load. Try refreshing the page; if it keeps happening, let the developer know.</div>;
+    }
+    return this.props.children;
+  }
+}
 
 const CATEGORY_STYLE = {
   General: { bg: '#f1f5f9', color: '#475569' },
@@ -47,8 +63,15 @@ const QUILL_MODULES = {
   toolbar: [
     ['bold', 'italic', 'underline'],
     [{ list: 'ordered' }, { list: 'bullet' }],
-    ['link'], ['clean'],
+    ['link'], ['table-better'], ['clean'],
   ],
+  table: false,
+  'table-better': {
+    language: 'en_US',
+    menus: ['column', 'row', 'merge', 'table', 'cell', 'wrap', 'copy', 'delete'],
+    toolbarTable: true,
+  },
+  keyboard: { bindings: QuillTableBetter.keyboardBindings },
   magicUrl: true,
 };
 
@@ -377,7 +400,9 @@ const Communication = () => {
             <div>
               <label style={labelStyle}>Message *</label>
               <div style={{ overflowX: 'auto' }}>
-                <ReactQuill theme="snow" value={form.body} onChange={(html) => setForm((f) => ({ ...f, body: html }))} modules={QUILL_MODULES} style={{ background: '#fff' }} />
+                <EditorErrorBoundary>
+                  <ReactQuill theme="snow" value={form.body} onChange={(html) => setForm((f) => ({ ...f, body: html }))} modules={QUILL_MODULES} style={{ background: '#fff' }} />
+                </EditorErrorBoundary>
               </div>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '14px' }}>
