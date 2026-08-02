@@ -29,19 +29,15 @@ const PRIORITY_STYLE = {
 };
 
 const CATEGORIES = Object.keys(CATEGORY_STYLE);
-const ROLES = ['parents', 'teachers', 'students', 'staff'];
 const GRADES = Array.from({ length: 10 }, (_, i) => i + 1);
 const DIVISIONS = ['alpha', 'beta', 'gamma'];
-const AUDIENCE_MODES = [
-  { key: 'all', label: 'All' },
-  { key: 'role', label: 'By Role' },
-  { key: 'grade', label: 'By Grade' },
-  { key: 'house', label: 'By House' },
-  { key: 'gradeDivision', label: 'By Grade & Division' },
-  { key: 'students', label: 'Specific Students' },
-];
 
-const EMPTY_AUDIENCE = { mode: 'all', roles: [], grades: [], houseIds: [], gradeDivisions: [], studentIds: [] };
+const EMPTY_AUDIENCE = {
+  allGrades: false, grades: [],
+  allDivisions: false, divisions: [],
+  allTeachers: false, teacherIds: [],
+  studentIds: [],
+};
 const EMPTY_FORM = {
   title: '', body: '', category: 'General', priority: 'Normal',
   eventDate: '', expiresAt: '', targetAudience: EMPTY_AUDIENCE,
@@ -66,10 +62,15 @@ const QUILL_MODULES = {
   magicUrl: true,
 };
 
-// ── Audience funnel picker ────────────────────────────────────────────────────
-const AudiencePicker = ({ audience, onChange, houses, inputStyle, labelStyle }) => {
-  const [gdGrade, setGdGrade] = useState(3);
-  const [gdDivisions, setGdDivisions] = useState([]);
+// ── Audience picker — three independent, additive facets (Grade×Division,
+// Teachers, Students) rather than a single mutually-exclusive mode. Divisions
+// auto-default to "All" the moment a grade is first selected, so there's no
+// separate commit step to forget (the earlier funnel required a "+ Add"
+// click that silently produced empty-audience notices when skipped).
+const AudiencePicker = ({ audience, onChange, inputStyle, labelStyle }) => {
+  const [teacherSearch, setTeacherSearch] = useState('');
+  const [teacherResults, setTeacherResults] = useState([]);
+  const [selectedTeachers, setSelectedTeachers] = useState([]);
   const [studentGrade, setStudentGrade] = useState(3);
   const [studentDivision, setStudentDivision] = useState('alpha');
   const [studentSearch, setStudentSearch] = useState('');
@@ -77,40 +78,61 @@ const AudiencePicker = ({ audience, onChange, houses, inputStyle, labelStyle }) 
   const [selectedStudents, setSelectedStudents] = useState([]);
 
   useEffect(() => {
-    if (audience.mode !== 'students') return;
+    if (audience.allTeachers) return;
+    api.get('/api/staff', { category: 'Teaching', search: teacherSearch })
+      .then((data) => setTeacherResults(data.staff || []))
+      .catch(() => setTeacherResults([]));
+  }, [audience.allTeachers, teacherSearch]);
+
+  useEffect(() => {
     api.get('/api/students', { grade: studentGrade, division: studentDivision, search: studentSearch, limit: 40 })
       .then((data) => setStudentResults(data.students || []))
       .catch(() => setStudentResults([]));
-  }, [audience.mode, studentGrade, studentDivision, studentSearch]);
+  }, [studentGrade, studentDivision, studentSearch]);
 
-  const setMode = (mode) => onChange({ ...EMPTY_AUDIENCE, mode });
+  const maybeDefaultDivisions = (next) => {
+    const gradeFacetActive = next.allGrades || next.grades.length > 0;
+    if (gradeFacetActive && !next.allDivisions && next.divisions.length === 0) {
+      return { ...next, allDivisions: true };
+    }
+    return next;
+  };
 
-  const toggleRole = (role) => {
-    const roles = audience.roles.includes(role) ? audience.roles.filter((r) => r !== role) : [...audience.roles, role];
-    onChange({ ...audience, roles });
+  const toggleAllGrades = () => {
+    const allGrades = !audience.allGrades;
+    onChange(maybeDefaultDivisions({ ...audience, allGrades, grades: allGrades ? [] : audience.grades }));
   };
   const toggleGrade = (g) => {
+    if (audience.allGrades) return;
     const grades = audience.grades.includes(g) ? audience.grades.filter((x) => x !== g) : [...audience.grades, g];
-    onChange({ ...audience, grades });
+    onChange(maybeDefaultDivisions({ ...audience, grades }));
   };
-  const toggleHouse = (id) => {
-    const houseIds = audience.houseIds.includes(id) ? audience.houseIds.filter((x) => x !== id) : [...audience.houseIds, id];
-    onChange({ ...audience, houseIds });
+  const toggleAllDivisions = () => {
+    const allDivisions = !audience.allDivisions;
+    onChange({ ...audience, allDivisions, divisions: allDivisions ? [] : audience.divisions });
   };
-  const addGradeDivisions = () => {
-    if (gdDivisions.length === 0) return;
-    const additions = gdDivisions.map((division) => ({ grade: gdGrade, division }));
-    const existing = audience.gradeDivisions.filter((gd) => !(gd.grade === gdGrade && gdDivisions.includes(gd.division)));
-    onChange({ ...audience, gradeDivisions: [...existing, ...additions] });
-    setGdDivisions([]);
+  const toggleDivision = (d) => {
+    if (audience.allDivisions) return;
+    const divisions = audience.divisions.includes(d) ? audience.divisions.filter((x) => x !== d) : [...audience.divisions, d];
+    onChange({ ...audience, divisions });
   };
-  const removeGradeDivision = (grade, division) => {
-    onChange({ ...audience, gradeDivisions: audience.gradeDivisions.filter((gd) => !(gd.grade === grade && gd.division === division)) });
+  const toggleAllTeachers = () => {
+    const allTeachers = !audience.allTeachers;
+    onChange({ ...audience, allTeachers, teacherIds: allTeachers ? [] : audience.teacherIds });
+  };
+  const addTeacher = (staffMember) => {
+    if (audience.teacherIds.includes(staffMember.id)) return;
+    onChange({ ...audience, teacherIds: [...audience.teacherIds, staffMember.id] });
+    setSelectedTeachers((prev) => [...prev, { id: staffMember.id, name: staffMember.displayName || `${staffMember.firstName} ${staffMember.lastName}` }]);
+  };
+  const removeTeacher = (id) => {
+    onChange({ ...audience, teacherIds: audience.teacherIds.filter((x) => x !== id) });
+    setSelectedTeachers((prev) => prev.filter((t) => t.id !== id));
   };
   const addStudent = (student) => {
-    if (audience.studentIds.includes(student._id)) return;
-    onChange({ ...audience, studentIds: [...audience.studentIds, student._id] });
-    setSelectedStudents((prev) => [...prev, { id: student._id, name: `${student.firstName} ${student.lastName}` }]);
+    if (audience.studentIds.includes(student.id)) return;
+    onChange({ ...audience, studentIds: [...audience.studentIds, student.id] });
+    setSelectedStudents((prev) => [...prev, { id: student.id, name: `${student.firstName} ${student.lastName}` }]);
   };
   const removeStudent = (id) => {
     onChange({ ...audience, studentIds: audience.studentIds.filter((x) => x !== id) });
@@ -118,107 +140,106 @@ const AudiencePicker = ({ audience, onChange, houses, inputStyle, labelStyle }) 
   };
 
   const chipStyle = { display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '4px 10px', borderRadius: '999px', background: '#dbeafe', color: '#1e3a8a', fontSize: '0.78rem', fontWeight: 600, marginRight: '6px', marginBottom: '6px' };
-  const modeBtnStyle = (active) => ({ padding: '7px 14px', borderRadius: '999px', border: `1px solid ${active ? '#1e40af' : '#cbd5e1'}`, background: active ? '#1e40af' : '#fff', color: active ? '#fff' : '#334155', fontWeight: 700, cursor: 'pointer', fontSize: '0.8rem' });
+  const pillStyle = (active, disabled) => ({ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '0.82rem', color: disabled ? '#94a3b8' : '#334155', background: active ? '#dbeafe' : '#f1f5f9', padding: '6px 10px', borderRadius: '999px', cursor: disabled ? 'default' : 'pointer', opacity: disabled ? 0.6 : 1 });
+  const sectionTitleStyle = { display: 'block', fontSize: '0.8rem', fontWeight: 700, color: '#1e293b', marginBottom: '8px', marginTop: '4px' };
+
+  const gradeFacetActive = audience.allGrades || audience.grades.length > 0;
 
   return (
     <div>
-      <label style={labelStyle}>Audience</label>
-      <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '10px' }}>
-        {AUDIENCE_MODES.map((m) => (
-          <button key={m.key} type="button" onClick={() => setMode(m.key)} style={modeBtnStyle(audience.mode === m.key)}>{m.label}</button>
+      <label style={labelStyle}>Audience — select any combination; the notice reaches the union of all selections below</label>
+
+      <span style={sectionTitleStyle}>Grades &amp; Divisions</span>
+      <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '8px' }}>
+        <label style={pillStyle(audience.allGrades, false)}>
+          <input type="checkbox" checked={audience.allGrades} onChange={toggleAllGrades} /> All Grades
+        </label>
+        {GRADES.map((g) => (
+          <label key={g} style={pillStyle(audience.allGrades || audience.grades.includes(g), audience.allGrades)}>
+            <input type="checkbox" checked={audience.allGrades || audience.grades.includes(g)} disabled={audience.allGrades} onChange={() => toggleGrade(g)} /> Grade {g}
+          </label>
         ))}
       </div>
-
-      {audience.mode === 'role' && (
-        <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-          {ROLES.map((r) => (
-            <label key={r} style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '0.82rem', color: '#334155', background: audience.roles.includes(r) ? '#dbeafe' : '#f1f5f9', padding: '6px 10px', borderRadius: '999px', cursor: 'pointer' }}>
-              <input type="checkbox" checked={audience.roles.includes(r)} onChange={() => toggleRole(r)} /> {r}
+      {gradeFacetActive && (
+        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '16px' }}>
+          <label style={pillStyle(audience.allDivisions, false)}>
+            <input type="checkbox" checked={audience.allDivisions} onChange={toggleAllDivisions} /> All Divisions
+          </label>
+          {DIVISIONS.map((d) => (
+            <label key={d} style={pillStyle(audience.allDivisions || audience.divisions.includes(d), audience.allDivisions)}>
+              <input type="checkbox" checked={audience.allDivisions || audience.divisions.includes(d)} disabled={audience.allDivisions} onChange={() => toggleDivision(d)} /> {d}
             </label>
           ))}
         </div>
       )}
 
-      {audience.mode === 'grade' && (
-        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-          {GRADES.map((g) => (
-            <label key={g} style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '0.82rem', color: '#334155', background: audience.grades.includes(g) ? '#dbeafe' : '#f1f5f9', padding: '6px 10px', borderRadius: '999px', cursor: 'pointer' }}>
-              <input type="checkbox" checked={audience.grades.includes(g)} onChange={() => toggleGrade(g)} /> Grade {g}
-            </label>
-          ))}
-        </div>
-      )}
-
-      {audience.mode === 'house' && (
-        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-          {houses.map((h) => (
-            <label key={h.id} style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '0.82rem', color: '#334155', background: audience.houseIds.includes(h.id) ? '#dbeafe' : '#f1f5f9', padding: '6px 10px', borderRadius: '999px', cursor: 'pointer' }}>
-              <input type="checkbox" checked={audience.houseIds.includes(h.id)} onChange={() => toggleHouse(h.id)} /> {h.name}
-            </label>
-          ))}
-        </div>
-      )}
-
-      {audience.mode === 'gradeDivision' && (
-        <div>
-          <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap', marginBottom: '8px' }}>
-            <select style={{ ...inputStyle, width: 'auto' }} value={gdGrade} onChange={(e) => setGdGrade(Number(e.target.value))}>
-              {GRADES.map((g) => <option key={g} value={g}>Grade {g}</option>)}
-            </select>
-            {DIVISIONS.map((d) => (
-              <label key={d} style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.8rem' }}>
-                <input type="checkbox" checked={gdDivisions.includes(d)} onChange={() => setGdDivisions((prev) => prev.includes(d) ? prev.filter((x) => x !== d) : [...prev, d])} /> {d}
-              </label>
-            ))}
-            <button type="button" onClick={addGradeDivisions} style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid #1e40af', background: '#eff6ff', color: '#1e40af', fontWeight: 700, cursor: 'pointer', fontSize: '0.78rem' }}>+ Add</button>
-          </div>
+      <span style={sectionTitleStyle}>Teachers</span>
+      <div style={{ marginBottom: '16px' }}>
+        <label style={{ ...pillStyle(audience.allTeachers, false), marginBottom: '8px' }}>
+          <input type="checkbox" checked={audience.allTeachers} onChange={toggleAllTeachers} /> All Teachers
+        </label>
+        {!audience.allTeachers && (
           <div>
-            {audience.gradeDivisions.map((gd) => (
-              <span key={`${gd.grade}-${gd.division}`} style={chipStyle}>
-                Grade {gd.grade} {gd.division}
-                <button type="button" onClick={() => removeGradeDivision(gd.grade, gd.division)} style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#1e3a8a', fontWeight: 800 }}>×</button>
-              </span>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {audience.mode === 'students' && (
-        <div>
-          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '8px' }}>
-            <select style={{ ...inputStyle, width: 'auto' }} value={studentGrade} onChange={(e) => setStudentGrade(Number(e.target.value))}>
-              {GRADES.map((g) => <option key={g} value={g}>Grade {g}</option>)}
-            </select>
-            <select style={{ ...inputStyle, width: 'auto' }} value={studentDivision} onChange={(e) => setStudentDivision(e.target.value)}>
-              {DIVISIONS.map((d) => <option key={d} value={d}>{d}</option>)}
-            </select>
-            <input style={{ ...inputStyle, width: '200px' }} placeholder="Search name..." value={studentSearch} onChange={(e) => setStudentSearch(e.target.value)} />
-          </div>
-          <div style={{ maxHeight: '160px', overflowY: 'auto', border: '1px solid #e2e8f0', borderRadius: '8px', marginBottom: '8px' }}>
-            {studentResults.map((s) => (
-              <div key={s._id} onClick={() => addStudent(s)} style={{ padding: '6px 10px', cursor: 'pointer', fontSize: '0.82rem', borderBottom: '1px solid #f1f5f9', background: audience.studentIds.includes(s._id) ? '#eff6ff' : '#fff' }}>
-                {s.firstName} {s.lastName} · Roll {s.rollNo}
+            <input style={{ ...inputStyle, width: '260px', marginBottom: '8px' }} placeholder="Search teacher name..." value={teacherSearch} onChange={(e) => setTeacherSearch(e.target.value)} />
+            {teacherSearch.trim() && (
+              <div style={{ maxHeight: '140px', overflowY: 'auto', border: '1px solid #e2e8f0', borderRadius: '8px', marginBottom: '8px' }}>
+                {teacherResults.map((t) => (
+                  <div key={t.id} onClick={() => addTeacher(t)} style={{ padding: '6px 10px', cursor: 'pointer', fontSize: '0.82rem', borderBottom: '1px solid #f1f5f9', background: audience.teacherIds.includes(t.id) ? '#eff6ff' : '#fff' }}>
+                    {t.displayName}
+                  </div>
+                ))}
+                {teacherResults.length === 0 && <div style={{ padding: '10px', color: '#94a3b8', fontSize: '0.8rem' }}>No teachers found.</div>}
               </div>
-            ))}
-            {studentResults.length === 0 && <div style={{ padding: '10px', color: '#94a3b8', fontSize: '0.8rem' }}>No students found.</div>}
+            )}
+            <div>
+              {selectedTeachers.map((t) => (
+                <span key={t.id} style={chipStyle}>
+                  {t.name}
+                  <button type="button" onClick={() => removeTeacher(t.id)} style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#1e3a8a', fontWeight: 800 }}>×</button>
+                </span>
+              ))}
+            </div>
           </div>
-          <div>
-            {selectedStudents.map((s) => (
-              <span key={s.id} style={chipStyle}>
-                {s.name}
-                <button type="button" onClick={() => removeStudent(s.id)} style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#1e3a8a', fontWeight: 800 }}>×</button>
-              </span>
-            ))}
-          </div>
+        )}
+      </div>
+
+      <span style={sectionTitleStyle}>Specific Students</span>
+      <div>
+        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '8px' }}>
+          <select style={{ ...inputStyle, width: 'auto' }} value={studentGrade} onChange={(e) => setStudentGrade(Number(e.target.value))}>
+            {GRADES.map((g) => <option key={g} value={g}>Grade {g}</option>)}
+          </select>
+          <select style={{ ...inputStyle, width: 'auto' }} value={studentDivision} onChange={(e) => setStudentDivision(e.target.value)}>
+            {DIVISIONS.map((d) => <option key={d} value={d}>{d}</option>)}
+          </select>
+          <input style={{ ...inputStyle, width: '200px' }} placeholder="Search name..." value={studentSearch} onChange={(e) => setStudentSearch(e.target.value)} />
         </div>
-      )}
+        <div style={{ maxHeight: '160px', overflowY: 'auto', border: '1px solid #e2e8f0', borderRadius: '8px', marginBottom: '8px' }}>
+          {studentResults.map((s) => (
+            <div key={s.id} onClick={() => addStudent(s)} style={{ padding: '6px 10px', cursor: 'pointer', fontSize: '0.82rem', borderBottom: '1px solid #f1f5f9', background: audience.studentIds.includes(s.id) ? '#eff6ff' : '#fff' }}>
+              {s.firstName} {s.lastName} · Roll {s.rollNo}
+            </div>
+          ))}
+          {studentResults.length === 0 && <div style={{ padding: '10px', color: '#94a3b8', fontSize: '0.8rem' }}>No students found.</div>}
+        </div>
+        <div>
+          {selectedStudents.map((s) => (
+            <span key={s.id} style={chipStyle}>
+              {s.name}
+              <button type="button" onClick={() => removeStudent(s.id)} style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#1e3a8a', fontWeight: 800 }}>×</button>
+            </span>
+          ))}
+        </div>
+      </div>
     </div>
   );
 };
 
 const Communication = () => {
+  const role = window.localStorage.getItem('smt-school-role');
+  const canManage = role === 'admin' || role === 'principal';
+
   const [notices, setNotices] = useState([]);
-  const [houses, setHouses] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [activeTab, setActiveTab] = useState('active');
@@ -239,14 +260,13 @@ const Communication = () => {
 
   const loadNotices = () => {
     setLoading(true);
-    api.get('/api/notices', {})
+    api.get(canManage ? '/api/notices' : '/api/notices/mine', {})
       .then((data) => { setNotices(data.notices || []); setError(null); })
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
   };
 
   useEffect(loadNotices, []);
-  useEffect(() => { api.get('/api/houses').then((d) => setHouses(d.houses || [])).catch(() => {}); }, []);
 
   const todayStr = new Date().toISOString().slice(0, 10);
   const { activeNotices, archivedNotices } = useMemo(() => {
@@ -272,15 +292,11 @@ const Communication = () => {
       return;
     }
     const a = form.targetAudience;
-    const scopedEmpty = (
-      (a.mode === 'role' && a.roles.length === 0)
-      || (a.mode === 'grade' && a.grades.length === 0)
-      || (a.mode === 'house' && a.houseIds.length === 0)
-      || (a.mode === 'gradeDivision' && a.gradeDivisions.length === 0)
-      || (a.mode === 'students' && a.studentIds.length === 0)
-    );
-    if (scopedEmpty) {
-      setSaveError('Audience is set to a specific selection but nothing was added — click "+ Add" (or select at least one option) before publishing, otherwise this notice reaches no one.');
+    const hasGradeDivision = a.allGrades || a.grades.length > 0;
+    const hasTeachers = a.allTeachers || a.teacherIds.length > 0;
+    const hasStudents = a.studentIds.length > 0;
+    if (!hasGradeDivision && !hasTeachers && !hasStudents) {
+      setSaveError('Select at least one audience — grade/division, teachers, or specific students — before publishing.');
       return;
     }
     setSaving(true);
@@ -326,13 +342,17 @@ const Communication = () => {
   const labelStyle = { display: 'block', fontSize: '0.78rem', fontWeight: 700, color: '#475569', marginBottom: '4px' };
 
   const audienceSummary = (audience) => {
-    if (!audience || audience.mode === 'all') return ['all'];
-    if (audience.mode === 'role') return audience.roles.length ? audience.roles : ['role: none selected'];
-    if (audience.mode === 'grade') return audience.grades.map((g) => `Grade ${g}`);
-    if (audience.mode === 'house') return houses.filter((h) => audience.houseIds.includes(h.id)).map((h) => h.name);
-    if (audience.mode === 'gradeDivision') return audience.gradeDivisions.map((gd) => `G${gd.grade} ${gd.division}`);
-    if (audience.mode === 'students') return [`${audience.studentIds.length} student(s)`];
-    return ['all'];
+    const a = { ...EMPTY_AUDIENCE, ...(audience || {}) };
+    const chips = [];
+    if (a.allGrades || a.grades.length > 0) {
+      const gradeLabel = a.allGrades ? 'All Grades' : `Grade ${a.grades.slice().sort((x, y) => x - y).join(',')}`;
+      const divLabel = a.allDivisions ? 'All divisions' : a.divisions.join(',');
+      chips.push(`${gradeLabel} · ${divLabel}`);
+    }
+    if (a.allTeachers) chips.push('All Teachers');
+    else if (a.teacherIds.length > 0) chips.push(`${a.teacherIds.length} teacher(s)`);
+    if (a.studentIds.length > 0) chips.push(`${a.studentIds.length} student(s)`);
+    return chips.length ? chips : ['No audience selected'];
   };
 
   const displayNotices = activeTab === 'active' ? activeNotices : archivedNotices;
@@ -343,18 +363,22 @@ const Communication = () => {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '12px' }}>
           <div>
             <h2 style={{ color: '#0f172a', marginBottom: '6px' }}>Communication</h2>
-            <p style={{ color: '#4b5563', marginTop: 0 }}>Send and manage announcements to parents, teachers, and staff.</p>
+            <p style={{ color: '#4b5563', marginTop: 0 }}>
+              {canManage ? 'Send and manage announcements to parents, teachers, and staff.' : 'Announcements sent to you.'}
+            </p>
           </div>
-          <button
-            type="button"
-            onClick={() => { setShowForm((s) => !s); setSaveError(null); setForm(EMPTY_FORM); setExpiresAtTouched(false); }}
-            style={{ padding: '10px 18px', borderRadius: '8px', border: 'none', background: showForm ? '#64748b' : '#1e40af', color: '#fff', fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer' }}
-          >
-            {showForm ? '✕ Cancel' : '+ New Notice'}
-          </button>
+          {canManage && (
+            <button
+              type="button"
+              onClick={() => { setShowForm((s) => !s); setSaveError(null); setForm(EMPTY_FORM); setExpiresAtTouched(false); }}
+              style={{ padding: '10px 18px', borderRadius: '8px', border: 'none', background: showForm ? '#64748b' : '#1e40af', color: '#fff', fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer' }}
+            >
+              {showForm ? '✕ Cancel' : '+ New Notice'}
+            </button>
+          )}
         </div>
 
-        {showForm && (
+        {canManage && showForm && (
           <form onSubmit={handleCreate} style={{ ...cardStyle, marginTop: '18px', display: 'grid', gap: '14px' }}>
             <div>
               <label style={labelStyle}>Title *</label>
@@ -390,7 +414,7 @@ const Communication = () => {
               </div>
             </div>
 
-            <AudiencePicker audience={form.targetAudience} onChange={(targetAudience) => setForm((f) => ({ ...f, targetAudience }))} houses={houses} inputStyle={inputStyle} labelStyle={labelStyle} />
+            <AudiencePicker audience={form.targetAudience} onChange={(targetAudience) => setForm((f) => ({ ...f, targetAudience }))} inputStyle={inputStyle} labelStyle={labelStyle} />
 
             {saveError && <div style={{ color: '#991b1b', fontSize: '0.82rem' }}>{saveError}</div>}
             <div>
@@ -428,7 +452,7 @@ const Communication = () => {
                   </div>
                   <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '10px' }}>
                     <span style={{ padding: '2px 8px', borderRadius: '6px', background: catStyle.bg, color: catStyle.color, fontSize: '0.72rem', fontWeight: 700 }}>{notice.category}</span>
-                    {audienceSummary(notice.targetAudience).map((label, i) => (
+                    {canManage && audienceSummary(notice.targetAudience).map((label, i) => (
                       <span key={i} style={{ padding: '2px 8px', borderRadius: '6px', background: '#f1f5f9', color: '#475569', fontSize: '0.72rem', fontWeight: 600 }}>{label}</span>
                     ))}
                     {!notice.isActive && <span style={{ padding: '2px 8px', borderRadius: '6px', background: '#f1f5f9', color: '#94a3b8', fontSize: '0.72rem', fontWeight: 700 }}>Deactivated</span>}
@@ -442,14 +466,16 @@ const Communication = () => {
                     {notice.eventDate && <span>Event: {formatDate(notice.eventDate)}</span>}
                     {notice.expiresAt && <span>Until: {formatDate(notice.expiresAt)}</span>}
                   </div>
-                  <div style={{ display: 'flex', gap: '8px', marginTop: '10px' }}>
-                    <button type="button" onClick={() => handleDeactivate(notice)} style={{ flex: 1, padding: '6px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', background: '#fff', color: '#475569', fontSize: '0.76rem', fontWeight: 600, cursor: 'pointer' }}>
-                      {notice.isActive ? 'Deactivate' : 'Reactivate'}
-                    </button>
-                    <button type="button" onClick={() => handleDelete(notice)} style={{ flex: 1, padding: '6px 10px', borderRadius: '6px', border: '1px solid #fecaca', background: '#fff', color: '#991b1b', fontSize: '0.76rem', fontWeight: 600, cursor: 'pointer' }}>
-                      Delete
-                    </button>
-                  </div>
+                  {canManage && (
+                    <div style={{ display: 'flex', gap: '8px', marginTop: '10px' }}>
+                      <button type="button" onClick={() => handleDeactivate(notice)} style={{ flex: 1, padding: '6px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', background: '#fff', color: '#475569', fontSize: '0.76rem', fontWeight: 600, cursor: 'pointer' }}>
+                        {notice.isActive ? 'Deactivate' : 'Reactivate'}
+                      </button>
+                      <button type="button" onClick={() => handleDelete(notice)} style={{ flex: 1, padding: '6px 10px', borderRadius: '6px', border: '1px solid #fecaca', background: '#fff', color: '#991b1b', fontSize: '0.76rem', fontWeight: 600, cursor: 'pointer' }}>
+                        Delete
+                      </button>
+                    </div>
+                  )}
                 </div>
               );
             })}

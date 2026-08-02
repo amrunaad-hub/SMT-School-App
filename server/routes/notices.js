@@ -4,11 +4,10 @@ const db = require('../db/database');
 const auth = require('../middleware/auth');
 const authorize = require('../middleware/authorize');
 const { serializeRow, serializeRows } = require('../utils/serialize');
-const { noticeAppliesToUser, normalizeAudience } = require('../utils/noticeAudience');
+const { noticeAppliesToUser, normalizeAudience, AUDIENCE_DEFAULT } = require('../utils/noticeAudience');
 
 const JSON_FIELDS = ['target_audience'];
 const BOOL_FIELDS = ['is_active'];
-const AUDIENCE_DEFAULT = { mode: 'all', roles: [], grades: [], houseIds: [], gradeDivisions: [], studentIds: [] };
 const serialize = (row) => {
   const out = serializeRow(row, { jsonFields: JSON_FIELDS, boolFields: BOOL_FIELDS, jsonDefault: AUDIENCE_DEFAULT });
   out.targetAudience = normalizeAudience(out.targetAudience);
