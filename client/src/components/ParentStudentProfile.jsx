@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { api } from '../api';
+import { INDIAN_STATES, districtsForState } from '../utils/indiaStatesDistricts';
 
 const DOC_TYPES = ['Birth Certificate', 'Aadhar', 'Transfer Certificate', 'Photo', 'Medical Certificate', 'Other'];
 
@@ -28,12 +29,12 @@ const PERSONAL_FIELDS = [
   { key: 'caste', label: 'Caste' },
   { key: 'subCaste', label: 'Sub-Caste' },
   { key: 'category', label: 'Category' },
-  { key: 'nationality', label: 'Nationality' },
+  { key: 'nationality', label: 'Nationality', type: 'select', options: ['Indian', 'Other'] },
   { key: 'motherTongue', label: 'Mother Tongue' },
   { key: 'birthPlace', label: 'Birth Place' },
+  { key: 'birthState', label: 'Birth State', type: 'state' },
+  { key: 'birthDistrict', label: 'Birth District', type: 'district' },
   { key: 'birthTaluka', label: 'Birth Taluka' },
-  { key: 'birthDistrict', label: 'Birth District' },
-  { key: 'birthState', label: 'Birth State' },
   { key: 'nativeAddress', label: 'Native Address' },
   { key: 'heightCm', label: 'Height (cm)', type: 'number' },
   { key: 'weightKg', label: 'Weight (kg)', type: 'number' },
@@ -389,6 +390,27 @@ const ParentStudentProfile = ({ studentId, isMobile }) => {
                   <select style={inputStyle} value={editForm[f.key] || ''} onChange={(e) => setEditForm((form) => ({ ...form, [f.key]: e.target.value }))}>
                     {f.options.map((o) => <option key={o} value={o}>{o}</option>)}
                   </select>
+                ) : f.type === 'state' ? (
+                  editForm.nationality === 'Indian' ? (
+                    <select style={inputStyle} value={editForm.birthState || ''} onChange={(e) => {
+                      const nextState = e.target.value;
+                      setEditForm((form) => ({ ...form, birthState: nextState, birthDistrict: districtsForState(nextState).includes(form.birthDistrict) ? form.birthDistrict : '' }));
+                    }}>
+                      <option value="">Select state/UT...</option>
+                      {INDIAN_STATES.map((s) => <option key={s} value={s}>{s}</option>)}
+                    </select>
+                  ) : (
+                    <input type="text" style={inputStyle} value={editForm.birthState || ''} onChange={(e) => setEditForm((form) => ({ ...form, birthState: e.target.value }))} />
+                  )
+                ) : f.type === 'district' ? (
+                  editForm.nationality === 'Indian' && editForm.birthState ? (
+                    <select style={inputStyle} value={editForm.birthDistrict || ''} onChange={(e) => setEditForm((form) => ({ ...form, birthDistrict: e.target.value }))}>
+                      <option value="">Select district...</option>
+                      {districtsForState(editForm.birthState).map((d) => <option key={d} value={d}>{d}</option>)}
+                    </select>
+                  ) : (
+                    <input type="text" style={inputStyle} value={editForm.birthDistrict || ''} onChange={(e) => setEditForm((form) => ({ ...form, birthDistrict: e.target.value }))} disabled={editForm.nationality === 'Indian' && !editForm.birthState} placeholder={editForm.nationality === 'Indian' ? 'Select a state first' : ''} />
+                  )
                 ) : f.type === 'textarea' ? (
                   <textarea style={{ ...inputStyle, minHeight: '60px' }} value={editForm[f.key] || ''} onChange={(e) => setEditForm((form) => ({ ...form, [f.key]: e.target.value }))} />
                 ) : (

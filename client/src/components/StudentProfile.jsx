@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api } from '../api';
+import { INDIAN_STATES, districtsForState } from '../utils/indiaStatesDistricts';
 
 const RELATIONS = ['Father', 'Mother', 'Guardian', 'Other'];
 const DOC_TYPES = ['Birth Certificate', 'Aadhar', 'Transfer Certificate', 'Photo', 'Medical Certificate', 'Other'];
@@ -461,11 +462,28 @@ const StudentProfile = () => {
               <label style={labelStyle}>Birth Taluka
                 <input style={inputStyle} value={editForm.birthTaluka} onChange={(e) => setEditForm({ ...editForm, birthTaluka: e.target.value })} />
               </label>
-              <label style={labelStyle}>Birth District
-                <input style={inputStyle} value={editForm.birthDistrict} onChange={(e) => setEditForm({ ...editForm, birthDistrict: e.target.value })} />
-              </label>
               <label style={labelStyle}>Birth State
-                <input style={inputStyle} value={editForm.birthState} onChange={(e) => setEditForm({ ...editForm, birthState: e.target.value })} />
+                {editForm.nationality === 'Indian' ? (
+                  <select style={inputStyle} value={editForm.birthState} onChange={(e) => {
+                    const nextState = e.target.value;
+                    setEditForm((f) => ({ ...f, birthState: nextState, birthDistrict: districtsForState(nextState).includes(f.birthDistrict) ? f.birthDistrict : '' }));
+                  }}>
+                    <option value="">Select state/UT...</option>
+                    {INDIAN_STATES.map((s) => <option key={s} value={s}>{s}</option>)}
+                  </select>
+                ) : (
+                  <input style={inputStyle} value={editForm.birthState} onChange={(e) => setEditForm({ ...editForm, birthState: e.target.value })} />
+                )}
+              </label>
+              <label style={labelStyle}>Birth District
+                {editForm.nationality === 'Indian' && editForm.birthState ? (
+                  <select style={inputStyle} value={editForm.birthDistrict} onChange={(e) => setEditForm({ ...editForm, birthDistrict: e.target.value })}>
+                    <option value="">Select district...</option>
+                    {districtsForState(editForm.birthState).map((d) => <option key={d} value={d}>{d}</option>)}
+                  </select>
+                ) : (
+                  <input style={inputStyle} value={editForm.birthDistrict} onChange={(e) => setEditForm({ ...editForm, birthDistrict: e.target.value })} disabled={editForm.nationality === 'Indian' && !editForm.birthState} placeholder={editForm.nationality === 'Indian' ? 'Select a state first' : ''} />
+                )}
               </label>
               <label style={labelStyle}>Religion
                 <input style={inputStyle} value={editForm.religion} onChange={(e) => setEditForm({ ...editForm, religion: e.target.value })} />
@@ -480,7 +498,10 @@ const StudentProfile = () => {
                 <input style={inputStyle} value={editForm.category} onChange={(e) => setEditForm({ ...editForm, category: e.target.value })} placeholder="e.g. OPEN, OBC, SC, ST, EWS" />
               </label>
               <label style={labelStyle}>Nationality
-                <input style={inputStyle} value={editForm.nationality} onChange={(e) => setEditForm({ ...editForm, nationality: e.target.value })} />
+                <select style={inputStyle} value={editForm.nationality} onChange={(e) => setEditForm({ ...editForm, nationality: e.target.value })}>
+                  <option value="Indian">Indian</option>
+                  <option value="Other">Other</option>
+                </select>
               </label>
               <label style={labelStyle}>Mother Tongue
                 <input style={inputStyle} value={editForm.motherTongue} onChange={(e) => setEditForm({ ...editForm, motherTongue: e.target.value })} />
