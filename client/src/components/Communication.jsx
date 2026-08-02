@@ -250,7 +250,16 @@ const AudiencePicker = ({ audience, onChange, inputStyle, labelStyle }) => {
 
 const Communication = () => {
   const role = window.localStorage.getItem('smt-school-role');
-  const canManage = role === 'admin' || role === 'principal';
+  const canManage = role === 'admin' || role === 'principal' || role === 'teacher';
+  const isAdminOrPrincipal = role === 'admin' || role === 'principal';
+
+  const [currentUserId, setCurrentUserId] = useState(null);
+  useEffect(() => {
+    api.get('/api/auth/me').then((data) => setCurrentUserId(data.user?.id)).catch(() => {});
+  }, []);
+  // Teachers can only edit/deactivate/delete notices they created themselves;
+  // admin/principal can touch anything (mirrors the server-side check).
+  const canModify = (notice) => isAdminOrPrincipal || notice.createdByUserId === currentUserId;
 
   const [notices, setNotices] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -518,7 +527,7 @@ const Communication = () => {
                   <span style={{ fontSize: '0.76rem', color: '#64748b', whiteSpace: 'nowrap' }}>Published: {formatDate(notice.publishedAt)}</span>
                   {notice.eventDate && <span style={{ fontSize: '0.76rem', color: '#64748b', whiteSpace: 'nowrap' }}>Event: {formatDate(notice.eventDate)}</span>}
                   {canManage && <span style={{ fontSize: '0.76rem', color: '#64748b', whiteSpace: 'nowrap' }}>👥 {notice.reachCount ?? 0} · 👁 {notice.openCount ?? 0}</span>}
-                  {canManage && (
+                  {canModify(notice) && (
                     <div style={{ display: 'flex', gap: '6px' }}>
                       <button type="button" onClick={() => handleEdit(notice)} style={{ padding: '5px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', background: '#fff', color: '#1e40af', fontSize: '0.74rem', fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}>Edit</button>
                       <button type="button" onClick={() => handleDeactivate(notice)} style={{ padding: '5px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', background: '#fff', color: '#475569', fontSize: '0.74rem', fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}>{notice.isActive ? 'Deactivate' : 'Reactivate'}</button>
@@ -565,7 +574,7 @@ const Communication = () => {
                       👥 Reached: {notice.reachCount ?? 0} · 👁 Opened: {notice.openCount ?? 0}
                     </div>
                   )}
-                  {canManage && (
+                  {canModify(notice) && (
                     <div style={{ display: 'flex', gap: '8px', marginTop: '10px' }}>
                       <button type="button" onClick={() => handleEdit(notice)} style={{ flex: 1, padding: '6px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', background: '#fff', color: '#1e40af', fontSize: '0.76rem', fontWeight: 600, cursor: 'pointer' }}>
                         Edit
