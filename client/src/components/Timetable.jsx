@@ -9,9 +9,13 @@ const SUBJECTS_G1_G4 = [
 const DIVISION_ORDER = ['alpha', 'beta', 'gamma'];
 const DIVISION_LABEL = { alpha: 'Alpha', beta: 'Beta', gamma: 'Gamma' };
 
+// Real school day structure: 1:00 PM - 5:30 PM, 30 min/period, one long and
+// one short break — matches the `periods` arrays written by
+// server/utils/seedSchoolData.js-adjacent one-off timetable population.
 const TIME_SLOTS = [
-  '1:00-1:30', '1:30-2:00', '2:00-2:30', '2:30-3:00', '3:00-3:20', '3:20-3:50',
-  '3:50-4:20', '4:20-4:30', '4:30-5:00', '5:00-5:30', '5:30-5:45',
+  '1:00-1:05', '1:05-1:15', '1:15-1:45', '1:45-2:15', '2:15-2:45',
+  '2:45-3:05', '3:05-3:35', '3:35-4:05', '4:05-4:15', '4:15-4:45',
+  '4:45-5:15', '5:15-5:30',
 ];
 
 const formatDateLabel = (date) => {
