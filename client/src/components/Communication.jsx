@@ -89,6 +89,7 @@ const AudiencePicker = ({ audience, onChange, inputStyle, labelStyle }) => {
   const [studentSearch, setStudentSearch] = useState('');
   const [studentResults, setStudentResults] = useState([]);
   const [selectedStudents, setSelectedStudents] = useState([]);
+  const [showStudentPicker, setShowStudentPicker] = useState(audience.studentIds.length > 0);
 
   useEffect(() => {
     if (audience.allTeachers) return;
@@ -218,31 +219,49 @@ const AudiencePicker = ({ audience, onChange, inputStyle, labelStyle }) => {
 
       <span style={sectionTitleStyle}>Specific Students</span>
       <div>
-        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '8px' }}>
-          <select style={{ ...inputStyle, width: 'auto' }} value={studentGrade} onChange={(e) => setStudentGrade(Number(e.target.value))}>
-            {GRADES.map((g) => <option key={g} value={g}>Grade {g}</option>)}
-          </select>
-          <select style={{ ...inputStyle, width: 'auto' }} value={studentDivision} onChange={(e) => setStudentDivision(e.target.value)}>
-            {DIVISIONS.map((d) => <option key={d} value={d}>{d}</option>)}
-          </select>
-          <input style={{ ...inputStyle, width: '200px' }} placeholder="Search name..." value={studentSearch} onChange={(e) => setStudentSearch(e.target.value)} />
-        </div>
-        <div style={{ maxHeight: '160px', overflowY: 'auto', border: '1px solid #e2e8f0', borderRadius: '8px', marginBottom: '8px' }}>
-          {studentResults.map((s) => (
-            <div key={s.id} onClick={() => addStudent(s)} style={{ padding: '6px 10px', cursor: 'pointer', fontSize: '0.82rem', borderBottom: '1px solid #f1f5f9', background: audience.studentIds.includes(s.id) ? '#eff6ff' : '#fff' }}>
-              {s.firstName} {s.lastName} · Roll {s.rollNo}
+        <label style={{ ...pillStyle(showStudentPicker, false), marginBottom: '8px' }}>
+          <input
+            type="checkbox"
+            checked={showStudentPicker}
+            onChange={(e) => {
+              const checked = e.target.checked;
+              setShowStudentPicker(checked);
+              if (!checked && audience.studentIds.length > 0) {
+                onChange({ ...audience, studentIds: [] });
+                setSelectedStudents([]);
+              }
+            }}
+          /> Select Specific Students
+        </label>
+        {showStudentPicker && (
+          <>
+            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '8px' }}>
+              <select style={{ ...inputStyle, width: 'auto' }} value={studentGrade} onChange={(e) => setStudentGrade(Number(e.target.value))}>
+                {GRADES.map((g) => <option key={g} value={g}>Grade {g}</option>)}
+              </select>
+              <select style={{ ...inputStyle, width: 'auto' }} value={studentDivision} onChange={(e) => setStudentDivision(e.target.value)}>
+                {DIVISIONS.map((d) => <option key={d} value={d}>{d}</option>)}
+              </select>
+              <input style={{ ...inputStyle, width: '200px' }} placeholder="Search name..." value={studentSearch} onChange={(e) => setStudentSearch(e.target.value)} />
             </div>
-          ))}
-          {studentResults.length === 0 && <div style={{ padding: '10px', color: '#94a3b8', fontSize: '0.8rem' }}>No students found.</div>}
-        </div>
-        <div>
-          {selectedStudents.map((s) => (
-            <span key={s.id} style={chipStyle}>
-              {s.name}
-              <button type="button" onClick={() => removeStudent(s.id)} style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#1e3a8a', fontWeight: 800 }}>×</button>
-            </span>
-          ))}
-        </div>
+            <div style={{ maxHeight: '160px', overflowY: 'auto', border: '1px solid #e2e8f0', borderRadius: '8px', marginBottom: '8px' }}>
+              {studentResults.map((s) => (
+                <div key={s.id} onClick={() => addStudent(s)} style={{ padding: '6px 10px', cursor: 'pointer', fontSize: '0.82rem', borderBottom: '1px solid #f1f5f9', background: audience.studentIds.includes(s.id) ? '#eff6ff' : '#fff' }}>
+                  {s.firstName} {s.lastName} · Roll {s.rollNo}
+                </div>
+              ))}
+              {studentResults.length === 0 && <div style={{ padding: '10px', color: '#94a3b8', fontSize: '0.8rem' }}>No students found.</div>}
+            </div>
+            <div>
+              {selectedStudents.map((s) => (
+                <span key={s.id} style={chipStyle}>
+                  {s.name}
+                  <button type="button" onClick={() => removeStudent(s.id)} style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#1e3a8a', fontWeight: 800 }}>×</button>
+                </span>
+              ))}
+            </div>
+          </>
+        )}
       </div>
     </div>
   );

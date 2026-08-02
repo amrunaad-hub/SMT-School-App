@@ -234,7 +234,12 @@ router.put('/:id', auth, authorize(['admin', 'principal', 'teacher']), async (re
     await db('notice_reads').where({ notice_id: req.params.id }).del();
 
     const notice = await db('notices').where({ id: req.params.id }).first();
-    return res.json(serialize(notice));
+    const serializedNotice = serialize(notice);
+    if (notice.is_active) {
+      notifySubscribers({ ...serializedNotice, title: `Updated: ${serializedNotice.title}` })
+        .catch((err) => console.error('[push] notifySubscribers failed:', err.message));
+    }
+    return res.json(serializedNotice);
   } catch (err) {
     console.error('PUT /api/notices/:id error:', err.message);
     return res.status(500).json({ message: 'Server error' });
