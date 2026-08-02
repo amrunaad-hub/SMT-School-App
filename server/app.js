@@ -26,6 +26,7 @@ const publicRoutes = require('./routes/public');
 const housesRoutes = require('./routes/houses');
 const periodNotesRoutes = require('./routes/period-notes');
 const notificationsRoutes = require('./routes/notifications');
+const pushRoutes = require('./routes/push');
 const { UPLOAD_ROOT } = require('./utils/upload');
 
 const app = express();
@@ -128,6 +129,7 @@ app.use('/api/public', publicRoutes);
 app.use('/api/houses', housesRoutes);
 app.use('/api/period-notes', periodNotesRoutes);
 app.use('/api/notifications', notificationsRoutes);
+app.use('/api/push', pushRoutes);
 
 // Health check endpoint - must be before static files and wildcard
 app.get('/api/health', (req, res) => {

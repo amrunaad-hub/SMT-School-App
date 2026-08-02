@@ -28,5 +28,5 @@ export const api = {
   get: (path, params) => req('GET', path, null, params),
   post: (path, body) => req('POST', path, body),
   put: (path, body) => req('PUT', path, body),
-  delete: (path) => req('DELETE', path),
+  delete: (path, body) => req('DELETE', path, body),
 };

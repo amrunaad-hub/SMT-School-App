@@ -7,6 +7,13 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
+      // injectManifest (custom src/sw.js) instead of the default generateSW,
+      // so the service worker can also handle push/notificationclick events
+      // for browser push notifications — generateSW only supports declarative
+      // caching config, no room for custom event listeners.
+      strategies: 'injectManifest',
+      srcDir: 'src',
+      filename: 'sw.js',
       includeAssets: ['icons/apple-touch-icon.png'],
       manifest: {
         name: 'SMT English Medium School',
@@ -23,21 +30,12 @@ export default defineConfig({
           { src: '/icons/icon-maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
         ],
       },
-      workbox: {
-        // Never cache API responses — attendance/notices/etc. must always be fresh.
-        // Precaching covers the app shell (JS/CSS/HTML) so it still loads offline.
-        // /uploads/ must also be excluded: it serves real files (PDFs, images)
-        // directly, and without this the SW's navigation fallback intercepts
-        // clicks on those links and serves index.html instead — looks like the
-        // app just "reloads" instead of opening/downloading the file.
-        navigateFallbackDenylist: [/^\/api\//, /^\/uploads\//],
-        runtimeCaching: [
-          {
-            urlPattern: /^\/api\//,
-            handler: 'NetworkOnly',
-          },
-        ],
-      },
+      // API calls aren't precached and no route is registered for them in
+      // src/sw.js, so they pass straight through to the network untouched —
+      // equivalent to generateSW's NetworkOnly, just by omission rather than
+      // config. Navigation fallback (with /api/ and /uploads/ excluded) is
+      // implemented directly in src/sw.js instead of here, since injectManifest
+      // mode doesn't read the `workbox` option generateSW does.
     }),
   ],
   server: {

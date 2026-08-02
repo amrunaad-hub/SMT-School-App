@@ -45,6 +45,10 @@ const Parents = () => {
   const [apiNotices, setApiNotices] = useState([]);
   const [dailyActivities, setDailyActivities] = useState([]);
   const [serverNotifications, setServerNotifications] = useState({ unreadCount: 0, notifications: [] });
+  // 'unsupported' | 'off' | 'on' | 'busy' — push notification opt-in state.
+  const [pushStatus, setPushStatus] = useState(
+    ('serviceWorker' in navigator && 'PushManager' in window) ? 'off' : 'unsupported'
+  );
 
   const apiBase = import.meta.env.VITE_API_BASE_URL || '';
 
@@ -57,6 +61,60 @@ const Parents = () => {
   useEffect(() => {
     setSelectedStudent(null);
   }, [selectedChildId]);
+
+  // Reflect whatever the browser already has (e.g. subscribed on another
+  // visit) rather than assuming 'off' until the user clicks the button.
+  useEffect(() => {
+    if (pushStatus === 'unsupported') return;
+    navigator.serviceWorker.ready
+      .then((reg) => reg.pushManager.getSubscription())
+      .then((sub) => setPushStatus(sub ? 'on' : 'off'))
+      .catch(() => {});
+  }, []);
+
+  const urlBase64ToUint8Array = (base64String) => {
+    const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+    const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+    const rawData = window.atob(base64);
+    return Uint8Array.from([...rawData].map((c) => c.charCodeAt(0)));
+  };
+
+  const enablePushNotifications = async () => {
+    setPushStatus('busy');
+    try {
+      const permission = await Notification.requestPermission();
+      if (permission !== 'granted') { setPushStatus('off'); return; }
+
+      const { publicKey } = await api.get('/api/push/vapid-public-key');
+      const registration = await navigator.serviceWorker.ready;
+      const subscription = await registration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(publicKey),
+      });
+
+      await api.post('/api/push/subscribe', subscription.toJSON());
+      setPushStatus('on');
+    } catch (err) {
+      pushNotification(err.message || 'Could not enable notifications.', 'error');
+      setPushStatus('off');
+    }
+  };
+
+  const disablePushNotifications = async () => {
+    setPushStatus('busy');
+    try {
+      const registration = await navigator.serviceWorker.ready;
+      const subscription = await registration.pushManager.getSubscription();
+      if (subscription) {
+        await api.delete('/api/push/subscribe', { endpoint: subscription.endpoint });
+        await subscription.unsubscribe();
+      }
+      setPushStatus('off');
+    } catch (err) {
+      pushNotification(err.message || 'Could not disable notifications.', 'error');
+      setPushStatus('on');
+    }
+  };
 
   // Fetch this parent's own audience-resolved notices (broad + anything
   // scoped to their specific child's grade/house/division/id) for the
@@ -1475,7 +1533,19 @@ const Parents = () => {
         <div style={{ borderRadius: '18px', overflow: 'hidden', border: '1px solid #fecdd3', boxShadow: '0 12px 28px rgba(244, 63, 94, 0.15)' }}>
           <div style={{ background: 'linear-gradient(135deg, #ef4444 0%, #e11d48 100%)', color: '#fff', padding: isMobile ? '14px' : '20px', position: 'relative' }}>
             <h2 style={{ margin: 0, fontSize: isMobile ? '1.25rem' : '1.7rem', fontWeight: 800 }}>Parents Portal</h2>
-            <p style={{ margin: '6px 0 0', color: '#ffe4e6', fontWeight: 600, fontSize: isMobile ? '0.84rem' : '0.95rem' }}>SMT School, Thane</p>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '6px', flexWrap: 'wrap' }}>
+              <p style={{ margin: 0, color: '#ffe4e6', fontWeight: 600, fontSize: isMobile ? '0.84rem' : '0.95rem' }}>SMT School, Thane</p>
+              {pushStatus !== 'unsupported' && (
+                <button
+                  type="button"
+                  onClick={pushStatus === 'on' ? disablePushNotifications : enablePushNotifications}
+                  disabled={pushStatus === 'busy'}
+                  style={{ border: '1px solid rgba(255,255,255,0.6)', background: pushStatus === 'on' ? 'rgba(255,255,255,0.25)' : 'transparent', color: '#fff', borderRadius: '999px', padding: '3px 10px', fontSize: '0.72rem', fontWeight: 700, cursor: pushStatus === 'busy' ? 'default' : 'pointer', opacity: pushStatus === 'busy' ? 0.7 : 1 }}
+                >
+                  {pushStatus === 'on' ? '🔔 Notifications On' : pushStatus === 'busy' ? 'Working…' : '🔕 Enable Notifications'}
+                </button>
+              )}
+            </div>
             {serverNotifications.unreadCount > 0 && (
               <div
                 title={serverNotifications.notifications.slice(0, 5).map((n) => n.title).join('\n')}

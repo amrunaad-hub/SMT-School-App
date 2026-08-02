@@ -5,6 +5,7 @@ const auth = require('../middleware/auth');
 const authorize = require('../middleware/authorize');
 const { serializeRow, serializeRows } = require('../utils/serialize');
 const { noticeAppliesToUser, normalizeAudience, resolveReachCount, AUDIENCE_DEFAULT } = require('../utils/noticeAudience');
+const { sendToSubscriptions } = require('../utils/webPush');
 
 const JSON_FIELDS = ['target_audience'];
 const BOOL_FIELDS = ['is_active'];
@@ -92,6 +93,30 @@ router.get('/:id', auth, async (req, res) => {
   }
 });
 
+// Push a "new notice" alert to every subscribed parent/teacher whose
+// audience actually matches — reuses the same per-user matching the
+// /mine feed uses, just scoped to the (usually small) set of users who
+// opted into notifications rather than every user. Never awaited by the
+// caller: publishing shouldn't block on push delivery.
+async function notifySubscribers(notice) {
+  const subs = await db('push_subscriptions')
+    .join('users', 'users.id', 'push_subscriptions.user_id')
+    .whereIn('users.role', ['parent', 'teacher'])
+    .select('push_subscriptions.id', 'push_subscriptions.user_id', 'push_subscriptions.endpoint', 'push_subscriptions.p256dh', 'push_subscriptions.auth', 'users.role');
+
+  if (!subs.length) return;
+
+  const matched = [];
+  for (const sub of subs) {
+    const applies = await noticeAppliesToUser(db, notice, { id: sub.user_id, role: sub.role });
+    if (applies) matched.push(sub);
+  }
+  if (!matched.length) return;
+
+  const snippet = notice.body.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 120);
+  await sendToSubscriptions(db, matched, { title: notice.title, body: snippet, url: '/communication' });
+}
+
 // POST /api/notices (admin, principal)
 router.post('/', auth, authorize(['admin', 'principal']), async (req, res) => {
   try {
@@ -124,6 +149,7 @@ router.post('/', auth, authorize(['admin', 'principal']), async (req, res) => {
     });
 
     const notice = await db('notices').where({ id }).first();
+    if (notice.is_active) notifySubscribers(notice).catch((err) => console.error('[push] notifySubscribers failed:', err.message));
     return res.status(201).json(serialize(notice));
   } catch (err) {
     console.error('POST /api/notices error:', err.message);
