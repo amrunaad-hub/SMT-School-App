@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { api } from './api';
 import Header from './components/Header';
 import Dashboard from './components/Dashboard';
 import CommandCenter from './components/CommandCenter';
@@ -79,9 +80,29 @@ function App() {
   };
 
   const handleLogout = () => {
-    setAuthRole('');
-    window.localStorage.removeItem('smt-school-role');
-    window.localStorage.removeItem('smt-school-token');
+    const clearLocal = () => {
+      setAuthRole('');
+      window.localStorage.removeItem('smt-school-role');
+      window.localStorage.removeItem('smt-school-token');
+    };
+
+    // Push subscriptions live at the browser/device level, not per-login —
+    // on a shared device a stale subscription would otherwise keep sending
+    // whoever logs in next the previous user's notifications. Unsubscribe
+    // fully (server row + browser) before wiping the token that authorizes
+    // the delete call, so the next login starts clean and has to opt in
+    // again explicitly.
+    if ('serviceWorker' in navigator && 'PushManager' in window) {
+      navigator.serviceWorker.ready
+        .then((reg) => reg.pushManager.getSubscription())
+        .then((sub) => (sub
+          ? api.delete('/api/push/subscribe', { endpoint: sub.endpoint }).catch(() => {}).then(() => sub.unsubscribe().catch(() => {}))
+          : null))
+        .catch(() => {})
+        .finally(clearLocal);
+    } else {
+      clearLocal();
+    }
   };
 
   return (

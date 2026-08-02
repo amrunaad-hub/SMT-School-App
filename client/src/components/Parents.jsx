@@ -65,13 +65,22 @@ const Parents = () => {
     setSelectedStudent(null);
   }, [selectedChildId]);
 
-  // Reflect whatever the browser already has (e.g. subscribed on another
-  // visit) rather than assuming 'off' until the user clicks the button.
+  // A push subscription lives at the browser/device level (tied to the
+  // service worker's origin), not to whichever account happens to be
+  // logged in — on a shared device, a previous parent's login could have
+  // created it. Re-POSTing it here on every load re-associates it with
+  // whoever is actually logged in *now* (the subscribe endpoint upserts by
+  // endpoint, so this just updates ownership, no duplicate rows), instead
+  // of silently leaving it bound to whoever subscribed first.
   useEffect(() => {
     if (pushStatus === 'unsupported') return;
     navigator.serviceWorker.ready
       .then((reg) => reg.pushManager.getSubscription())
-      .then((sub) => setPushStatus(sub ? 'on' : 'off'))
+      .then((sub) => {
+        if (!sub) { setPushStatus('off'); return; }
+        api.post('/api/push/subscribe', sub.toJSON()).catch(() => {});
+        setPushStatus('on');
+      })
       .catch(() => {});
   }, []);
 
