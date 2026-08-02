@@ -26,7 +26,11 @@ export default defineConfig({
       workbox: {
         // Never cache API responses — attendance/notices/etc. must always be fresh.
         // Precaching covers the app shell (JS/CSS/HTML) so it still loads offline.
-        navigateFallbackDenylist: [/^\/api\//],
+        // /uploads/ must also be excluded: it serves real files (PDFs, images)
+        // directly, and without this the SW's navigation fallback intercepts
+        // clicks on those links and serves index.html instead — looks like the
+        // app just "reloads" instead of opening/downloading the file.
+        navigateFallbackDenylist: [/^\/api\//, /^\/uploads\//],
         runtimeCaching: [
           {
             urlPattern: /^\/api\//,
