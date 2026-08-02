@@ -63,6 +63,16 @@ router.get('/mine', auth, async (req, res) => {
     for (const notice of notices) {
       if (await noticeAppliesToUser(db, notice, req.user)) applicable.push(notice);
     }
+
+    const readIds = new Set();
+    if (applicable.length) {
+      const readRows = await db('notice_reads')
+        .where({ user_id: req.user.id })
+        .whereIn('notice_id', applicable.map((n) => n.id));
+      readRows.forEach((r) => readIds.add(r.notice_id));
+    }
+    applicable.forEach((notice) => { notice.isRead = readIds.has(notice.id); });
+
     return res.json({ notices: applicable, total: applicable.length });
   } catch (err) {
     console.error('GET /api/notices/mine error:', err.message);
@@ -143,6 +153,10 @@ router.put('/:id', auth, authorize(['admin', 'principal']), async (req, res) => 
 
     const count = await db('notices').where({ id: req.params.id }).update(updates);
     if (!count) return res.status(404).json({ message: 'Notice not found.' });
+
+    // Editing invalidates prior reads — recipients who already opened this
+    // notice should see it as unread again since the content they read is stale.
+    await db('notice_reads').where({ notice_id: req.params.id }).del();
 
     const notice = await db('notices').where({ id: req.params.id }).first();
     return res.json(serialize(notice));

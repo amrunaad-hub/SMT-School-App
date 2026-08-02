@@ -4,6 +4,10 @@ import DOMPurify from 'dompurify';
 import { api } from '../api';
 import ParentStudentProfile from './ParentStudentProfile';
 
+// currentStudent.grade is a display string ("Grade 3"); the timetable/notes
+// APIs need the bare numeric grade.
+const gradeNumber = (label) => Number(String(label).replace(/\D/g, ''));
+
 const Parents = () => {
   const [activeModule, setActiveModule] = useState('profile');
   const [selectedStudent, setSelectedStudent] = useState(null);
@@ -12,10 +16,11 @@ const Parents = () => {
   const [selectedTimetableDate, setSelectedTimetableDate] = useState(new Date(2026, 3, 15));
   const [activityMonth, setActivityMonth] = useState(new Date(2026, 3, 1));
   const [timetableMonth, setTimetableMonth] = useState(new Date(2026, 3, 1));
+  const [timetableEntries, setTimetableEntries] = useState([]);
   const [activityView, setActivityView] = useState('classwork');
+  const [activityDrillLevel, setActivityDrillLevel] = useState('month'); // 'month' -> 'week' -> 'day' (a timetable instance)
   const [activitySearch, setActivitySearch] = useState('');
   const [circularSearch, setCircularSearch] = useState('');
-  const [messageSearch, setMessageSearch] = useState('');
   const [isMobile, setIsMobile] = useState(() => window.innerWidth < 900);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [currentMonth, setCurrentMonth] = useState(new Date(2026, 3, 1));
@@ -222,8 +227,8 @@ const Parents = () => {
     if (jsDay === 0) { setDailyActivities([]); return; }
 
     Promise.all([
-      api.get('/api/timetable', { grade: currentStudent.grade, division: currentStudent.division, day: jsDay }),
-      api.get('/api/period-notes', { grade: currentStudent.grade, division: currentStudent.division, date: dateKey }),
+      api.get('/api/timetable', { grade: gradeNumber(currentStudent.grade), division: currentStudent.division, day: jsDay }),
+      api.get('/api/period-notes', { grade: gradeNumber(currentStudent.grade), division: currentStudent.division, date: dateKey }),
     ])
       .then(([timetableData, notesData]) => {
         const periods = timetableData.periods || [];
@@ -242,6 +247,29 @@ const Parents = () => {
       })
       .catch(() => setDailyActivities([]));
   }, [currentStudent, selectedActivityDate]);
+
+  // Static weekly schedule for the student's own grade+division — the same
+  // periods recur every week for that class, keyed by day-of-week rather than
+  // a specific calendar date (there's no per-date row to match against).
+  useEffect(() => {
+    if (!currentStudent) { setTimetableEntries([]); return; }
+    const jsDay = selectedTimetableDate.getDay();
+    if (jsDay === 0) { setTimetableEntries([]); return; }
+
+    api.get('/api/timetable', { grade: gradeNumber(currentStudent.grade), division: currentStudent.division, day: jsDay })
+      .then((data) => {
+        const periods = data.periods || [];
+        setTimetableEntries(periods.map((p) => ({
+          period: p.type && p.type !== 'Period' ? p.type : `Period ${p.periodIndex}`,
+          subject: p.subject || '',
+          time: p.time || '',
+          teacher: p.teacherName || '',
+          details: p.room ? `Room: ${p.room}` : '',
+          attachments: [],
+        })));
+      })
+      .catch(() => setTimetableEntries([]));
+  }, [currentStudent, selectedTimetableDate]);
 
   const parentProfile = {
     name: 'Mr. Rajesh Kulkarni',
@@ -289,17 +317,6 @@ const Parents = () => {
     setTimeout(() => setNotifications((prev) => prev.filter((n) => n.id !== id)), 4500);
   };
 
-  const timetable = [
-    { date: '2026-04-14', time: '08:00-08:40', period: 'Period 1', subject: 'English', teacher: 'Ms. Anuja Kulkarni', details: 'Grammar and comprehension', attachments: [] },
-    { date: '2026-04-14', time: '08:45-09:25', period: 'Period 2', subject: 'Mathematics', teacher: 'Mr. Shrirang Joshi', details: 'Algebra equations', attachments: [] },
-    { date: '2026-04-15', time: '08:00-08:40', period: 'Period 1', subject: 'Science', teacher: 'Ms. Nandini Ranade', details: 'Video: Eating habits of animals', attachments: ['science-video-link.txt'] },
-    { date: '2026-04-15', time: '08:45-09:25', period: 'Period 2', subject: 'Hindi', teacher: 'Ms. Revati Apte', details: 'Notebook notes discussion', attachments: ['hindi-notes.pdf'] },
-    { date: '2026-04-16', time: '08:00-08:40', period: 'Period 1', subject: 'Social Studies', teacher: 'Mr. Akshay Deshmukh', details: 'Map reading practice', attachments: [] },
-    { date: '2026-04-16', time: '08:45-09:25', period: 'Period 2', subject: 'ICT', teacher: 'Ms. Kinjal Shah', details: 'Practical lab activity', attachments: ['ict-practice-sheet.docx'] },
-    { date: '2026-04-17', time: '08:00-08:40', period: 'Period 1', subject: 'Marathi', teacher: 'Ms. Madhuri Lakhapati', details: 'Poem reading and explanation', attachments: [] },
-    { date: '2026-04-17', time: '08:45-09:25', period: 'Period 2', subject: 'Library', teacher: 'Ms. Sanika Khade', details: 'Story telling session', attachments: [] },
-  ];
-
   const events = [
     { id: 1, title: 'Annual Sports Day', date: '2026-03-15', type: 'past', photos: ['sports1.jpg', 'sports2.jpg'], takeaways: 'Great participation, Aarav won 100m race silver medal', details: 'Held at school ground, 200 students participated' },
     { id: 2, title: 'PTM Meeting', date: '2026-04-20', type: 'upcoming', preparation: 'Prepare progress report discussion, bring any concerns', details: 'Meeting with class teacher and subject teachers' },
@@ -318,21 +335,6 @@ const Parents = () => {
       title: 'Transport & Dispersal Instructions',
       body: 'Please verify transport route number and dispersal gate details. Any changes should be notified in writing before Monday.',
       attachments: ['transport-guidelines.pdf'],
-    },
-  ];
-
-  const campusMessages = [
-    {
-      date: '2026-04-08',
-      title: 'Healthy Tiffin and Birthday Notice',
-      body: 'We encourage nutritious home-prepared tiffin and request parents to avoid processed food in school lunch boxes.',
-      attachments: ['healthy-tiffin-circular.pdf'],
-    },
-    {
-      date: '2026-04-06',
-      title: 'School Safety Drill Update',
-      body: 'A planned safety drill will be conducted this week. Students have been briefed by class teachers.',
-      attachments: [],
     },
   ];
 
@@ -625,6 +627,31 @@ const Parents = () => {
   const activityWeekStrip = buildWeekStrip(selectedActivityDate);
   const timetableWeekStrip = buildWeekStrip(selectedTimetableDate);
 
+  // Month grid for the Teaching Updates drill-down: one cell per day, null for
+  // the leading blanks before day 1 so the grid aligns under Sun..Sat headers.
+  const buildMonthGrid = (monthDate) => {
+    const year = monthDate.getFullYear();
+    const month = monthDate.getMonth();
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const leadingBlanks = new Date(year, month, 1).getDay();
+    const cells = Array.from({ length: leadingBlanks }, () => null);
+    for (let day = 1; day <= daysInMonth; day += 1) {
+      cells.push(new Date(year, month, day));
+    }
+    return cells;
+  };
+
+  const activityMonthGrid = buildMonthGrid(activityMonth);
+
+  const changeActivityWeek = (delta) => {
+    const nextDate = new Date(selectedActivityDate);
+    nextDate.setDate(selectedActivityDate.getDate() + delta * 7);
+    setSelectedActivityDate(nextDate);
+    if (nextDate.getMonth() !== activityMonth.getMonth() || nextDate.getFullYear() !== activityMonth.getFullYear()) {
+      setActivityMonth(new Date(nextDate.getFullYear(), nextDate.getMonth(), 1));
+    }
+  };
+
   const selectedActivityEntries = dailyActivities.filter((activity) => {
     if (activity.date !== formatDateKey(selectedActivityDate)) {
       return false;
@@ -638,7 +665,7 @@ const Parents = () => {
     return `${activity.period} ${activity.classwork} ${activity.homework} ${activity.teacher}`.toLowerCase().includes(query);
   });
 
-  const selectedTimetableEntries = timetable.filter((entry) => entry.date === formatDateKey(selectedTimetableDate));
+  const selectedTimetableEntries = timetableEntries;
 
   // Merge static circulars with API notices for the circular tab — expired
   // ones (expiresAt in the past) are left out of this feed rather than shown
@@ -656,6 +683,7 @@ const Parents = () => {
         title: n.title,
         body: n.body,
         attachments: n.attachmentUrl ? [n.attachmentUrl] : [],
+        isRead: !!n.isRead,
       }));
     return apiMapped.length > 0 ? apiMapped : circularNotices;
   }, [apiNotices, circularNotices]);
@@ -666,14 +694,6 @@ const Parents = () => {
       return true;
     }
     return `${notice.title} ${notice.body} ${notice.date}`.toLowerCase().includes(query);
-  });
-
-  const filteredCampusMessages = campusMessages.filter((message) => {
-    const query = messageSearch.trim().toLowerCase();
-    if (!query) {
-      return true;
-    }
-    return `${message.title} ${message.body} ${message.date}`.toLowerCase().includes(query);
   });
 
   const openAttachmentPreview = (title, attachments) => {
@@ -730,9 +750,8 @@ const Parents = () => {
     { key: 'parent-profile', label: 'Parent Profile', icon: '👨‍👩‍👧' },
     { key: 'attendance', label: 'Attendance', icon: '📅' },
     { key: 'timetable', label: 'Timetable', icon: '⏰' },
-    { key: 'activities', label: 'Student Activity', icon: '📚' },
+    { key: 'activities', label: 'Teaching Updates', icon: '📚' },
     { key: 'circular', label: 'Communication', icon: '📢' },
-    { key: 'message', label: 'Ecampus Message', icon: '💬' },
     { key: 'fees', label: 'Fees', icon: '💳' },
     { key: 'events', label: 'Events', icon: '🎉' },
     { key: 'gallery', label: 'Photo Gallery', icon: '🖼️' },
@@ -741,7 +760,7 @@ const Parents = () => {
   ];
 
   const primaryQuickModules = isMobile
-    ? portalModules.filter((module) => ['profile', 'parent-profile', 'attendance', 'timetable', 'activities', 'circular', 'message', 'fees'].includes(module.key))
+    ? portalModules.filter((module) => ['profile', 'parent-profile', 'attendance', 'timetable', 'activities', 'circular', 'fees'].includes(module.key))
     : portalModules;
 
   const renderModule = () => {
@@ -1099,7 +1118,7 @@ const Parents = () => {
               </div>
             </div>
             {selectedTimetableEntries.length ? selectedTimetableEntries.map((entry, index) => {
-              const cardId = `timetable-${entry.date}-${entry.period}-${entry.time}`;
+              const cardId = `timetable-${entry.period}-${entry.time}`;
               const isOpen = isAccordionOpen(cardId, index);
 
               return (
@@ -1125,7 +1144,7 @@ const Parents = () => {
                 </div>
               );
             }) : (
-              <div style={{ background: '#fff', padding: isMobile ? '14px' : '18px', borderRadius: '12px', border: '1px dashed #fbbf24', color: '#92400e', fontWeight: 600 }}>No timetable entries for selected date.</div>
+              <div style={{ background: '#fff', padding: isMobile ? '14px' : '18px', borderRadius: '12px', border: '1px dashed #fbbf24', color: '#92400e', fontWeight: 600 }}>No timetable set for this class on the selected day.</div>
             )}
           </div>
         );
@@ -1151,78 +1170,132 @@ const Parents = () => {
             ))}
           </div>
         );
-      case 'activities':
+      case 'activities': {
+        const weekdayLabels = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+        const navButtonStyle = { border: 'none', background: '#6366f1', color: '#fff', borderRadius: '8px', padding: '6px 10px', cursor: 'pointer', fontWeight: 700 };
+        const backLinkStyle = { border: 'none', background: 'none', color: '#4338ca', fontWeight: 700, cursor: 'pointer', padding: 0, marginBottom: '10px', fontSize: isMobile ? '0.85rem' : '0.9rem' };
+
         return (
           <div style={{ padding: isMobile ? '16px' : '24px', borderRadius: '16px', background: 'linear-gradient(135deg, #e0e7ff 0%, #f0f4ff 100%)', border: '2px solid #6366f1', boxShadow: '0 4px 16px rgba(99, 102, 241, 0.1)' }}>
-            <h3 style={{ color: '#3730a3', fontSize: isMobile ? '1.2rem' : '1.4rem', fontWeight: '700', marginBottom: '16px' }}>📚 Daily Activities</h3>
-            <div style={{ background: '#fff', borderRadius: '12px', border: '1px solid #c7d2fe', padding: isMobile ? '10px' : '14px', marginBottom: '14px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', marginBottom: '10px' }}>
-                <button onClick={() => changeMonthKeepingDay(activityMonth, setActivityMonth, selectedActivityDate, setSelectedActivityDate, -1)} style={{ border: 'none', background: '#6366f1', color: '#fff', borderRadius: '8px', padding: '6px 10px', cursor: 'pointer', fontWeight: 700 }}>←</button>
-                <h4 style={{ margin: 0, color: '#3730a3', fontSize: isMobile ? '1.02rem' : '1.1rem', fontWeight: 700 }}>{activityMonth.toLocaleString('default', { month: 'long', year: 'numeric' })}</h4>
-                <button onClick={() => changeMonthKeepingDay(activityMonth, setActivityMonth, selectedActivityDate, setSelectedActivityDate, 1)} style={{ border: 'none', background: '#6366f1', color: '#fff', borderRadius: '8px', padding: '6px 10px', cursor: 'pointer', fontWeight: 700 }}>→</button>
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '6px', marginBottom: '10px' }}>
-                {activityWeekStrip.map((date) => (
-                  <button
-                    key={formatDateKey(date)}
-                    onClick={() => setSelectedActivityDate(date)}
-                    style={{
-                      border: `1px solid ${isSameDate(date, selectedActivityDate) ? '#6366f1' : '#c7d2fe'}`,
-                      background: isSameDate(date, selectedActivityDate) ? '#818cf8' : '#fff',
-                      color: isSameDate(date, selectedActivityDate) ? '#fff' : '#3730a3',
-                      borderRadius: '10px',
-                      padding: '6px 2px',
-                      cursor: 'pointer',
-                      minHeight: '54px',
-                      transition: 'all 180ms ease',
-                      transform: isSameDate(date, selectedActivityDate) ? 'scale(1.02)' : 'scale(1)',
-                    }}
-                  >
-                    <div style={{ fontSize: '0.68rem', fontWeight: 700 }}>{date.toLocaleDateString('en-IN', { weekday: 'short' })}</div>
-                    <div style={{ fontSize: '1rem', fontWeight: 800 }}>{date.getDate()}</div>
-                  </button>
-                ))}
-              </div>
-              <input
-                value={activitySearch}
-                onChange={(e) => setActivitySearch(e.target.value)}
-                placeholder="Search activity, subject, teacher"
-                style={{ width: '100%', minHeight: '40px', border: '1px solid #c7d2fe', borderRadius: '999px', padding: '0 14px', fontSize: isMobile ? '0.85rem' : '0.9rem', outline: 'none' }}
-              />
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', marginTop: '10px', border: '1px solid #c7d2fe', borderRadius: '999px', overflow: 'hidden' }}>
-                <button onClick={() => setActivityView('classwork')} style={{ border: 'none', background: activityView === 'classwork' ? '#4f46e5' : '#eef2ff', color: activityView === 'classwork' ? '#fff' : '#3730a3', fontWeight: 700, padding: '9px 10px', cursor: 'pointer' }}>Class Work</button>
-                <button onClick={() => setActivityView('homework')} style={{ border: 'none', background: activityView === 'homework' ? '#4f46e5' : '#eef2ff', color: activityView === 'homework' ? '#fff' : '#3730a3', fontWeight: 700, padding: '9px 10px', cursor: 'pointer' }}>Home Work</button>
-              </div>
-            </div>
-            {selectedActivityEntries.length ? selectedActivityEntries.map((activity, index) => {
-              const cardId = `activity-${activity.date}-${activity.period}`;
-              const isOpen = isAccordionOpen(cardId, index);
+            <h3 style={{ color: '#3730a3', fontSize: isMobile ? '1.2rem' : '1.4rem', fontWeight: '700', marginBottom: '16px' }}>📚 Teaching Updates</h3>
 
-              return (
-                <div key={cardId} style={{ marginBottom: '10px', background: '#fff', borderRadius: '10px', border: '1px solid #a5b4fc', boxShadow: '0 2px 6px rgba(99, 102, 241, 0.1)', overflow: 'hidden' }}>
-                  <button
-                    onClick={() => toggleAccordion(cardId)}
-                    style={{ width: '100%', border: 'none', background: '#fff', padding: isMobile ? '10px 12px' : '12px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px', cursor: 'pointer' }}
-                  >
-                    <p style={{ margin: 0, color: '#3730a3', fontWeight: 800, fontSize: isMobile ? '0.9rem' : '0.95rem', textAlign: 'left' }}>{activity.period}</p>
-                    <span style={{ color: '#3730a3', fontWeight: 800, fontSize: '1rem', transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 180ms ease' }}>⌃</span>
-                  </button>
-                  <div style={{ maxHeight: isOpen ? '240px' : '0px', opacity: isOpen ? 1 : 0, overflow: 'hidden', transition: 'max-height 240ms ease, opacity 220ms ease' }}>
-                    <div style={{ padding: isMobile ? '0 12px 12px' : '0 14px 14px', borderTop: '1px solid #e0e7ff' }}>
-                      <p style={{ margin: '10px 0 0', color: '#374151', fontSize: isMobile ? '0.82rem' : '0.9rem' }}>{activityView === 'classwork' ? activity.classwork : activity.homework}</p>
-                      <p style={{ margin: '8px 0 0', color: '#6366f1', fontSize: isMobile ? '0.78rem' : '0.85rem', fontWeight: 700 }}>👩‍🏫 {activity.teacher}</p>
-                      {activity.attachments.length > 0 && (
-                        <button onClick={() => openAttachmentPreview(`${activity.period} Attachment`, activity.attachments)} style={{ marginTop: '8px', border: '1px solid #6366f1', background: '#eef2ff', color: '#3730a3', borderRadius: '999px', padding: '6px 10px', fontWeight: 700, cursor: 'pointer' }}>📎 {activity.attachments.length} Attachment</button>
-                      )}
-                    </div>
+            {activityDrillLevel === 'month' && (
+              <div style={{ background: '#fff', borderRadius: '12px', border: '1px solid #c7d2fe', padding: isMobile ? '10px' : '14px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', marginBottom: '10px' }}>
+                  <button onClick={() => changeMonthKeepingDay(activityMonth, setActivityMonth, selectedActivityDate, setSelectedActivityDate, -1)} style={navButtonStyle}>←</button>
+                  <h4 style={{ margin: 0, color: '#3730a3', fontSize: isMobile ? '1.02rem' : '1.1rem', fontWeight: 700 }}>{activityMonth.toLocaleString('default', { month: 'long', year: 'numeric' })}</h4>
+                  <button onClick={() => changeMonthKeepingDay(activityMonth, setActivityMonth, selectedActivityDate, setSelectedActivityDate, 1)} style={navButtonStyle}>→</button>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '4px', marginBottom: '6px' }}>
+                  {weekdayLabels.map((label) => (
+                    <div key={label} style={{ textAlign: 'center', fontSize: '0.7rem', fontWeight: 700, color: '#6366f1' }}>{label}</div>
+                  ))}
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '4px' }}>
+                  {activityMonthGrid.map((date, index) => (
+                    date ? (
+                      <button
+                        key={formatDateKey(date)}
+                        onClick={() => { setSelectedActivityDate(date); setActivityDrillLevel('week'); }}
+                        style={{
+                          border: `1px solid ${isSameDate(date, selectedActivityDate) ? '#6366f1' : '#e0e7ff'}`,
+                          background: isSameDate(date, selectedActivityDate) ? '#818cf8' : '#fff',
+                          color: isSameDate(date, selectedActivityDate) ? '#fff' : '#3730a3',
+                          borderRadius: '8px',
+                          padding: '8px 2px',
+                          cursor: 'pointer',
+                          fontWeight: 700,
+                          fontSize: isMobile ? '0.8rem' : '0.88rem',
+                        }}
+                      >
+                        {date.getDate()}
+                      </button>
+                    ) : <div key={`blank-${index}`} />
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {activityDrillLevel === 'week' && (
+              <div style={{ background: '#fff', borderRadius: '12px', border: '1px solid #c7d2fe', padding: isMobile ? '10px' : '14px' }}>
+                <button onClick={() => setActivityDrillLevel('month')} style={backLinkStyle}>← Back to Month</button>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', marginBottom: '10px' }}>
+                  <button onClick={() => changeActivityWeek(-1)} style={navButtonStyle}>←</button>
+                  <h4 style={{ margin: 0, color: '#3730a3', fontSize: isMobile ? '1.02rem' : '1.1rem', fontWeight: 700 }}>Week of {activityWeekStrip[0].toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}</h4>
+                  <button onClick={() => changeActivityWeek(1)} style={navButtonStyle}>→</button>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '6px' }}>
+                  {activityWeekStrip.map((date) => (
+                    <button
+                      key={formatDateKey(date)}
+                      onClick={() => { setSelectedActivityDate(date); setActivityDrillLevel('day'); }}
+                      style={{
+                        border: `1px solid ${isSameDate(date, selectedActivityDate) ? '#6366f1' : '#c7d2fe'}`,
+                        background: isSameDate(date, selectedActivityDate) ? '#818cf8' : '#fff',
+                        color: isSameDate(date, selectedActivityDate) ? '#fff' : '#3730a3',
+                        borderRadius: '10px',
+                        padding: '6px 2px',
+                        cursor: 'pointer',
+                        minHeight: '54px',
+                        transition: 'all 180ms ease',
+                      }}
+                    >
+                      <div style={{ fontSize: '0.68rem', fontWeight: 700 }}>{date.toLocaleDateString('en-IN', { weekday: 'short' })}</div>
+                      <div style={{ fontSize: '1rem', fontWeight: 800 }}>{date.getDate()}</div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {activityDrillLevel === 'day' && (
+              <>
+                <button onClick={() => setActivityDrillLevel('week')} style={backLinkStyle}>← Back to Week</button>
+                <div style={{ background: '#fff', borderRadius: '12px', border: '1px solid #c7d2fe', padding: isMobile ? '10px' : '14px', marginBottom: '14px' }}>
+                  <h4 style={{ margin: '0 0 10px', color: '#3730a3', fontSize: isMobile ? '1.02rem' : '1.1rem', fontWeight: 700 }}>{selectedActivityDate.toLocaleDateString('en-IN', { weekday: 'long', day: '2-digit', month: 'short', year: 'numeric' })}</h4>
+                  <input
+                    value={activitySearch}
+                    onChange={(e) => setActivitySearch(e.target.value)}
+                    placeholder="Search activity, subject, teacher"
+                    style={{ width: '100%', minHeight: '40px', border: '1px solid #c7d2fe', borderRadius: '999px', padding: '0 14px', fontSize: isMobile ? '0.85rem' : '0.9rem', outline: 'none' }}
+                  />
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', marginTop: '10px', border: '1px solid #c7d2fe', borderRadius: '999px', overflow: 'hidden' }}>
+                    <button onClick={() => setActivityView('classwork')} style={{ border: 'none', background: activityView === 'classwork' ? '#4f46e5' : '#eef2ff', color: activityView === 'classwork' ? '#fff' : '#3730a3', fontWeight: 700, padding: '9px 10px', cursor: 'pointer' }}>Class Work</button>
+                    <button onClick={() => setActivityView('homework')} style={{ border: 'none', background: activityView === 'homework' ? '#4f46e5' : '#eef2ff', color: activityView === 'homework' ? '#fff' : '#3730a3', fontWeight: 700, padding: '9px 10px', cursor: 'pointer' }}>Home Work</button>
                   </div>
                 </div>
-              );
-            }) : (
-              <div style={{ background: '#fff', padding: isMobile ? '14px' : '18px', borderRadius: '12px', border: '1px dashed #6366f1', color: '#3730a3', fontWeight: 600 }}>No activities found for selected date/search.</div>
+                {selectedActivityEntries.length ? selectedActivityEntries.map((activity, index) => {
+                  const cardId = `activity-${activity.date}-${activity.period}`;
+                  const isOpen = isAccordionOpen(cardId, index);
+
+                  return (
+                    <div key={cardId} style={{ marginBottom: '10px', background: '#fff', borderRadius: '10px', border: '1px solid #a5b4fc', boxShadow: '0 2px 6px rgba(99, 102, 241, 0.1)', overflow: 'hidden' }}>
+                      <button
+                        onClick={() => toggleAccordion(cardId)}
+                        style={{ width: '100%', border: 'none', background: '#fff', padding: isMobile ? '10px 12px' : '12px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px', cursor: 'pointer' }}
+                      >
+                        <p style={{ margin: 0, color: '#3730a3', fontWeight: 800, fontSize: isMobile ? '0.9rem' : '0.95rem', textAlign: 'left' }}>{activity.period}</p>
+                        <span style={{ color: '#3730a3', fontWeight: 800, fontSize: '1rem', transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 180ms ease' }}>⌃</span>
+                      </button>
+                      <div style={{ maxHeight: isOpen ? '240px' : '0px', opacity: isOpen ? 1 : 0, overflow: 'hidden', transition: 'max-height 240ms ease, opacity 220ms ease' }}>
+                        <div style={{ padding: isMobile ? '0 12px 12px' : '0 14px 14px', borderTop: '1px solid #e0e7ff' }}>
+                          <p style={{ margin: '10px 0 0', color: '#374151', fontSize: isMobile ? '0.82rem' : '0.9rem' }}>{activityView === 'classwork' ? activity.classwork : activity.homework}</p>
+                          <p style={{ margin: '8px 0 0', color: '#6366f1', fontSize: isMobile ? '0.78rem' : '0.85rem', fontWeight: 700 }}>👩‍🏫 {activity.teacher}</p>
+                          {activity.attachments.length > 0 && (
+                            <button onClick={() => openAttachmentPreview(`${activity.period} Attachment`, activity.attachments)} style={{ marginTop: '8px', border: '1px solid #6366f1', background: '#eef2ff', color: '#3730a3', borderRadius: '999px', padding: '6px 10px', fontWeight: 700, cursor: 'pointer' }}>📎 {activity.attachments.length} Attachment</button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                }) : (
+                  <div style={{ background: '#fff', padding: isMobile ? '14px' : '18px', borderRadius: '12px', border: '1px dashed #6366f1', color: '#3730a3', fontWeight: 600 }}>No activities found for selected date/search.</div>
+                )}
+              </>
             )}
           </div>
         );
+      }
       case 'circular':
         return (
           <div style={{ padding: isMobile ? '16px' : '24px', borderRadius: '16px', background: 'linear-gradient(135deg, #fff7ed 0%, #fff1f2 100%)', border: '2px solid #fb7185', boxShadow: '0 4px 16px rgba(244, 63, 94, 0.1)' }}>
@@ -1263,44 +1336,6 @@ const Parents = () => {
               );
             }) : (
               <div style={{ background: '#fff', padding: isMobile ? '14px' : '18px', borderRadius: '12px', border: '1px dashed #fb7185', color: '#9f1239', fontWeight: 600 }}>No circulars found for this search.</div>
-            )}
-          </div>
-        );
-      case 'message':
-        return (
-          <div style={{ padding: isMobile ? '16px' : '24px', borderRadius: '16px', background: 'linear-gradient(135deg, #ffe4e6 0%, #fff1f2 100%)', border: '2px solid #f43f5e', boxShadow: '0 4px 16px rgba(244, 63, 94, 0.1)' }}>
-            <h3 style={{ color: '#9f1239', fontSize: isMobile ? '1.2rem' : '1.4rem', fontWeight: '700', marginBottom: '12px' }}>💬 Ecampus Message</h3>
-            <input
-              value={messageSearch}
-              onChange={(e) => setMessageSearch(e.target.value)}
-              placeholder="Search messages"
-              style={{ width: '100%', minHeight: '40px', border: '1px solid #fda4af', borderRadius: '999px', padding: '0 14px', fontSize: isMobile ? '0.85rem' : '0.9rem', outline: 'none', marginBottom: '12px' }}
-            />
-            {filteredCampusMessages.length ? filteredCampusMessages.map((message, index) => {
-              const cardId = `message-${message.date}-${message.title}`;
-              const isOpen = isAccordionOpen(cardId, index);
-
-              return (
-                <div key={cardId} style={{ marginBottom: '10px', background: '#fff', borderRadius: '12px', border: '1px solid #fecdd3', overflow: 'hidden' }}>
-                  <button onClick={() => toggleAccordion(cardId)} style={{ width: '100%', border: 'none', background: '#fff', padding: isMobile ? '12px' : '14px', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div style={{ textAlign: 'left' }}>
-                      <p style={{ margin: 0, color: '#9f1239', fontWeight: 800, fontSize: isMobile ? '0.95rem' : '1rem' }}>{message.title}</p>
-                      <p style={{ margin: '4px 0 0', color: '#be123c', fontWeight: 700, fontSize: isMobile ? '0.75rem' : '0.82rem' }}>{new Date(message.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</p>
-                    </div>
-                    <span style={{ color: '#9f1239', fontWeight: 800, fontSize: '1rem', transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 180ms ease' }}>⌃</span>
-                  </button>
-                  <div style={{ maxHeight: isOpen ? '320px' : '0px', opacity: isOpen ? 1 : 0, overflow: 'hidden', transition: 'max-height 240ms ease, opacity 220ms ease' }}>
-                    <div style={{ padding: isMobile ? '0 12px 12px' : '0 14px 14px', borderTop: '1px solid #ffe4e6' }}>
-                      <p style={{ margin: '10px 0 0', color: '#374151', fontSize: isMobile ? '0.82rem' : '0.9rem', lineHeight: 1.5 }}>{message.body}</p>
-                      {message.attachments.length > 0 && (
-                        <button onClick={() => openAttachmentPreview(message.title, message.attachments)} style={{ marginTop: '8px', border: '1px solid #fb7185', background: '#fff1f2', color: '#9f1239', borderRadius: '999px', padding: '6px 10px', fontWeight: 700, cursor: 'pointer' }}>📎 {message.attachments.length} Attachment</button>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              );
-            }) : (
-              <div style={{ background: '#fff', padding: isMobile ? '14px' : '18px', borderRadius: '12px', border: '1px dashed #fb7185', color: '#9f1239', fontWeight: 600 }}>No messages found for this search.</div>
             )}
           </div>
         );
