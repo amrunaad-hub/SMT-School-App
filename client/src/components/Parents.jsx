@@ -1403,22 +1403,25 @@ const Parents = () => {
 
               return (
                 <div key={cardId} style={{ marginBottom: '10px', background: '#fff', borderRadius: '12px', border: '1px solid #fecdd3', overflow: 'hidden' }}>
-                  <button onClick={() => toggleCircularAccordion(notice, cardId, index)} style={{ width: '100%', border: 'none', background: '#fff', padding: isMobile ? '12px' : '14px', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div style={{ textAlign: 'left' }}>
-                      <p style={{ margin: 0, color: '#9f1239', fontWeight: 800, fontSize: isMobile ? '0.95rem' : '1rem' }}>
-                        {notice.title}
-                        {notice.isArchived && <span style={{ marginLeft: '8px', padding: '2px 8px', borderRadius: '999px', background: '#f1f5f9', color: '#94a3b8', fontSize: '0.7rem', fontWeight: 700, verticalAlign: 'middle' }}>Archived</span>}
-                      </p>
-                      {notice.issuedBy && (
-                        <p style={{ margin: '2px 0 0', color: '#9f1239', fontWeight: 600, fontSize: isMobile ? '0.72rem' : '0.78rem' }}>By {notice.issuedBy}</p>
-                      )}
-                      <p style={{ margin: '4px 0 0', color: '#be123c', fontWeight: 700, fontSize: isMobile ? '0.75rem' : '0.82rem' }}>
-                        Received: {new Date(notice.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
-                        {notice.eventDate && ` · Important: ${new Date(notice.eventDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}`}
-                      </p>
-                    </div>
-                    <span style={{ color: '#9f1239', fontWeight: 800, fontSize: '1rem', transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 180ms ease' }}>⌃</span>
-                  </button>
+                  <div style={{ padding: isMobile ? '12px' : '14px' }}>
+                    <p style={{ margin: 0, color: '#9f1239', fontWeight: 800, fontSize: isMobile ? '0.95rem' : '1rem' }}>
+                      {notice.title}
+                      {notice.isArchived && <span style={{ marginLeft: '8px', padding: '2px 8px', borderRadius: '999px', background: '#f1f5f9', color: '#94a3b8', fontSize: '0.7rem', fontWeight: 700, verticalAlign: 'middle' }}>Archived</span>}
+                    </p>
+                    {notice.issuedBy && (
+                      <p style={{ margin: '2px 0 0', color: '#9f1239', fontWeight: 600, fontSize: isMobile ? '0.72rem' : '0.78rem' }}>By {notice.issuedBy}</p>
+                    )}
+                    <p style={{ margin: '4px 0 10px', color: '#be123c', fontWeight: 700, fontSize: isMobile ? '0.75rem' : '0.82rem' }}>
+                      Sent: {new Date(notice.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
+                      {notice.eventDate && ` · Important: ${new Date(notice.eventDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}`}
+                    </p>
+                    <button
+                      onClick={() => toggleCircularAccordion(notice, cardId, index)}
+                      style={{ border: '1px solid #fb7185', background: isOpen ? '#fff1f2' : '#9f1239', color: isOpen ? '#9f1239' : '#fff', borderRadius: '999px', padding: '7px 16px', fontWeight: 700, fontSize: isMobile ? '0.8rem' : '0.85rem', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                    >
+                      {isOpen ? '▲ Close' : '▼ Open Notice'}
+                    </button>
+                  </div>
                   <div style={{ maxHeight: isOpen ? '320px' : '0px', opacity: isOpen ? 1 : 0, overflow: 'hidden', transition: 'max-height 240ms ease, opacity 220ms ease' }}>
                     <div style={{ padding: isMobile ? '0 12px 12px' : '0 14px 14px', borderTop: '1px solid #ffe4e6' }}>
                       <div style={{ margin: '10px 0 0', color: '#374151', fontSize: isMobile ? '0.82rem' : '0.9rem', lineHeight: 1.5 }} dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(notice.body) }} />
