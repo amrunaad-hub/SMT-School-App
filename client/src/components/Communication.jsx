@@ -259,9 +259,11 @@ const Communication = () => {
 
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState(EMPTY_FORM);
+  const [editingId, setEditingId] = useState(null);
   const [expiresAtTouched, setExpiresAtTouched] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState(null);
+  const [viewMode, setViewMode] = useState('grid');
 
   const handleEventDateChange = (value) => {
     setForm((f) => ({ ...f, eventDate: value, expiresAt: expiresAtTouched ? f.expiresAt : value }));
@@ -310,7 +312,30 @@ const Communication = () => {
     return new Date(dateStr).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
   };
 
-  const handleCreate = async (e) => {
+  const closeForm = () => {
+    setForm(EMPTY_FORM);
+    setExpiresAtTouched(false);
+    setEditingId(null);
+    setShowForm(false);
+  };
+
+  const handleEdit = (notice) => {
+    setForm({
+      title: notice.title,
+      body: notice.body,
+      category: notice.category,
+      priority: notice.priority,
+      eventDate: notice.eventDate ? notice.eventDate.slice(0, 10) : '',
+      expiresAt: notice.expiresAt ? notice.expiresAt.slice(0, 10) : '',
+      targetAudience: { ...EMPTY_AUDIENCE, ...(notice.targetAudience || {}) },
+    });
+    setExpiresAtTouched(true);
+    setEditingId(notice._id);
+    setSaveError(null);
+    setShowForm(true);
+  };
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
     const plainText = form.body.replace(/<[^>]*>/g, '').trim();
     if (!form.title.trim() || !plainText) {
@@ -328,14 +353,17 @@ const Communication = () => {
     setSaving(true);
     setSaveError(null);
     try {
-      await api.post('/api/notices', {
+      const payload = {
         ...form,
         eventDate: form.eventDate || null,
         expiresAt: form.expiresAt || null,
-      });
-      setForm(EMPTY_FORM);
-      setExpiresAtTouched(false);
-      setShowForm(false);
+      };
+      if (editingId) {
+        await api.put(`/api/notices/${editingId}`, payload);
+      } else {
+        await api.post('/api/notices', payload);
+      }
+      closeForm();
       loadNotices();
     } catch (err) {
       setSaveError(err.message);
@@ -396,7 +424,7 @@ const Communication = () => {
           {canManage && (
             <button
               type="button"
-              onClick={() => { setShowForm((s) => !s); setSaveError(null); setForm(EMPTY_FORM); setExpiresAtTouched(false); }}
+              onClick={() => { if (showForm) { closeForm(); } else { setSaveError(null); setShowForm(true); } }}
               style={{ padding: '10px 18px', borderRadius: '8px', border: 'none', background: showForm ? '#64748b' : '#1e40af', color: '#fff', fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer' }}
             >
               {showForm ? '✕ Cancel' : '+ New Notice'}
@@ -405,7 +433,8 @@ const Communication = () => {
         </div>
 
         {canManage && showForm && (
-          <form onSubmit={handleCreate} style={{ ...cardStyle, marginTop: '18px', display: 'grid', gap: '14px' }}>
+          <form onSubmit={handleSubmit} style={{ ...cardStyle, marginTop: '18px', display: 'grid', gap: '14px' }}>
+            <h3 style={{ margin: 0, color: '#0f172a', fontSize: '1rem' }}>{editingId ? 'Edit Notice' : 'New Notice'}</h3>
             <div>
               <label style={labelStyle}>Title *</label>
               <input style={inputStyle} value={form.title} onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))} placeholder="e.g. School closed for Diwali" />
@@ -447,25 +476,62 @@ const Communication = () => {
             {saveError && <div style={{ color: '#991b1b', fontSize: '0.82rem' }}>{saveError}</div>}
             <div>
               <button type="submit" disabled={saving} style={{ padding: '10px 22px', borderRadius: '8px', border: 'none', background: '#10b981', color: '#fff', fontWeight: 700, fontSize: '0.85rem', cursor: saving ? 'default' : 'pointer', opacity: saving ? 0.7 : 1 }}>
-                {saving ? 'Publishing...' : 'Publish Notice'}
+                {saving ? (editingId ? 'Saving...' : 'Publishing...') : (editingId ? 'Save Changes' : 'Publish Notice')}
               </button>
             </div>
           </form>
         )}
 
-        <div style={{ display: 'flex', gap: '8px', marginTop: '18px', marginBottom: '4px' }}>
-          {[['active', `Notices (${activeNotices.length})`], ['archived', `Archived (${archivedNotices.length})`]].map(([key, label]) => (
-            <button key={key} type="button" onClick={() => setActiveTab(key)} style={{ padding: '8px 16px', borderRadius: '999px', border: `1px solid ${activeTab === key ? '#1e40af' : '#cbd5e1'}`, background: activeTab === key ? '#1e40af' : '#fff', color: activeTab === key ? '#fff' : '#334155', fontWeight: 700, cursor: 'pointer', fontSize: '0.85rem' }}>
-              {label}
-            </button>
-          ))}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px', marginTop: '18px', marginBottom: '4px' }}>
+          <div style={{ display: 'flex', gap: '8px' }}>
+            {[['active', `Notices (${activeNotices.length})`], ['archived', `Archived (${archivedNotices.length})`]].map(([key, label]) => (
+              <button key={key} type="button" onClick={() => setActiveTab(key)} style={{ padding: '8px 16px', borderRadius: '999px', border: `1px solid ${activeTab === key ? '#1e40af' : '#cbd5e1'}`, background: activeTab === key ? '#1e40af' : '#fff', color: activeTab === key ? '#fff' : '#334155', fontWeight: 700, cursor: 'pointer', fontSize: '0.85rem' }}>
+                {label}
+              </button>
+            ))}
+          </div>
+          <div style={{ display: 'flex', border: '1px solid #cbd5e1', borderRadius: '8px', overflow: 'hidden' }}>
+            {[['grid', '▦ Grid'], ['list', '☰ List']].map(([key, label]) => (
+              <button key={key} type="button" onClick={() => setViewMode(key)} style={{ padding: '7px 14px', border: 'none', background: viewMode === key ? '#1e40af' : '#fff', color: viewMode === key ? '#fff' : '#334155', fontWeight: 700, cursor: 'pointer', fontSize: '0.8rem' }}>
+                {label}
+              </button>
+            ))}
+          </div>
         </div>
 
         {loading && <div style={{ padding: '40px', textAlign: 'center', color: '#64748b' }}>Loading notices...</div>}
         {error && <div style={{ padding: '20px', background: '#fee2e2', borderRadius: '10px', color: '#991b1b', marginTop: '16px' }}>Failed to load notices: {error}</div>}
         {!loading && !error && displayNotices.length === 0 && <div style={{ padding: '40px', textAlign: 'center', color: '#64748b' }}>No notices to show.</div>}
 
-        {!loading && !error && displayNotices.length > 0 && (
+        {!loading && !error && displayNotices.length > 0 && viewMode === 'list' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '16px' }}>
+            {displayNotices.map((notice) => {
+              const catStyle = CATEGORY_STYLE[notice.category] || CATEGORY_STYLE.General;
+              return (
+                <div key={notice._id} style={{ ...cardStyle, padding: '12px 16px', borderLeft: `4px solid ${catStyle.color}`, display: 'flex', alignItems: 'center', gap: '14px', flexWrap: 'wrap', opacity: activeTab === 'archived' ? 0.7 : 1 }}>
+                  <span style={{ padding: '2px 8px', borderRadius: '6px', background: catStyle.bg, color: catStyle.color, fontSize: '0.72rem', fontWeight: 700, whiteSpace: 'nowrap' }}>{notice.category}</span>
+                  <h3 style={{ margin: 0, color: '#0f172a', fontSize: '0.9rem', fontWeight: 700, flex: 1, minWidth: '160px' }}>{notice.title}</h3>
+                  {notice.priority !== 'Normal' && (
+                    <span style={{ padding: '2px 8px', borderRadius: '999px', background: (PRIORITY_STYLE[notice.priority] || PRIORITY_STYLE.Normal).bg, color: (PRIORITY_STYLE[notice.priority] || PRIORITY_STYLE.Normal).color, fontSize: '0.72rem', fontWeight: 700, whiteSpace: 'nowrap' }}>{notice.priority}</span>
+                  )}
+                  {!notice.isActive && <span style={{ padding: '2px 8px', borderRadius: '6px', background: '#f1f5f9', color: '#94a3b8', fontSize: '0.72rem', fontWeight: 700, whiteSpace: 'nowrap' }}>Deactivated</span>}
+                  <span style={{ fontSize: '0.76rem', color: '#64748b', whiteSpace: 'nowrap' }}>Published: {formatDate(notice.publishedAt)}</span>
+                  {notice.eventDate && <span style={{ fontSize: '0.76rem', color: '#64748b', whiteSpace: 'nowrap' }}>Event: {formatDate(notice.eventDate)}</span>}
+                  {canManage && <span style={{ fontSize: '0.76rem', color: '#64748b', whiteSpace: 'nowrap' }}>👥 {notice.reachCount ?? 0} · 👁 {notice.openCount ?? 0}</span>}
+                  {canManage && (
+                    <div style={{ display: 'flex', gap: '6px' }}>
+                      <button type="button" onClick={() => handleEdit(notice)} style={{ padding: '5px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', background: '#fff', color: '#1e40af', fontSize: '0.74rem', fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}>Edit</button>
+                      <button type="button" onClick={() => handleDeactivate(notice)} style={{ padding: '5px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', background: '#fff', color: '#475569', fontSize: '0.74rem', fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}>{notice.isActive ? 'Deactivate' : 'Reactivate'}</button>
+                      <button type="button" onClick={() => handleDelete(notice)} style={{ padding: '5px 10px', borderRadius: '6px', border: '1px solid #fecaca', background: '#fff', color: '#991b1b', fontSize: '0.74rem', fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}>Delete</button>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {!loading && !error && displayNotices.length > 0 && viewMode === 'grid' && (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '16px', marginTop: '16px' }}>
             {displayNotices.map((notice) => {
               const catStyle = CATEGORY_STYLE[notice.category] || CATEGORY_STYLE.General;
@@ -501,6 +567,9 @@ const Communication = () => {
                   )}
                   {canManage && (
                     <div style={{ display: 'flex', gap: '8px', marginTop: '10px' }}>
+                      <button type="button" onClick={() => handleEdit(notice)} style={{ flex: 1, padding: '6px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', background: '#fff', color: '#1e40af', fontSize: '0.76rem', fontWeight: 600, cursor: 'pointer' }}>
+                        Edit
+                      </button>
                       <button type="button" onClick={() => handleDeactivate(notice)} style={{ flex: 1, padding: '6px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', background: '#fff', color: '#475569', fontSize: '0.76rem', fontWeight: 600, cursor: 'pointer' }}>
                         {notice.isActive ? 'Deactivate' : 'Reactivate'}
                       </button>
