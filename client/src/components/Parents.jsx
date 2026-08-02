@@ -743,19 +743,15 @@ const Parents = () => {
 
   const selectedTimetableEntries = timetableEntries;
 
-  // Merge static circulars with API notices for the circular tab — expired
-  // ones (expiresAt in the past) are left out of this feed rather than shown
-  // as if still current; they're not deleted server-side, just not surfaced
-  // here (matches the same Active/Archived split as the admin Communication screen).
+  // Merge static circulars with API notices for the circular tab. Nothing
+  // is filtered out here — deactivated and expired notices stay visible
+  // (flagged via isArchived) rather than disappearing; only actual deletion
+  // by the creator removes a notice from this feed, matching the same
+  // policy the admin Communication screen already uses for its own
+  // Active/Archived split (both tabs are visible there too, just labeled).
   const mergedCircularNotices = useMemo(() => {
     const todayStr = new Date().toISOString().slice(0, 10);
-    // /mine already resolved which notices are actually addressed to this
-    // parent server-side — no reason to further filter by category here.
-    // This used to whitelist a fixed category list that didn't include
-    // "Fee", silently dropping any notice in that category (or any future
-    // category) from the feed entirely.
     const apiMapped = apiNotices
-      .filter((n) => !n.expiresAt || n.expiresAt.slice(0, 10) >= todayStr)
       .map((n) => ({
         id: n._id,
         date: n.publishedAt ? new Date(n.publishedAt).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10),
@@ -765,6 +761,7 @@ const Parents = () => {
         issuedBy: n.issuedBy || '',
         attachments: n.attachmentUrl ? [n.attachmentUrl] : [],
         isRead: !!n.isRead,
+        isArchived: !n.isActive || (n.expiresAt && n.expiresAt.slice(0, 10) < todayStr),
       }));
     return apiMapped.length > 0 ? apiMapped : circularNotices;
   }, [apiNotices, circularNotices]);
@@ -1408,7 +1405,10 @@ const Parents = () => {
                 <div key={cardId} style={{ marginBottom: '10px', background: '#fff', borderRadius: '12px', border: '1px solid #fecdd3', overflow: 'hidden' }}>
                   <button onClick={() => toggleCircularAccordion(notice, cardId, index)} style={{ width: '100%', border: 'none', background: '#fff', padding: isMobile ? '12px' : '14px', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <div style={{ textAlign: 'left' }}>
-                      <p style={{ margin: 0, color: '#9f1239', fontWeight: 800, fontSize: isMobile ? '0.95rem' : '1rem' }}>{notice.title}</p>
+                      <p style={{ margin: 0, color: '#9f1239', fontWeight: 800, fontSize: isMobile ? '0.95rem' : '1rem' }}>
+                        {notice.title}
+                        {notice.isArchived && <span style={{ marginLeft: '8px', padding: '2px 8px', borderRadius: '999px', background: '#f1f5f9', color: '#94a3b8', fontSize: '0.7rem', fontWeight: 700, verticalAlign: 'middle' }}>Archived</span>}
+                      </p>
                       {notice.issuedBy && (
                         <p style={{ margin: '2px 0 0', color: '#9f1239', fontWeight: 600, fontSize: isMobile ? '0.72rem' : '0.78rem' }}>By {notice.issuedBy}</p>
                       )}

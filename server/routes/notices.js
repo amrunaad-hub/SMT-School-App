@@ -68,11 +68,14 @@ router.get('/', auth, async (req, res) => {
 
 // GET /api/notices/mine — role-and-audience-resolved feed for the logged-in
 // user (parents get only notices actually targeted at them or their
-// children; other roles get role/broadcast matches). Still includes expired
-// ones so the caller can show an Archived section if it wants.
+// children; other roles get role/broadcast matches). Includes deactivated
+// and expired notices too — deletion is the only thing that should make a
+// notice disappear from a recipient's feed, same policy as the admin
+// Communication screen's Active/Archived split (nothing is ever hidden
+// there either, just categorized).
 router.get('/mine', auth, async (req, res) => {
   try {
-    const rows = await db('notices').where({ is_active: true }).orderBy('published_at', 'desc');
+    const rows = await db('notices').orderBy('published_at', 'desc');
     const notices = rows.map(serialize);
     const applicable = [];
     for (const notice of notices) {
