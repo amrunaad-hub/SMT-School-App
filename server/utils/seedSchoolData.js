@@ -38,6 +38,7 @@ const SURNAMES = [
 ];
 
 const OCCUPATIONS = ['Software Engineer', 'School Teacher', 'Doctor', 'Business Owner', 'Bank Officer', 'Government Employee', 'Accountant', 'Nurse', 'Shop Owner', 'Civil Engineer', 'Lawyer', 'Architect'];
+const QUALIFICATIONS = ['B.Com', 'B.E.', 'B.Sc', 'M.Com', 'M.E.', 'MBA', 'B.A.', 'M.A.', 'Diploma', 'HSC', 'Ph.D'];
 const AREAS = ['Thane West', 'Thane East', 'Ghodbunder Road', 'Vartak Nagar', 'Naupada', 'Panchpakhadi', 'Manpada', 'Kolshet Road', 'Majiwada', 'Balkum', 'Kasarvadavali', 'Hiranandani Estate'];
 const BOARDS = ['CBSE', 'ICSE', 'SSC (Maharashtra State Board)'];
 const PREVIOUS_SCHOOLS = ['Little Flower School', "St. Xavier's High School", 'New Horizon Public School', 'Sunshine English School', 'Podar International School', 'Ryan Global School'];
@@ -98,20 +99,20 @@ function generateFamily() {
     const fatherFirst = pick(MALE_FIRST_NAMES);
     const motherFirst = pick(FEMALE_FIRST_NAMES);
     guardians = [
-      { fullName: `${fatherFirst} ${surname}`, mobile: uniqueMobile(), email: email(`${fatherFirst}.${surname}`), occupation: pick(OCCUPATIONS), relation: 'Father', isPrimary: true, isEmergencyContact: true },
-      { fullName: `${motherFirst} ${surname}`, mobile: uniqueMobile(), email: email(`${motherFirst}.${surname}`), occupation: pick(OCCUPATIONS), relation: 'Mother', isPrimary: false, isEmergencyContact: true },
+      { fullName: `${fatherFirst} ${surname}`, mobile: uniqueMobile(), email: email(`${fatherFirst}.${surname}`), occupation: pick(OCCUPATIONS), qualification: pick(QUALIFICATIONS), relation: 'Father', isPrimary: true, isEmergencyContact: true },
+      { fullName: `${motherFirst} ${surname}`, mobile: uniqueMobile(), email: email(`${motherFirst}.${surname}`), occupation: pick(OCCUPATIONS), qualification: pick(QUALIFICATIONS), relation: 'Mother', isPrimary: false, isEmergencyContact: true },
     ];
   } else if (familyType === 'single-parent') {
     const relation = pick(RELATIONS_TWO_PARENT);
     const first = pick(relation === 'Father' ? MALE_FIRST_NAMES : FEMALE_FIRST_NAMES);
     guardians = [
-      { fullName: `${first} ${surname}`, mobile: uniqueMobile(), email: email(`${first}.${surname}`), occupation: pick(OCCUPATIONS), relation, isPrimary: true, isEmergencyContact: true },
+      { fullName: `${first} ${surname}`, mobile: uniqueMobile(), email: email(`${first}.${surname}`), occupation: pick(OCCUPATIONS), qualification: pick(QUALIFICATIONS), relation, isPrimary: true, isEmergencyContact: true },
     ];
   } else {
     const relation = pick(GUARDIAN_ONLY_RELATIONS);
     const first = pick(Math.random() < 0.5 ? MALE_FIRST_NAMES : FEMALE_FIRST_NAMES);
     guardians = [
-      { fullName: `${first} ${surname}`, mobile: uniqueMobile(), email: email(`${first}.${surname}`), occupation: pick(OCCUPATIONS), relation, isPrimary: true, isEmergencyContact: true },
+      { fullName: `${first} ${surname}`, mobile: uniqueMobile(), email: email(`${first}.${surname}`), occupation: pick(OCCUPATIONS), qualification: pick(QUALIFICATIONS), relation, isPrimary: true, isEmergencyContact: true },
     ];
   }
 
@@ -260,7 +261,7 @@ async function seed() {
       } else {
         [guardianId] = await db('guardians').insert({
           full_name: g.fullName, mobile: g.mobile, email: g.email, occupation: g.occupation,
-          address: family.address, created_at: now, updated_at: now,
+          qualification: g.qualification, address: family.address, created_at: now, updated_at: now,
         });
       }
       await db('student_guardians').insert({

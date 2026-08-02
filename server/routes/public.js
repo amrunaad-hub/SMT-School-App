@@ -5,23 +5,43 @@ const router = express.Router();
 const db = require('../db/database');
 const { upload, publicUrlFor } = require('../utils/upload');
 const { serializeRow, serializeRows } = require('../utils/serialize');
+const { validatePublicSubmitMandatory } = require('../utils/validateAdmissionMandatory');
 
-const serialize = (row) => serializeRow(row, { boolFields: ['is_draft'] });
+const JSON_FIELDS = ['guardians_draft', 'siblings_declared'];
+const serialize = (row) => serializeRow(row, { boolFields: ['is_draft'], jsonFields: JSON_FIELDS, jsonDefault: [] });
 
-const REQUIRED_SUBMIT_FIELDS = ['childName', 'dob', 'applyingForGrade', 'parentName', 'parentMobile'];
+// applyingForGrade isn't one of the reference ERP's starred mandatory fields,
+// but was already required by this app before that parity work — kept as-is.
+const REQUIRED_SUBMIT_FIELDS = ['applyingForGrade'];
 
 const CAMEL_TO_SNAKE = {
   childName: 'child_name', dob: 'dob', currentSchool: 'current_school',
   applyingForGrade: 'applying_for_grade', enquiryType: 'enquiry_type', area: 'area',
   parentName: 'parent_name', parentMobile: 'parent_mobile', parentEmail: 'parent_email',
   address: 'address', bloodGroup: 'blood_group', medicalNotes: 'medical_notes',
+  gender: 'gender', middleName: 'middle_name', religion: 'religion', caste: 'caste',
+  subCaste: 'sub_caste', category: 'category', nationality: 'nationality',
+  motherTongue: 'mother_tongue', birthPlace: 'birth_place', birthTaluka: 'birth_taluka',
+  birthDistrict: 'birth_district', birthState: 'birth_state', nativeAddress: 'native_address',
+  studentSaralNo: 'student_saral_no', grNo: 'gr_no', penNo: 'pen_no',
+  aadharNumber: 'aadhar_number', apaarId: 'apaar_id', heightCm: 'height_cm', weightKg: 'weight_kg',
+  studentEmail: 'student_email', studentMobile: 'student_mobile', handicapType: 'handicap_type',
+  previousSchoolBoard: 'previous_school_board', previousSchoolPassYear: 'previous_school_pass_year',
+  previousSchoolSeatNumber: 'previous_school_seat_number', previousSchoolPercentage: 'previous_school_percentage',
+  previousSchoolLcNumber: 'previous_school_lc_number', previousSchoolLcDate: 'previous_school_lc_date',
+  previousSchoolLeaveDate: 'previous_school_leave_date', previousSchoolRemarks: 'previous_school_remarks',
+  previousSchoolReasonLeave: 'previous_school_reason_leave', previousSchoolMedium: 'previous_school_medium',
 };
+
+const JSON_BODY_FIELDS = { guardiansDraft: 'guardians_draft', siblingsDeclared: 'siblings_declared' };
 
 function bodyToRow(body) {
   const row = {};
   Object.entries(body || {}).forEach(([key, value]) => {
     const column = CAMEL_TO_SNAKE[key];
-    if (column) row[column] = value;
+    if (column) { row[column] = value; return; }
+    const jsonColumn = JSON_BODY_FIELDS[key];
+    if (jsonColumn) row[jsonColumn] = JSON.stringify(value || []);
   });
   return row;
 }
@@ -114,8 +134,16 @@ router.post('/admissions/draft/:token/submit', async (req, res) => {
 
     const merged = { ...serialize(admission), ...req.body };
     const missing = REQUIRED_SUBMIT_FIELDS.filter((field) => !merged[field]);
-    if (missing.length) {
-      return res.status(400).json({ message: `Missing required fields: ${missing.join(', ')}` });
+
+    // validatePublicSubmitMandatory expects a snake_case DB row shape, so build
+    // a candidate row (existing admission + this request's incoming changes)
+    // rather than reusing the camelCase `merged` object above.
+    const candidateRow = { ...admission, ...bodyToRow(req.body) };
+    const mandatoryMissing = validatePublicSubmitMandatory(candidateRow);
+
+    const allMissing = [...missing, ...mandatoryMissing];
+    if (allMissing.length) {
+      return res.status(400).json({ message: `Missing required fields: ${allMissing.join(', ')}` });
     }
 
     const enquiryCode = await generateEnquiryCode();
@@ -139,8 +167,10 @@ router.post('/admissions/draft/:token/submit', async (req, res) => {
 router.post('/admissions', async (req, res) => {
   try {
     const missing = REQUIRED_SUBMIT_FIELDS.filter((field) => !req.body[field]);
-    if (missing.length) {
-      return res.status(400).json({ message: `Missing required fields: ${missing.join(', ')}` });
+    const mandatoryMissing = validatePublicSubmitMandatory(bodyToRow(req.body));
+    const allMissing = [...missing, ...mandatoryMissing];
+    if (allMissing.length) {
+      return res.status(400).json({ message: `Missing required fields: ${allMissing.join(', ')}` });
     }
 
     const enquiryCode = await generateEnquiryCode();

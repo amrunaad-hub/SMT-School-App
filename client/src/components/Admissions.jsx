@@ -29,7 +29,7 @@ const Admissions = () => {
   const [error, setError] = useState(null);
 
   const [actionAdmission, setActionAdmission] = useState(null); // { id, mode: 'approve'|'reject'|'clarify' }
-  const [approveForm, setApproveForm] = useState({ grade: '', division: '', houseId: '', guardians: [emptyGuardian()] });
+  const [approveForm, setApproveForm] = useState({ grade: '', division: '', houseId: '', admissionFormNo: '', admissionDate: '', guardians: [emptyGuardian()] });
   const [rejectReason, setRejectReason] = useState('');
   const [clarifyNote, setClarifyNote] = useState('');
   const [actionSubmitting, setActionSubmitting] = useState(false);
@@ -59,11 +59,16 @@ const Admissions = () => {
 
   const openApprove = (admission) => {
     setActionAdmission({ id: admission._id, mode: 'approve' });
+    const draftGuardians = Array.isArray(admission.guardiansDraft) && admission.guardiansDraft.length
+      ? admission.guardiansDraft
+      : [emptyGuardian({ fullName: admission.parentName || '', mobile: admission.parentMobile || '', email: admission.parentEmail || '', isPrimary: true, isEmergencyContact: true })];
     setApproveForm({
       grade: String(admission.applyingForGrade || ''),
       division: '',
       houseId: '',
-      guardians: [emptyGuardian({ fullName: admission.parentName || '', mobile: admission.parentMobile || '', email: admission.parentEmail || '', isPrimary: true, isEmergencyContact: true })],
+      admissionFormNo: '',
+      admissionDate: new Date().toISOString().slice(0, 10),
+      guardians: draftGuardians,
     });
     setActionError('');
     setApproveResult(null);
@@ -95,6 +100,8 @@ const Admissions = () => {
 
   const submitApprove = () => {
     if (!approveForm.grade || !approveForm.division) { setActionError('Grade and division are required.'); return; }
+    if (!approveForm.admissionFormNo.trim()) { setActionError('Admission Form No is required.'); return; }
+    if (!approveForm.admissionDate) { setActionError('Admission Date is required.'); return; }
     if (approveForm.guardians.some((g) => !g.fullName.trim() || !g.mobile.trim())) { setActionError('Every guardian needs a name and mobile number.'); return; }
     setActionSubmitting(true);
     setActionError('');
@@ -102,6 +109,8 @@ const Admissions = () => {
       grade: Number(approveForm.grade),
       division: approveForm.division,
       houseId: approveForm.houseId || undefined,
+      admissionFormNo: approveForm.admissionFormNo.trim(),
+      admissionDate: approveForm.admissionDate,
       guardians: approveForm.guardians.map((g) => ({ ...g, createParentLogin: true })),
     })
       .then((result) => { setActionSubmitting(false); setApproveResult(result); reload(); })
@@ -469,6 +478,14 @@ const Admissions = () => {
                         <option value="">Auto</option>
                         {houses.map((h) => <option key={h.id} value={h.id}>{h.name}</option>)}
                       </select>
+                    </label>
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginTop: '10px' }}>
+                    <label style={{ fontSize: '0.85rem', fontWeight: 600 }}>Admission Form No *
+                      <input value={approveForm.admissionFormNo} onChange={(e) => setApproveForm((f) => ({ ...f, admissionFormNo: e.target.value }))} style={{ width: '100%', padding: '8px', borderRadius: '8px', border: '1px solid #cbd5e1', marginTop: '4px', boxSizing: 'border-box' }} />
+                    </label>
+                    <label style={{ fontSize: '0.85rem', fontWeight: 600 }}>Admission Date *
+                      <input type="date" value={approveForm.admissionDate} onChange={(e) => setApproveForm((f) => ({ ...f, admissionDate: e.target.value }))} style={{ width: '100%', padding: '8px', borderRadius: '8px', border: '1px solid #cbd5e1', marginTop: '4px', boxSizing: 'border-box' }} />
                     </label>
                   </div>
 

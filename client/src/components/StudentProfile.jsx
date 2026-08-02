@@ -5,16 +5,30 @@ import { api } from '../api';
 const RELATIONS = ['Father', 'Mother', 'Guardian', 'Other'];
 const DOC_TYPES = ['Birth Certificate', 'Aadhar', 'Transfer Certificate', 'Photo', 'Medical Certificate', 'Other'];
 
+const CONTRIBUTION_AREAS = ['Singing', 'Dance', 'Media', 'Debates', 'Sports', 'Drawing', 'Poetry', 'Other'];
+
 const EMPTY_EDIT_FORM = {
-  firstName: '', lastName: '', gender: 'Male', dob: '', address: '', status: 'Active',
+  firstName: '', lastName: '', middleName: '', gender: 'Male', dob: '', address: '', status: 'Active',
   isRte: false, isMaharashtrian: false, houseId: '', bloodGroup: '', medicalConditions: '',
   medicalNotes: '', transportRouteId: '', previousSchoolName: '', previousSchoolBoard: '',
   previousGradeCompleted: '',
+  // Birth & Identity
+  religion: '', caste: '', subCaste: '', category: '', nationality: 'Indian', motherTongue: '',
+  birthPlace: '', birthTaluka: '', birthDistrict: '', birthState: '', nativeAddress: '',
+  studentSaralNo: '', grNo: '', penNo: '', aadharNumber: '', apaarId: '', heightCm: '', weightKg: '',
+  studentEmail: '', studentMobile: '', handicapType: '', admissionDate: '',
+  // Previous school (extended)
+  previousSchoolPassYear: '', previousSchoolSeatNumber: '', previousSchoolPercentage: '',
+  previousSchoolLcNumber: '', previousSchoolLcDate: '', previousSchoolLeaveDate: '',
+  previousSchoolRemarks: '', previousSchoolReasonLeave: '', previousSchoolMedium: '',
+  // Siblings (free-text, up to 2 — matches the reference form's own layout)
+  siblingsDeclared: [{ name: '', standard: '', relation: '' }, { name: '', standard: '', relation: '' }],
 };
 
 const EMPTY_GUARDIAN_FORM = {
   fullName: '', mobile: '', email: '', relation: 'Guardian', isPrimary: false,
   isEmergencyContact: false, createParentLogin: false,
+  qualification: '', occupation: '', officeAddress: '', contributionAreas: [],
 };
 
 const StudentProfile = () => {
@@ -59,8 +73,11 @@ const StudentProfile = () => {
 
   const openEdit = () => {
     if (!student) return;
+    const declared = Array.isArray(student.siblingsDeclared) && student.siblingsDeclared.length
+      ? student.siblingsDeclared
+      : EMPTY_EDIT_FORM.siblingsDeclared;
     setEditForm({
-      firstName: student.firstName || '', lastName: student.lastName || '',
+      firstName: student.firstName || '', lastName: student.lastName || '', middleName: student.middleName || '',
       gender: student.gender || 'Male', dob: student.dob ? student.dob.slice(0, 10) : '',
       address: student.address || '', status: student.status || 'Active',
       isRte: !!student.isRte, isMaharashtrian: !!student.isMaharashtrian,
@@ -68,6 +85,23 @@ const StudentProfile = () => {
       medicalConditions: student.medicalConditions || '', medicalNotes: student.medicalNotes || '',
       transportRouteId: student.transportRouteId || '', previousSchoolName: student.previousSchoolName || '',
       previousSchoolBoard: student.previousSchoolBoard || '', previousGradeCompleted: student.previousGradeCompleted || '',
+      religion: student.religion || '', caste: student.caste || '', subCaste: student.subCaste || '',
+      category: student.category || '', nationality: student.nationality || 'Indian',
+      motherTongue: student.motherTongue || '', birthPlace: student.birthPlace || '',
+      birthTaluka: student.birthTaluka || '', birthDistrict: student.birthDistrict || '',
+      birthState: student.birthState || '', nativeAddress: student.nativeAddress || '',
+      studentSaralNo: student.studentSaralNo || '', grNo: student.grNo || '', penNo: student.penNo || '',
+      aadharNumber: student.aadharNumber || '', apaarId: student.apaarId || '',
+      heightCm: student.heightCm || '', weightKg: student.weightKg || '',
+      studentEmail: student.studentEmail || '', studentMobile: student.studentMobile || '',
+      handicapType: student.handicapType || '', admissionDate: student.admissionDate ? student.admissionDate.slice(0, 10) : '',
+      previousSchoolPassYear: student.previousSchoolPassYear || '', previousSchoolSeatNumber: student.previousSchoolSeatNumber || '',
+      previousSchoolPercentage: student.previousSchoolPercentage || '', previousSchoolLcNumber: student.previousSchoolLcNumber || '',
+      previousSchoolLcDate: student.previousSchoolLcDate ? student.previousSchoolLcDate.slice(0, 10) : '',
+      previousSchoolLeaveDate: student.previousSchoolLeaveDate ? student.previousSchoolLeaveDate.slice(0, 10) : '',
+      previousSchoolRemarks: student.previousSchoolRemarks || '', previousSchoolReasonLeave: student.previousSchoolReasonLeave || '',
+      previousSchoolMedium: student.previousSchoolMedium || '',
+      siblingsDeclared: declared,
     });
     setSaveError('');
     setEditOpen(true);
@@ -203,6 +237,29 @@ const StudentProfile = () => {
               <div style={fieldStyle}><strong>Address:</strong> {student.address || '—'}</div>
             </div>
 
+            {/* Birth & Identity */}
+            <div style={sectionStyle}>
+              <div style={sectionTitleStyle}>Birth &amp; Identity</div>
+              <div style={detailStyle}>
+                <div style={fieldStyle}><strong>Middle Name:</strong> {student.middleName || '—'}</div>
+                <div style={fieldStyle}><strong>Birth Place:</strong> {student.birthPlace || '—'}</div>
+                <div style={fieldStyle}><strong>Birth Taluka/District/State:</strong> {[student.birthTaluka, student.birthDistrict, student.birthState].filter(Boolean).join(', ') || '—'}</div>
+                <div style={fieldStyle}><strong>Religion:</strong> {student.religion || '—'}</div>
+                <div style={fieldStyle}><strong>Caste / Sub-Caste:</strong> {[student.caste, student.subCaste].filter(Boolean).join(' / ') || '—'}</div>
+                <div style={fieldStyle}><strong>Category:</strong> {student.category || '—'}</div>
+                <div style={fieldStyle}><strong>Nationality:</strong> {student.nationality || '—'}</div>
+                <div style={fieldStyle}><strong>Mother Tongue:</strong> {student.motherTongue || '—'}</div>
+                <div style={fieldStyle}><strong>Native Address:</strong> {student.nativeAddress || '—'}</div>
+                <div style={fieldStyle}><strong>Height / Weight:</strong> {student.heightCm ? `${student.heightCm} cm` : '—'} / {student.weightKg ? `${student.weightKg} kg` : '—'}</div>
+                <div style={fieldStyle}><strong>Handicap Type:</strong> {student.handicapType || '—'}</div>
+                <div style={fieldStyle}><strong>Student Email / Mobile:</strong> {student.studentEmail || '—'} / {student.studentMobile || '—'}</div>
+                <div style={fieldStyle}><strong>GR No / Saral No:</strong> {student.grNo || '—'} / {student.studentSaralNo || '—'}</div>
+                <div style={fieldStyle}><strong>PEN / APAAR ID:</strong> {student.penNo || '—'} / {student.apaarId || '—'}</div>
+                <div style={fieldStyle}><strong>Aadhar No:</strong> {student.aadharNumber || '—'}</div>
+                <div style={fieldStyle}><strong>Admission Date:</strong> {student.admissionDate ? new Date(student.admissionDate).toLocaleDateString('en-IN') : '—'}</div>
+              </div>
+            </div>
+
             {/* Medical */}
             <div style={sectionStyle}>
               <div style={sectionTitleStyle}>Medical</div>
@@ -220,6 +277,13 @@ const StudentProfile = () => {
                 <div style={fieldStyle}><strong>Previous School:</strong> {student.previousSchoolName || '—'}</div>
                 <div style={fieldStyle}><strong>Board:</strong> {student.previousSchoolBoard || '—'}</div>
                 <div style={fieldStyle}><strong>Last Grade Completed:</strong> {student.previousGradeCompleted || '—'}</div>
+                <div style={fieldStyle}><strong>Medium:</strong> {student.previousSchoolMedium || '—'}</div>
+                <div style={fieldStyle}><strong>Pass Year / Seat No:</strong> {student.previousSchoolPassYear || '—'} / {student.previousSchoolSeatNumber || '—'}</div>
+                <div style={fieldStyle}><strong>% Marks:</strong> {student.previousSchoolPercentage || '—'}</div>
+                <div style={fieldStyle}><strong>LC Number / Date:</strong> {student.previousSchoolLcNumber || '—'} / {student.previousSchoolLcDate ? new Date(student.previousSchoolLcDate).toLocaleDateString('en-IN') : '—'}</div>
+                <div style={fieldStyle}><strong>Leave Date:</strong> {student.previousSchoolLeaveDate ? new Date(student.previousSchoolLeaveDate).toLocaleDateString('en-IN') : '—'}</div>
+                <div style={fieldStyle}><strong>Reason for Leaving:</strong> {student.previousSchoolReasonLeave || '—'}</div>
+                <div style={fieldStyle}><strong>Remarks:</strong> {student.previousSchoolRemarks || '—'}</div>
                 <div style={fieldStyle}>
                   <strong>Transport Route:</strong> {(transportRoutes.find((r) => r._id === String(student.transportRouteId))?.routeName) || 'Not assigned'}
                 </div>
@@ -230,6 +294,18 @@ const StudentProfile = () => {
                 </p>
               )}
             </div>
+
+            {/* Siblings (free-text, separate from the guardian-linkage-based inference) */}
+            {(student.siblingsDeclared || []).some((s) => s && s.name) && (
+              <div style={sectionStyle}>
+                <div style={sectionTitleStyle}>Siblings</div>
+                {student.siblingsDeclared.filter((s) => s && s.name).map((s, i) => (
+                  <div key={i} style={cardStyle}>
+                    <div><strong>{s.name}</strong> — {s.standard || '—'} {s.relation ? `(${s.relation})` : ''}</div>
+                  </div>
+                ))}
+              </div>
+            )}
 
             {/* Guardians */}
             <div style={sectionStyle}>
@@ -246,6 +322,14 @@ const StudentProfile = () => {
                     {g.isPrimary && <span style={{ marginLeft: '8px', fontSize: '0.75rem', color: '#16a34a', fontWeight: 700 }}>PRIMARY</span>}
                     {g.isEmergencyContact && <span style={{ marginLeft: '8px', fontSize: '0.75rem', color: '#d97706', fontWeight: 700 }}>EMERGENCY</span>}
                     <div style={{ fontSize: '0.85rem', color: '#64748b' }}>{g.mobile}{g.email ? ` · ${g.email}` : ''}{g.userId ? ' · has login' : ' · no login'}</div>
+                    {(g.qualification || g.occupation || g.officeAddress) && (
+                      <div style={{ fontSize: '0.8rem', color: '#94a3b8' }}>
+                        {[g.qualification, g.occupation, g.officeAddress].filter(Boolean).join(' · ')}
+                      </div>
+                    )}
+                    {(g.contributionAreas || []).length > 0 && (
+                      <div style={{ fontSize: '0.8rem', color: '#94a3b8' }}>Contributes: {g.contributionAreas.join(', ')}</div>
+                    )}
                   </div>
                   <button type="button" style={btnStyle} onClick={() => removeGuardian(g.id)}>Unlink</button>
                 </div>
@@ -298,14 +382,17 @@ const StudentProfile = () => {
                 <input style={inputStyle} value={editForm.lastName} onChange={(e) => setEditForm({ ...editForm, lastName: e.target.value })} />
               </label>
             </div>
+            <label style={labelStyle}>Middle Name
+              <input style={inputStyle} value={editForm.middleName} onChange={(e) => setEditForm({ ...editForm, middleName: e.target.value })} />
+            </label>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-              <label style={labelStyle}>Gender
+              <label style={labelStyle}>Gender *
                 <select style={inputStyle} value={editForm.gender} onChange={(e) => setEditForm({ ...editForm, gender: e.target.value })}>
                   <option value="Male">Male</option>
                   <option value="Female">Female</option>
                 </select>
               </label>
-              <label style={labelStyle}>Date of Birth
+              <label style={labelStyle}>Date of Birth *
                 <input type="date" style={inputStyle} value={editForm.dob} onChange={(e) => setEditForm({ ...editForm, dob: e.target.value })} />
               </label>
             </div>
@@ -355,18 +442,144 @@ const StudentProfile = () => {
               <textarea style={{ ...inputStyle, minHeight: '60px' }} value={editForm.medicalNotes} onChange={(e) => setEditForm({ ...editForm, medicalNotes: e.target.value })} />
             </label>
 
+            <h4 style={{ marginBottom: 0 }}>Birth &amp; Identity</h4>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+              <label style={labelStyle}>Birth Place
+                <input style={inputStyle} value={editForm.birthPlace} onChange={(e) => setEditForm({ ...editForm, birthPlace: e.target.value })} />
+              </label>
+              <label style={labelStyle}>Birth Taluka
+                <input style={inputStyle} value={editForm.birthTaluka} onChange={(e) => setEditForm({ ...editForm, birthTaluka: e.target.value })} />
+              </label>
+              <label style={labelStyle}>Birth District
+                <input style={inputStyle} value={editForm.birthDistrict} onChange={(e) => setEditForm({ ...editForm, birthDistrict: e.target.value })} />
+              </label>
+              <label style={labelStyle}>Birth State
+                <input style={inputStyle} value={editForm.birthState} onChange={(e) => setEditForm({ ...editForm, birthState: e.target.value })} />
+              </label>
+              <label style={labelStyle}>Religion
+                <input style={inputStyle} value={editForm.religion} onChange={(e) => setEditForm({ ...editForm, religion: e.target.value })} />
+              </label>
+              <label style={labelStyle}>Caste
+                <input style={inputStyle} value={editForm.caste} onChange={(e) => setEditForm({ ...editForm, caste: e.target.value })} />
+              </label>
+              <label style={labelStyle}>Sub-Caste
+                <input style={inputStyle} value={editForm.subCaste} onChange={(e) => setEditForm({ ...editForm, subCaste: e.target.value })} />
+              </label>
+              <label style={labelStyle}>Category
+                <input style={inputStyle} value={editForm.category} onChange={(e) => setEditForm({ ...editForm, category: e.target.value })} placeholder="e.g. OPEN, OBC, SC, ST, EWS" />
+              </label>
+              <label style={labelStyle}>Nationality
+                <input style={inputStyle} value={editForm.nationality} onChange={(e) => setEditForm({ ...editForm, nationality: e.target.value })} />
+              </label>
+              <label style={labelStyle}>Mother Tongue
+                <input style={inputStyle} value={editForm.motherTongue} onChange={(e) => setEditForm({ ...editForm, motherTongue: e.target.value })} />
+              </label>
+              <label style={labelStyle}>Height (cm)
+                <input type="number" style={inputStyle} value={editForm.heightCm} onChange={(e) => setEditForm({ ...editForm, heightCm: e.target.value })} />
+              </label>
+              <label style={labelStyle}>Weight (kg)
+                <input type="number" style={inputStyle} value={editForm.weightKg} onChange={(e) => setEditForm({ ...editForm, weightKg: e.target.value })} />
+              </label>
+              <label style={labelStyle}>Handicap Type
+                <input style={inputStyle} value={editForm.handicapType} onChange={(e) => setEditForm({ ...editForm, handicapType: e.target.value })} />
+              </label>
+              <label style={labelStyle}>Admission Date
+                <input type="date" style={inputStyle} value={editForm.admissionDate} onChange={(e) => setEditForm({ ...editForm, admissionDate: e.target.value })} />
+              </label>
+            </div>
+            <label style={labelStyle}>Native Address
+              <input style={inputStyle} value={editForm.nativeAddress} onChange={(e) => setEditForm({ ...editForm, nativeAddress: e.target.value })} />
+            </label>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+              <label style={labelStyle}>Student Email
+                <input style={inputStyle} value={editForm.studentEmail} onChange={(e) => setEditForm({ ...editForm, studentEmail: e.target.value })} />
+              </label>
+              <label style={labelStyle}>Student Mobile
+                <input style={inputStyle} value={editForm.studentMobile} onChange={(e) => setEditForm({ ...editForm, studentMobile: e.target.value })} />
+              </label>
+              <label style={labelStyle}>GR No
+                <input style={inputStyle} value={editForm.grNo} onChange={(e) => setEditForm({ ...editForm, grNo: e.target.value })} />
+              </label>
+              <label style={labelStyle}>Student Saral No
+                <input style={inputStyle} value={editForm.studentSaralNo} onChange={(e) => setEditForm({ ...editForm, studentSaralNo: e.target.value })} />
+              </label>
+              <label style={labelStyle}>PEN No
+                <input style={inputStyle} value={editForm.penNo} onChange={(e) => setEditForm({ ...editForm, penNo: e.target.value })} />
+              </label>
+              <label style={labelStyle}>APAAR ID
+                <input style={inputStyle} value={editForm.apaarId} onChange={(e) => setEditForm({ ...editForm, apaarId: e.target.value })} />
+              </label>
+              <label style={labelStyle}>Aadhar Number
+                <input style={inputStyle} value={editForm.aadharNumber} onChange={(e) => setEditForm({ ...editForm, aadharNumber: e.target.value })} />
+              </label>
+            </div>
+
             <h4 style={{ marginBottom: 0 }}>Previous School</h4>
-            <label style={labelStyle}>School Name
+            <label style={labelStyle}>School Name *
               <input style={inputStyle} value={editForm.previousSchoolName} onChange={(e) => setEditForm({ ...editForm, previousSchoolName: e.target.value })} />
             </label>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-              <label style={labelStyle}>Board
+              <label style={labelStyle}>Board *
                 <input style={inputStyle} value={editForm.previousSchoolBoard} onChange={(e) => setEditForm({ ...editForm, previousSchoolBoard: e.target.value })} placeholder="e.g. CBSE" />
               </label>
               <label style={labelStyle}>Last Grade Completed
                 <input style={inputStyle} value={editForm.previousGradeCompleted} onChange={(e) => setEditForm({ ...editForm, previousGradeCompleted: e.target.value })} />
               </label>
+              <label style={labelStyle}>Medium
+                <input style={inputStyle} value={editForm.previousSchoolMedium} onChange={(e) => setEditForm({ ...editForm, previousSchoolMedium: e.target.value })} />
+              </label>
+              <label style={labelStyle}>Pass Year
+                <input style={inputStyle} value={editForm.previousSchoolPassYear} onChange={(e) => setEditForm({ ...editForm, previousSchoolPassYear: e.target.value })} />
+              </label>
+              <label style={labelStyle}>Seat Number
+                <input style={inputStyle} value={editForm.previousSchoolSeatNumber} onChange={(e) => setEditForm({ ...editForm, previousSchoolSeatNumber: e.target.value })} />
+              </label>
+              <label style={labelStyle}>% Marks
+                <input type="number" style={inputStyle} value={editForm.previousSchoolPercentage} onChange={(e) => setEditForm({ ...editForm, previousSchoolPercentage: e.target.value })} />
+              </label>
+              <label style={labelStyle}>LC Number
+                <input style={inputStyle} value={editForm.previousSchoolLcNumber} onChange={(e) => setEditForm({ ...editForm, previousSchoolLcNumber: e.target.value })} />
+              </label>
+              <label style={labelStyle}>LC Date
+                <input type="date" style={inputStyle} value={editForm.previousSchoolLcDate} onChange={(e) => setEditForm({ ...editForm, previousSchoolLcDate: e.target.value })} />
+              </label>
+              <label style={labelStyle}>Leave Date
+                <input type="date" style={inputStyle} value={editForm.previousSchoolLeaveDate} onChange={(e) => setEditForm({ ...editForm, previousSchoolLeaveDate: e.target.value })} />
+              </label>
+              <label style={labelStyle}>Reason for Leaving
+                <input style={inputStyle} value={editForm.previousSchoolReasonLeave} onChange={(e) => setEditForm({ ...editForm, previousSchoolReasonLeave: e.target.value })} />
+              </label>
             </div>
+            <label style={labelStyle}>Remarks
+              <input style={inputStyle} value={editForm.previousSchoolRemarks} onChange={(e) => setEditForm({ ...editForm, previousSchoolRemarks: e.target.value })} />
+            </label>
+
+            <h4 style={{ marginBottom: 0 }}>Siblings</h4>
+            {editForm.siblingsDeclared.map((sib, i) => (
+              <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px' }}>
+                <label style={labelStyle}>{i + 1}. Name
+                  <input style={inputStyle} value={sib.name} onChange={(e) => {
+                    const next = [...editForm.siblingsDeclared];
+                    next[i] = { ...next[i], name: e.target.value };
+                    setEditForm({ ...editForm, siblingsDeclared: next });
+                  }} />
+                </label>
+                <label style={labelStyle}>Standard
+                  <input style={inputStyle} value={sib.standard} onChange={(e) => {
+                    const next = [...editForm.siblingsDeclared];
+                    next[i] = { ...next[i], standard: e.target.value };
+                    setEditForm({ ...editForm, siblingsDeclared: next });
+                  }} />
+                </label>
+                <label style={labelStyle}>Relation
+                  <input style={inputStyle} value={sib.relation} onChange={(e) => {
+                    const next = [...editForm.siblingsDeclared];
+                    next[i] = { ...next[i], relation: e.target.value };
+                    setEditForm({ ...editForm, siblingsDeclared: next });
+                  }} />
+                </label>
+              </div>
+            ))}
 
             <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', marginTop: '20px' }}>
               <button type="button" style={btnStyle} onClick={() => setEditOpen(false)} disabled={saving}>Cancel</button>
@@ -410,6 +623,34 @@ const StudentProfile = () => {
                     {RELATIONS.map((r) => <option key={r} value={r}>{r}</option>)}
                   </select>
                 </label>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                  <label style={labelStyle}>Qualification
+                    <input style={inputStyle} value={guardianForm.qualification} onChange={(e) => setGuardianForm({ ...guardianForm, qualification: e.target.value })} />
+                  </label>
+                  <label style={labelStyle}>Occupation
+                    <input style={inputStyle} value={guardianForm.occupation} onChange={(e) => setGuardianForm({ ...guardianForm, occupation: e.target.value })} />
+                  </label>
+                </div>
+                <label style={labelStyle}>Office Address
+                  <input style={inputStyle} value={guardianForm.officeAddress} onChange={(e) => setGuardianForm({ ...guardianForm, officeAddress: e.target.value })} />
+                </label>
+                <label style={labelStyle}>Areas you could contribute to enrich school life</label>
+                <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginTop: '4px' }}>
+                  {CONTRIBUTION_AREAS.map((area) => (
+                    <label key={area} style={{ fontSize: '0.82rem' }}>
+                      <input
+                        type="checkbox"
+                        checked={guardianForm.contributionAreas.includes(area)}
+                        onChange={(e) => {
+                          const next = e.target.checked
+                            ? [...guardianForm.contributionAreas, area]
+                            : guardianForm.contributionAreas.filter((a) => a !== area);
+                          setGuardianForm({ ...guardianForm, contributionAreas: next });
+                        }}
+                      /> {area}
+                    </label>
+                  ))}
+                </div>
                 <div style={{ display: 'flex', gap: '16px', marginTop: '12px', flexWrap: 'wrap' }}>
                   <label style={{ fontSize: '0.85rem' }}>
                     <input type="checkbox" checked={guardianForm.isPrimary} onChange={(e) => setGuardianForm({ ...guardianForm, isPrimary: e.target.checked })} /> Primary contact

@@ -8,7 +8,8 @@ const { serializeRow, serializeRows } = require('../utils/serialize');
 const { generateUsername, generateTempPassword } = require('../utils/credentials');
 
 const BOOL_FIELDS = ['is_rte', 'is_maharashtrian'];
-const serialize = (row) => serializeRow(row, { boolFields: BOOL_FIELDS });
+const JSON_FIELDS = ['siblings_declared'];
+const serialize = (row) => serializeRow(row, { boolFields: BOOL_FIELDS, jsonFields: JSON_FIELDS, jsonDefault: [] });
 
 // Keeps students.parent_name/parent_mobile/parent_email in sync as a denormalized
 // snapshot of the primary guardian, so existing reads (StudentProfile, SIS search)
@@ -61,7 +62,7 @@ router.get('/', auth, async (req, res) => {
       .offset(offset).limit(limitNum);
 
     return res.json({
-      students: serializeRows(rows, { boolFields: BOOL_FIELDS }),
+      students: serializeRows(rows, { boolFields: BOOL_FIELDS, jsonFields: JSON_FIELDS, jsonDefault: [] }),
       total: Number(total),
       page: pageNum,
       pages: Math.ceil(Number(total) / limitNum),
@@ -92,7 +93,7 @@ router.get('/:id', auth, async (req, res) => {
     return res.json({
       ...serialize(student),
       house: house ? serializeRow(house) : null,
-      guardians: serializeRows(guardians, { boolFields: ['is_primary', 'is_emergency_contact'] }),
+      guardians: serializeRows(guardians, { boolFields: ['is_primary', 'is_emergency_contact'], jsonFields: ['contribution_areas'], jsonDefault: [] }),
       documents: serializeRows(documents),
     });
   } catch (err) {
@@ -172,7 +173,21 @@ const CAMEL_TO_SNAKE = {
   medicalNotes: 'medical_notes', transportRouteId: 'transport_route_id',
   previousSchoolName: 'previous_school_name', previousSchoolBoard: 'previous_school_board',
   previousGradeCompleted: 'previous_grade_completed', isTwinOf: 'is_twin_of',
+  middleName: 'middle_name', religion: 'religion', caste: 'caste', subCaste: 'sub_caste',
+  category: 'category', nationality: 'nationality', motherTongue: 'mother_tongue',
+  birthPlace: 'birth_place', birthTaluka: 'birth_taluka', birthDistrict: 'birth_district',
+  birthState: 'birth_state', nativeAddress: 'native_address', studentSaralNo: 'student_saral_no',
+  grNo: 'gr_no', penNo: 'pen_no', aadharNumber: 'aadhar_number', apaarId: 'apaar_id',
+  heightCm: 'height_cm', weightKg: 'weight_kg', studentEmail: 'student_email',
+  studentMobile: 'student_mobile', handicapType: 'handicap_type', admissionDate: 'admission_date',
+  previousSchoolPassYear: 'previous_school_pass_year', previousSchoolSeatNumber: 'previous_school_seat_number',
+  previousSchoolPercentage: 'previous_school_percentage', previousSchoolLcNumber: 'previous_school_lc_number',
+  previousSchoolLcDate: 'previous_school_lc_date', previousSchoolLeaveDate: 'previous_school_leave_date',
+  previousSchoolRemarks: 'previous_school_remarks', previousSchoolReasonLeave: 'previous_school_reason_leave',
+  previousSchoolMedium: 'previous_school_medium',
 };
+
+const JSON_BODY_FIELDS = { siblingsDeclared: 'siblings_declared' };
 
 // PUT /api/students/:id
 router.put('/:id', auth, authorize(['admin']), async (req, res) => {
@@ -180,7 +195,9 @@ router.put('/:id', auth, authorize(['admin']), async (req, res) => {
     const updates = {};
     Object.entries(req.body).forEach(([key, value]) => {
       const column = CAMEL_TO_SNAKE[key];
-      if (column) updates[column] = value;
+      if (column) { updates[column] = value; return; }
+      const jsonColumn = JSON_BODY_FIELDS[key];
+      if (jsonColumn) updates[jsonColumn] = JSON.stringify(value || []);
     });
     if (Object.keys(updates).length === 0) {
       return res.status(400).json({ message: 'No valid fields to update.' });
@@ -216,7 +233,10 @@ router.delete('/:id', auth, authorize(['admin']), async (req, res) => {
 // POST /api/students/:id/guardians (admin) — link a new or existing guardian
 // (deduped by mobile, same as the admission-approval flow) to a student.
 router.post('/:id/guardians', auth, authorize(['admin']), async (req, res) => {
-  const { fullName, mobile, email, relation, isPrimary, isEmergencyContact, createParentLogin } = req.body;
+  const {
+    fullName, mobile, email, relation, isPrimary, isEmergencyContact, createParentLogin,
+    qualification, occupation, officeAddress, contributionAreas,
+  } = req.body;
   if (!fullName || !mobile) {
     return res.status(400).json({ message: 'fullName and mobile are required.' });
   }
@@ -237,7 +257,11 @@ router.post('/:id/guardians', auth, authorize(['admin']), async (req, res) => {
         guardianId = guardian.id;
       } else {
         [guardianId] = await trx('guardians').insert({
-          full_name: fullName, mobile, email: email || null, created_at: now, updated_at: now,
+          full_name: fullName, mobile, email: email || null,
+          qualification: qualification || null, occupation: occupation || null,
+          office_address: officeAddress || null,
+          contribution_areas: JSON.stringify(contributionAreas || []),
+          created_at: now, updated_at: now,
         });
         guardian = { id: guardianId, user_id: null };
       }
@@ -268,7 +292,7 @@ router.post('/:id/guardians', auth, authorize(['admin']), async (req, res) => {
       if (isPrimary) await syncPrimaryGuardianSnapshot(student.id, trx);
 
       const guardianRow = await trx('guardians').where({ id: guardianId }).first();
-      return { guardian: serializeRow(guardianRow), credentials };
+      return { guardian: serializeRow(guardianRow, { jsonFields: ['contribution_areas'], jsonDefault: [] }), credentials };
     });
 
     return res.status(201).json(result);

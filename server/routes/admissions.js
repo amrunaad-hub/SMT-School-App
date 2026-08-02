@@ -6,8 +6,24 @@ const auth = require('../middleware/auth');
 const authorize = require('../middleware/authorize');
 const { serializeRow, serializeRows } = require('../utils/serialize');
 const { generateUsername, generateTempPassword } = require('../utils/credentials');
+const { validatePublicSubmitMandatory, validateApproveMandatory, guardiansFromInput } = require('../utils/validateAdmissionMandatory');
 
-const serialize = (row) => serializeRow(row);
+const JSON_FIELDS = ['guardians_draft', 'siblings_declared'];
+const serialize = (row) => serializeRow(row, { jsonFields: JSON_FIELDS, jsonDefault: [] });
+
+// Columns staged on `admissions` (public form) that get copied verbatim onto
+// the new `students` row at approve time — personal/identity + extended
+// previous-school detail. Kept as one list instead of hand-copying ~30 fields.
+const ADMISSION_TO_STUDENT_FIELDS = [
+  'middle_name', 'religion', 'caste', 'sub_caste', 'category', 'nationality', 'mother_tongue',
+  'birth_place', 'birth_taluka', 'birth_district', 'birth_state', 'native_address',
+  'student_saral_no', 'gr_no', 'pen_no', 'aadhar_number', 'apaar_id', 'height_cm', 'weight_kg',
+  'student_email', 'student_mobile', 'handicap_type', 'siblings_declared', 'gender',
+  'previous_school_board', 'previous_school_pass_year', 'previous_school_seat_number',
+  'previous_school_percentage', 'previous_school_lc_number', 'previous_school_lc_date',
+  'previous_school_leave_date', 'previous_school_remarks', 'previous_school_reason_leave',
+  'previous_school_medium',
+];
 
 const OPEN_STATUSES = ['Enquiry', 'In Process', 'Document Verification', 'Clarification Requested'];
 
@@ -31,13 +47,30 @@ const CAMEL_TO_SNAKE = {
   source: 'source', status: 'status', followUpNote: 'follow_up_note',
   rejectionReason: 'rejection_reason', assignedTo: 'assigned_to', academicYear: 'academic_year',
   address: 'address', bloodGroup: 'blood_group', medicalNotes: 'medical_notes',
+  gender: 'gender', middleName: 'middle_name', religion: 'religion', caste: 'caste',
+  subCaste: 'sub_caste', category: 'category', nationality: 'nationality',
+  motherTongue: 'mother_tongue', birthPlace: 'birth_place', birthTaluka: 'birth_taluka',
+  birthDistrict: 'birth_district', birthState: 'birth_state', nativeAddress: 'native_address',
+  studentSaralNo: 'student_saral_no', grNo: 'gr_no', penNo: 'pen_no',
+  aadharNumber: 'aadhar_number', apaarId: 'apaar_id', heightCm: 'height_cm', weightKg: 'weight_kg',
+  studentEmail: 'student_email', studentMobile: 'student_mobile', handicapType: 'handicap_type',
+  previousSchoolBoard: 'previous_school_board', previousSchoolPassYear: 'previous_school_pass_year',
+  previousSchoolSeatNumber: 'previous_school_seat_number', previousSchoolPercentage: 'previous_school_percentage',
+  previousSchoolLcNumber: 'previous_school_lc_number', previousSchoolLcDate: 'previous_school_lc_date',
+  previousSchoolLeaveDate: 'previous_school_leave_date', previousSchoolRemarks: 'previous_school_remarks',
+  previousSchoolReasonLeave: 'previous_school_reason_leave', previousSchoolMedium: 'previous_school_medium',
+  admissionFormNo: 'admission_form_no', admissionDate: 'admission_date',
 };
+
+const JSON_BODY_FIELDS = { guardiansDraft: 'guardians_draft', siblingsDeclared: 'siblings_declared' };
 
 function bodyToRow(body) {
   const row = {};
   Object.entries(body).forEach(([key, value]) => {
     const column = CAMEL_TO_SNAKE[key];
-    if (column) row[column] = value;
+    if (column) { row[column] = value; return; }
+    const jsonColumn = JSON_BODY_FIELDS[key];
+    if (jsonColumn) row[jsonColumn] = JSON.stringify(value || []);
   });
   return row;
 }
@@ -190,7 +223,10 @@ router.delete('/:id', auth, authorize(['admin']), async (req, res) => {
 // parent login (no SMS/email infra yet, so the temp password is returned once
 // for the admin to relay manually), and marks the admission Confirmed.
 router.post('/:id/approve', auth, authorize(['admin']), async (req, res) => {
-  const { grade, division, rollNo, houseId, guardians, createParentLogin = true } = req.body;
+  const {
+    grade, division, rollNo, houseId, guardians, createParentLogin = true,
+    admissionFormNo, admissionDate,
+  } = req.body;
 
   if (!grade || !division) {
     return res.status(400).json({ message: 'grade and division are required.' });
@@ -210,6 +246,13 @@ router.post('/:id/approve', auth, authorize(['admin']), async (req, res) => {
         throw err;
       }
 
+      const missing = validateApproveMandatory({ admissionFormNo, admissionDate, guardians, admission });
+      if (missing.length) {
+        const err = new Error(`Missing required field(s): ${missing.join(', ')}.`);
+        err.status = 400;
+        throw err;
+      }
+
       const gradeNum = Number(grade);
       const divisionLower = String(division).toLowerCase();
 
@@ -221,8 +264,8 @@ router.post('/:id/approve', auth, authorize(['admin']), async (req, res) => {
         assignedRollNo = lastStudent ? lastStudent.roll_no + 1 : 1;
       }
 
-      const guardianInputs = Array.isArray(guardians) && guardians.length
-        ? guardians
+      const guardianInputs = guardiansFromInput({ guardians, guardiansDraft: admission.guardians_draft }).length
+        ? guardiansFromInput({ guardians, guardiansDraft: admission.guardians_draft })
         : [{
           fullName: admission.parent_name,
           mobile: admission.parent_mobile,
@@ -237,7 +280,11 @@ router.post('/:id/approve', auth, authorize(['admin']), async (req, res) => {
       const nameParts = String(admission.child_name).trim().split(/\s+/);
       const now = new Date().toISOString();
 
+      const copiedFields = {};
+      ADMISSION_TO_STUDENT_FIELDS.forEach((f) => { copiedFields[f] = admission[f] ?? null; });
+
       const [studentId] = await trx('students').insert({
+        ...copiedFields,
         student_code: generateStudentCode(gradeNum, divisionLower, assignedRollNo),
         first_name: nameParts[0],
         last_name: nameParts.slice(1).join(' '),
@@ -251,7 +298,8 @@ router.post('/:id/approve', auth, authorize(['admin']), async (req, res) => {
         house_id: houseId || null,
         previous_school_name: admission.current_school || null,
         admission_id: admission.id,
-        admission_year: new Date().getFullYear(),
+        admission_date: admissionDate,
+        admission_year: new Date(admissionDate).getFullYear() || new Date().getFullYear(),
         status: 'Active',
         created_at: now,
         updated_at: now,
@@ -271,6 +319,10 @@ router.post('/:id/approve', auth, authorize(['admin']), async (req, res) => {
             full_name: g.fullName || 'Guardian',
             mobile: g.mobile,
             email: g.email || null,
+            qualification: g.qualification || null,
+            occupation: g.occupation || null,
+            office_address: g.officeAddress || null,
+            contribution_areas: JSON.stringify(g.contributionAreas || []),
             created_at: now,
             updated_at: now,
           });
