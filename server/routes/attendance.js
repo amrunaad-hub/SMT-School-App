@@ -109,11 +109,21 @@ router.get('/roster', auth, async (req, res) => {
         .whereIn('student_id', students.map((s) => s.id)),
     ]);
     const existingByStudent = Object.fromEntries(existingRows.map((r) => [r.student_id, r]));
-    const onLeave = new Set(leaveRows.map((r) => r.student_id));
+    const leaveByStudent = new Map(leaveRows.map((r) => [r.student_id, r]));
+
+    const leaveDocsByLeaveId = {};
+    if (leaveRows.length > 0) {
+      const docs = await db('documents').where({ owner_type: 'leave_request' }).whereIn('owner_id', leaveRows.map((r) => r.id));
+      docs.forEach((d) => {
+        if (!leaveDocsByLeaveId[d.owner_id]) leaveDocsByLeaveId[d.owner_id] = [];
+        leaveDocsByLeaveId[d.owner_id].push({ id: d.id, docType: d.doc_type, fileUrl: d.file_url, originalFilename: d.original_filename });
+      });
+    }
 
     const roster = students.map((s) => {
       const existing = existingByStudent[s.id];
-      const defaultStatus = onLeave.has(s.id) ? 'Absent' : 'Present';
+      const leave = leaveByStudent.get(s.id);
+      const defaultStatus = leave ? 'Absent' : 'Present';
       return {
         studentId: s.id,
         studentCode: s.student_code,
@@ -121,8 +131,13 @@ router.get('/roster', auth, async (req, res) => {
         lastName: s.last_name,
         rollNo: s.roll_no,
         status: existing ? existing.status : defaultStatus,
-        reason: existing ? existing.reason : (onLeave.has(s.id) ? 'On approved leave' : ''),
-        isOnLeave: onLeave.has(s.id),
+        reason: existing ? existing.reason : (leave ? `On approved ${leave.category || 'Casual'} leave` : ''),
+        isOnLeave: !!leave,
+        leaveRequest: leave ? {
+          id: leave.id, type: leave.type, category: leave.category,
+          fromDate: leave.from_date, toDate: leave.to_date, reason: leave.reason, status: leave.status,
+          documents: leaveDocsByLeaveId[leave.id] || [],
+        } : null,
         isLocked: existing ? !!existing.is_locked : false,
       };
     });
@@ -262,6 +277,7 @@ function shapeLeaveRequest(row) {
     id: row.id,
     studentId: row.student_id,
     type: row.type,
+    category: row.category,
     fromDate: row.from_date,
     toDate: row.to_date,
     reason: row.reason,
@@ -295,7 +311,7 @@ router.get('/leave-requests', auth, async (req, res) => {
 // date as an automatic Absent default, overridable by the marking teacher.
 router.post('/leave-requests', auth, async (req, res) => {
   try {
-    const { studentId, type, fromDate, toDate, reason } = req.body;
+    const { studentId, fromDate, toDate, reason, category } = req.body;
     if (!studentId || !fromDate || !toDate || !reason) {
       return res.status(400).json({ message: 'studentId, fromDate, toDate, and reason are required.' });
     }
@@ -303,9 +319,16 @@ router.post('/leave-requests', auth, async (req, res) => {
       return res.status(403).json({ message: 'Not your child.' });
     }
 
+    // Advance vs. regularization isn't a parent choice — it's evident from
+    // the dates: a leave starting today or later is applied in advance, one
+    // starting before today is filed after the fact.
+    const todayStr = new Date().toISOString().slice(0, 10);
+    const type = fromDate < todayStr ? 'regularization' : 'advance';
+
     const now = new Date().toISOString();
     const [id] = await db('leave_requests').insert({
-      student_id: studentId, type: type || 'advance', from_date: fromDate, to_date: toDate, reason,
+      student_id: studentId, type, category: ['Medical', 'Casual'].includes(category) ? category : 'Casual',
+      from_date: fromDate, to_date: toDate, reason,
       requested_by: req.user.id, created_at: now, updated_at: now,
     });
     const row = await db('leave_requests').where({ id }).first();

@@ -24,7 +24,7 @@ const Parents = () => {
   const [attachmentMap, setAttachmentMap] = useState({});
   const [expandedCards, setExpandedCards] = useState({});
   const [showLeaveModal, setShowLeaveModal] = useState(false);
-  const [leaveForm, setLeaveForm] = useState({ type: 'advance', fromDate: '', toDate: '', reason: '', document: null, docName: '' });
+  const [leaveForm, setLeaveForm] = useState({ category: 'Casual', fromDate: '', toDate: '', reason: '', document: null, docName: '' });
   const [leaveFormErrors, setLeaveFormErrors] = useState({});
   const [leaveSubmitting, setLeaveSubmitting] = useState(false);
   const [selectedDateDetail, setSelectedDateDetail] = useState(null);
@@ -789,10 +789,13 @@ const Parents = () => {
           if (leaveForm.toDate && leaveForm.fromDate && leaveForm.toDate < leaveForm.fromDate) errors.toDate = 'To date cannot be before from date.';
           if (!leaveForm.reason.trim()) errors.reason = 'Reason is required.';
           if (Object.keys(errors).length > 0) { setLeaveFormErrors(errors); return; }
+          const todayStr = new Date().toISOString().slice(0, 10);
+          const isAdvance = leaveForm.fromDate >= todayStr;
+          const successMsg = isAdvance ? 'Leave application submitted. Awaiting teacher approval.' : 'Regularization request submitted.';
           setLeaveSubmitting(true);
           api.post('/api/attendance/leave-requests', {
             studentId: selectedChildId,
-            type: leaveForm.type,
+            category: leaveForm.category,
             fromDate: leaveForm.fromDate,
             toDate: leaveForm.toDate,
             reason: leaveForm.reason,
@@ -810,19 +813,19 @@ const Parents = () => {
                 const token = window.localStorage.getItem('smt-school-token');
                 fetch('/api/uploads', { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: formData }).catch(() => {});
               }
-              setLeaveForm({ type: 'advance', fromDate: '', toDate: '', reason: '', document: null, docName: '' });
+              setLeaveForm({ category: 'Casual', fromDate: '', toDate: '', reason: '', document: null, docName: '' });
               setLeaveFormErrors({});
-              pushNotification(leaveForm.type === 'advance' ? 'Leave application submitted. Awaiting teacher approval.' : 'Regularization request submitted.');
+              pushNotification(successMsg);
             })
             .catch(() => {
               // Fallback: optimistic local update
-              const newReq = { id: `LR-${String(leaveRequests.length + 1).padStart(3, '0')}`, type: leaveForm.type, fromDate: leaveForm.fromDate, toDate: leaveForm.toDate, reason: leaveForm.reason, status: 'Pending', submittedAt: new Date().toLocaleString('en-IN'), approvedBy: null, approvedAt: null };
+              const newReq = { id: `LR-${String(leaveRequests.length + 1).padStart(3, '0')}`, category: leaveForm.category, fromDate: leaveForm.fromDate, toDate: leaveForm.toDate, reason: leaveForm.reason, status: 'Pending', submittedAt: new Date().toLocaleString('en-IN'), approvedBy: null, approvedAt: null };
               setLeaveRequests((prev) => [...prev, newReq]);
               setLeaveSubmitting(false);
               setShowLeaveModal(false);
-              setLeaveForm({ type: 'advance', fromDate: '', toDate: '', reason: '', document: null, docName: '' });
+              setLeaveForm({ category: 'Casual', fromDate: '', toDate: '', reason: '', document: null, docName: '' });
               setLeaveFormErrors({});
-              pushNotification(leaveForm.type === 'advance' ? 'Leave application submitted. Awaiting teacher approval.' : 'Regularization request submitted.');
+              pushNotification(successMsg);
             });
         };
 
@@ -835,7 +838,11 @@ const Parents = () => {
               <h3 style={{ color: '#166534', fontSize: isMobile ? '1.15rem' : '1.35rem', fontWeight: '700', margin: 0 }}>📅 Attendance Calendar & History</h3>
               <button
                 type="button"
-                onClick={() => setShowLeaveModal(true)}
+                onClick={() => {
+                  const todayStr = new Date().toISOString().slice(0, 10);
+                  setLeaveForm((f) => ({ ...f, fromDate: todayStr, toDate: todayStr }));
+                  setShowLeaveModal(true);
+                }}
                 style={{ padding: '9px 18px', borderRadius: '10px', border: 'none', background: '#16a34a', color: '#fff', fontWeight: 800, cursor: 'pointer', fontSize: '0.88rem', boxShadow: '0 3px 10px rgba(22,163,74,0.3)' }}
               >
                 + Apply Leave
@@ -920,6 +927,7 @@ const Parents = () => {
                         <div style={{ flex: 1 }}>
                           <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
                             <span style={{ fontWeight: 700, color: '#0f172a', fontSize: '0.88rem' }}>{req.type === 'advance' ? 'Advance Leave' : 'Regularization'}</span>
+                            {req.category && <span style={{ padding: '2px 8px', borderRadius: '999px', background: '#f1f5f9', color: '#475569', fontWeight: 700, fontSize: '0.72rem' }}>{req.category}</span>}
                             <span style={{ padding: '2px 8px', borderRadius: '999px', background: sb.bg, color: sb.color, fontWeight: 700, fontSize: '0.72rem' }}>{req.status}</span>
                           </div>
                           <p style={{ margin: '4px 0 0', color: '#475569', fontSize: '0.82rem' }}>{req.fromDate === req.toDate ? req.fromDate : `${req.fromDate} → ${req.toDate}`} · {req.reason}</p>
@@ -968,9 +976,17 @@ const Parents = () => {
 
                   <div style={{ marginBottom: '14px' }}>
                     <label style={{ display: 'block', fontWeight: 700, color: '#334155', marginBottom: '6px', fontSize: '0.88rem' }}>Type</label>
+                    <div style={{ padding: '9px 12px', borderRadius: '9px', background: '#f0fdf4', border: '1px solid #bbf7d0', color: '#166534', fontWeight: 700, fontSize: '0.82rem' }}>
+                      {leaveForm.fromDate && leaveForm.fromDate < new Date().toISOString().slice(0, 10) ? 'Post-Facto Regularization' : 'Advance Leave'}
+                      <span style={{ display: 'block', fontWeight: 500, color: '#4b5563', fontSize: '0.74rem', marginTop: '2px' }}>Determined automatically from the dates below.</span>
+                    </div>
+                  </div>
+
+                  <div style={{ marginBottom: '14px' }}>
+                    <label style={{ display: 'block', fontWeight: 700, color: '#334155', marginBottom: '6px', fontSize: '0.88rem' }}>Leave Category</label>
                     <div style={{ display: 'flex', gap: '8px' }}>
-                      {[['advance', 'Advance Leave'], ['regularization', 'Post-Facto Regularization']].map(([val, lbl]) => (
-                        <button key={val} type="button" onClick={() => setLeaveForm((f) => ({ ...f, type: val }))} style={{ flex: 1, padding: '9px', borderRadius: '9px', border: `2px solid ${leaveForm.type === val ? '#16a34a' : '#cbd5e1'}`, background: leaveForm.type === val ? '#dcfce7' : '#fff', color: leaveForm.type === val ? '#166534' : '#334155', fontWeight: 700, cursor: 'pointer', fontSize: '0.82rem' }}>
+                      {[['Casual', 'Casual'], ['Medical', 'Medical']].map(([val, lbl]) => (
+                        <button key={val} type="button" onClick={() => setLeaveForm((f) => ({ ...f, category: val }))} style={{ flex: 1, padding: '9px', borderRadius: '9px', border: `2px solid ${leaveForm.category === val ? '#16a34a' : '#cbd5e1'}`, background: leaveForm.category === val ? '#dcfce7' : '#fff', color: leaveForm.category === val ? '#166534' : '#334155', fontWeight: 700, cursor: 'pointer', fontSize: '0.82rem' }}>
                           {lbl}
                         </button>
                       ))}
@@ -1028,7 +1044,7 @@ const Parents = () => {
                     <button
                       type="button"
                       onClick={() => {
-                        setLeaveForm((f) => ({ ...f, type: 'regularization', fromDate: selectedDateDetail.date, toDate: selectedDateDetail.date, reason: selectedDateDetail.reason || '' }));
+                        setLeaveForm((f) => ({ ...f, fromDate: selectedDateDetail.date, toDate: selectedDateDetail.date, reason: selectedDateDetail.reason || '' }));
                         setSelectedDateDetail(null);
                         setShowLeaveModal(true);
                       }}

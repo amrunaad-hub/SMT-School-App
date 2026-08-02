@@ -55,6 +55,7 @@ const AttendanceModal = ({ date, grade, division, divisionOptions, onDivisionCha
   const setStatus = (studentId, status) => setRoster((prev) => prev.map((r) => (r.studentId === studentId ? { ...r, status } : r)));
   const setRemark = (studentId, remark) => setRoster((prev) => prev.map((r) => (r.studentId === studentId ? { ...r, remark } : r)));
   const [remarkOpen, setRemarkOpen] = useState(null);
+  const [viewLeaveFor, setViewLeaveFor] = useState(null);
   const markAll = (status) => setRoster((prev) => prev.map((r) => ({ ...r, status })));
 
   const counts = useMemo(() => ({
@@ -155,7 +156,11 @@ const AttendanceModal = ({ date, grade, division, divisionOptions, onDivisionCha
                     <div style={{ minWidth: '28px', color: '#94a3b8', fontSize: '0.78rem', fontWeight: 700 }}>{r.rollNo}</div>
                     <div style={{ flex: 1, minWidth: '120px', fontWeight: 700, color: '#0f172a', fontSize: '0.88rem' }}>
                       {r.firstName} {r.lastName}
-                      {r.isOnLeave && <span style={{ marginLeft: '6px', fontSize: '0.7rem', color: '#d97706', fontWeight: 700 }}>ON LEAVE</span>}
+                      {r.leaveRequest && (
+                        <button type="button" onClick={() => setViewLeaveFor(r)} style={{ marginLeft: '6px', fontSize: '0.7rem', color: '#d97706', fontWeight: 700, background: 'none', border: 'none', textDecoration: 'underline', cursor: 'pointer', padding: 0 }}>
+                          📄 Leave Applied
+                        </button>
+                      )}
                     </div>
                     <div style={{ display: 'flex', gap: '5px' }}>
                       {['Present', 'Absent', 'Late'].map((status) => (
@@ -195,6 +200,46 @@ const AttendanceModal = ({ date, grade, division, divisionOptions, onDivisionCha
           </>
         )}
       </div>
+
+      {viewLeaveFor && (
+        <div role="dialog" aria-modal="true" style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.6)', zIndex: 1100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }} onClick={(e) => { if (e.target === e.currentTarget) setViewLeaveFor(null); }}>
+          <div style={{ background: '#fff', borderRadius: '16px', padding: '20px', width: '100%', maxWidth: '420px', boxShadow: '0 24px 60px rgba(15,23,42,0.3)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' }}>
+              <h3 style={{ margin: 0, color: '#0f172a', fontWeight: 800, fontSize: '1.05rem' }}>Leave Applied — {viewLeaveFor.firstName} {viewLeaveFor.lastName}</h3>
+              <button type="button" onClick={() => setViewLeaveFor(null)} style={{ background: 'none', border: 'none', fontSize: '1.3rem', cursor: 'pointer', color: '#64748b' }}>×</button>
+            </div>
+            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '10px' }}>
+              <span style={{ padding: '3px 10px', borderRadius: '999px', background: '#f1f5f9', color: '#334155', fontWeight: 700, fontSize: '0.76rem' }}>
+                {viewLeaveFor.leaveRequest.type === 'advance' ? 'Advance Leave' : 'Regularization'}
+              </span>
+              <span style={{ padding: '3px 10px', borderRadius: '999px', background: '#fef3c7', color: '#92400e', fontWeight: 700, fontSize: '0.76rem' }}>
+                {viewLeaveFor.leaveRequest.category || 'Casual'}
+              </span>
+              <span style={{ padding: '3px 10px', borderRadius: '999px', background: '#dbeafe', color: '#1e3a8a', fontWeight: 700, fontSize: '0.76rem' }}>
+                {viewLeaveFor.leaveRequest.status}
+              </span>
+            </div>
+            <p style={{ margin: '0 0 8px', fontSize: '0.85rem', color: '#334155' }}>
+              <strong>Dates:</strong> {viewLeaveFor.leaveRequest.fromDate === viewLeaveFor.leaveRequest.toDate ? viewLeaveFor.leaveRequest.fromDate : `${viewLeaveFor.leaveRequest.fromDate} → ${viewLeaveFor.leaveRequest.toDate}`}
+            </p>
+            <p style={{ margin: '0 0 12px', fontSize: '0.85rem', color: '#334155' }}>
+              <strong>Reason:</strong> {viewLeaveFor.leaveRequest.reason}
+            </p>
+            {viewLeaveFor.leaveRequest.documents.length > 0 ? (
+              <div>
+                <p style={{ margin: '0 0 6px', fontSize: '0.82rem', fontWeight: 700, color: '#334155' }}>Supporting document(s):</p>
+                {viewLeaveFor.leaveRequest.documents.map((doc) => (
+                  <a key={doc.id} href={doc.fileUrl} target="_blank" rel="noreferrer" style={{ display: 'inline-block', marginRight: '8px', marginBottom: '6px', padding: '6px 10px', borderRadius: '8px', border: '1px solid #cbd5e1', background: '#f8fafc', color: '#1e3a8a', fontSize: '0.8rem', textDecoration: 'none' }}>
+                    📎 {doc.originalFilename || doc.docType}
+                  </a>
+                ))}
+              </div>
+            ) : (
+              <p style={{ fontSize: '0.8rem', color: '#94a3b8' }}>No supporting document attached.</p>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 };
