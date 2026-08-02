@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { jsPDF } from 'jspdf';
+import DOMPurify from 'dompurify';
 import { api } from '../api';
 
 const Parents = () => {
@@ -48,9 +49,11 @@ const Parents = () => {
     setSelectedStudent(null);
   }, [selectedChildId]);
 
-  // Fetch active notices for circular/message tabs
+  // Fetch this parent's own audience-resolved notices (broad + anything
+  // scoped to their specific child's grade/house/division/id) for the
+  // circular/message tabs.
   useEffect(() => {
-    api.get('/api/notices', { isActive: true })
+    api.get('/api/notices/mine')
       .then((data) => setApiNotices(data.notices || []))
       .catch(() => {});
   }, []);
@@ -636,10 +639,15 @@ const Parents = () => {
 
   const selectedTimetableEntries = timetable.filter((entry) => entry.date === formatDateKey(selectedTimetableDate));
 
-  // Merge static circulars with API notices for the circular tab
+  // Merge static circulars with API notices for the circular tab — expired
+  // ones (expiresAt in the past) are left out of this feed rather than shown
+  // as if still current; they're not deleted server-side, just not surfaced
+  // here (matches the same Active/Archived split as the admin Communication screen).
   const mergedCircularNotices = useMemo(() => {
+    const todayStr = new Date().toISOString().slice(0, 10);
     const apiMapped = apiNotices
       .filter((n) => ['General', 'Academic', 'Event', 'Holiday', 'Exam', 'Urgent'].includes(n.category))
+      .filter((n) => !n.expiresAt || n.expiresAt.slice(0, 10) >= todayStr)
       .map((n) => ({
         date: n.publishedAt ? new Date(n.publishedAt).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10),
         title: n.title,
@@ -1228,7 +1236,7 @@ const Parents = () => {
                   </button>
                   <div style={{ maxHeight: isOpen ? '320px' : '0px', opacity: isOpen ? 1 : 0, overflow: 'hidden', transition: 'max-height 240ms ease, opacity 220ms ease' }}>
                     <div style={{ padding: isMobile ? '0 12px 12px' : '0 14px 14px', borderTop: '1px solid #ffe4e6' }}>
-                      <p style={{ margin: '10px 0 0', color: '#374151', fontSize: isMobile ? '0.82rem' : '0.9rem', lineHeight: 1.5 }}>{notice.body}</p>
+                      <div style={{ margin: '10px 0 0', color: '#374151', fontSize: isMobile ? '0.82rem' : '0.9rem', lineHeight: 1.5 }} dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(notice.body) }} />
                       {notice.attachments.length > 0 && (
                         <button onClick={() => openAttachmentPreview(notice.title, notice.attachments)} style={{ marginTop: '8px', border: '1px solid #fb7185', background: '#fff1f2', color: '#9f1239', borderRadius: '999px', padding: '6px 10px', fontWeight: 700, cursor: 'pointer' }}>📎 {notice.attachments.length} Attachment</button>
                       )}

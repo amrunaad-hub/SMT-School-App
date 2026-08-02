@@ -4,10 +4,16 @@ const db = require('../db/database');
 const auth = require('../middleware/auth');
 const authorize = require('../middleware/authorize');
 const { serializeRow, serializeRows } = require('../utils/serialize');
+const { noticeAppliesToUser, normalizeAudience } = require('../utils/noticeAudience');
 
 const JSON_FIELDS = ['target_audience'];
 const BOOL_FIELDS = ['is_active'];
-const serialize = (row) => serializeRow(row, { jsonFields: JSON_FIELDS, boolFields: BOOL_FIELDS });
+const AUDIENCE_DEFAULT = { mode: 'all', roles: [], grades: [], houseIds: [], gradeDivisions: [], studentIds: [] };
+const serialize = (row) => {
+  const out = serializeRow(row, { jsonFields: JSON_FIELDS, boolFields: BOOL_FIELDS, jsonDefault: AUDIENCE_DEFAULT });
+  out.targetAudience = normalizeAudience(out.targetAudience);
+  return out;
+};
 
 // Auto-generate noticeCode
 const generateNoticeCode = async () => {
@@ -17,26 +23,41 @@ const generateNoticeCode = async () => {
   return `NTC-${String(num + 1).padStart(3, '0')}`;
 };
 
-// GET /api/notices
+// GET /api/notices — admin/principal-facing: everything, regardless of
+// audience or expiry (the frontend buckets Active vs Archived itself; a
+// notice is never hidden from the API just because it expired).
 router.get('/', auth, async (req, res) => {
   try {
-    const { category, audience, isActive } = req.query;
+    const { category, isActive } = req.query;
     let query = db('notices');
     if (category && category !== 'all') query = query.where({ category });
     if (isActive !== undefined && isActive !== '') query = query.where({ is_active: isActive === 'true' ? 1 : 0 });
 
     const rows = await query.orderBy('published_at', 'desc');
-    let notices = serializeRows(rows, { jsonFields: JSON_FIELDS, boolFields: BOOL_FIELDS });
-
-    // target_audience is stored as JSON array — filter in JS since SQLite can't
-    // easily query inside a JSON text column without the json1 extension.
-    if (audience && audience !== 'all') {
-      notices = notices.filter((n) => (n.targetAudience || []).includes(audience));
-    }
+    const notices = rows.map(serialize);
 
     return res.json({ notices, total: notices.length });
   } catch (err) {
     console.error('GET /api/notices error:', err.message);
+    return res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// GET /api/notices/mine — role-and-audience-resolved feed for the logged-in
+// user (parents get only notices actually targeted at them or their
+// children; other roles get role/broadcast matches). Still includes expired
+// ones so the caller can show an Archived section if it wants.
+router.get('/mine', auth, async (req, res) => {
+  try {
+    const rows = await db('notices').where({ is_active: true }).orderBy('published_at', 'desc');
+    const notices = rows.map(serialize);
+    const applicable = [];
+    for (const notice of notices) {
+      if (await noticeAppliesToUser(db, notice, req.user)) applicable.push(notice);
+    }
+    return res.json({ notices: applicable, total: applicable.length });
+  } catch (err) {
+    console.error('GET /api/notices/mine error:', err.message);
     return res.status(500).json({ message: 'Server error' });
   }
 });
@@ -60,7 +81,7 @@ router.post('/', auth, authorize(['admin', 'principal']), async (req, res) => {
     const now = new Date().toISOString();
     const {
       title, body, category, targetAudience, issuedBy,
-      publishedAt, expiresAt, attachmentUrl, priority, isActive,
+      publishedAt, eventDate, expiresAt, attachmentUrl, priority, isActive,
     } = req.body;
 
     if (!title || !body) {
@@ -72,9 +93,10 @@ router.post('/', auth, authorize(['admin', 'principal']), async (req, res) => {
       title,
       body,
       category: category || 'General',
-      target_audience: JSON.stringify(targetAudience || ['all']),
+      target_audience: JSON.stringify(targetAudience || AUDIENCE_DEFAULT),
       issued_by: issuedBy || null,
       published_at: publishedAt || now,
+      event_date: eventDate || null,
       expires_at: expiresAt || null,
       attachment_url: attachmentUrl || null,
       priority: priority || 'Normal',
@@ -96,8 +118,8 @@ router.post('/', auth, authorize(['admin', 'principal']), async (req, res) => {
 
 const CAMEL_TO_SNAKE = {
   title: 'title', body: 'body', category: 'category', issuedBy: 'issued_by',
-  publishedAt: 'published_at', expiresAt: 'expires_at', attachmentUrl: 'attachment_url',
-  priority: 'priority', isActive: 'is_active',
+  publishedAt: 'published_at', eventDate: 'event_date', expiresAt: 'expires_at',
+  attachmentUrl: 'attachment_url', priority: 'priority', isActive: 'is_active',
 };
 
 // PUT /api/notices/:id (admin, principal)
