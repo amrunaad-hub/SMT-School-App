@@ -113,8 +113,8 @@ function App() {
           <Route path="/sis/student/:id" element={<ProtectedRoute authRole={authRole} allowedRoles={['admin', 'principal']}><StudentProfile /></ProtectedRoute>} />
           <Route path="/finance" element={<ProtectedRoute authRole={authRole} allowedRoles={['admin', 'principal']}><Finance /></ProtectedRoute>} />
           <Route path="/admissions" element={<ProtectedRoute authRole={authRole} allowedRoles={['admin', 'principal']}><Admissions /></ProtectedRoute>} />
-          <Route path="/timetable" element={<ProtectedRoute authRole={authRole} allowedRoles={['admin', 'principal']}><Timetable /></ProtectedRoute>} />
-          <Route path="/timetable/period/:id" element={<ProtectedRoute authRole={authRole} allowedRoles={['admin', 'principal']}><PeriodDetails /></ProtectedRoute>} />
+          <Route path="/timetable" element={<ProtectedRoute authRole={authRole} allowedRoles={['admin', 'principal', 'teacher']}><Timetable /></ProtectedRoute>} />
+          <Route path="/timetable/period/:grade/:division/:periodIndex/:date" element={<ProtectedRoute authRole={authRole} allowedRoles={['admin', 'principal', 'teacher']}><PeriodDetails /></ProtectedRoute>} />
           <Route path="/hr" element={<ProtectedRoute authRole={authRole} allowedRoles={['admin']}><HR /></ProtectedRoute>} />
           <Route path="/exams" element={<ProtectedRoute authRole={authRole} allowedRoles={['admin', 'principal']}><Exams /></ProtectedRoute>} />
           {/* Teachers mark their own class's attendance — this route previously excluded

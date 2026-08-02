@@ -3,6 +3,7 @@ const router = express.Router();
 const db = require('../db/database');
 const auth = require('../middleware/auth');
 const authorize = require('../middleware/authorize');
+const { teacherCanAccessGrade } = require('../utils/classAccess');
 
 // Shapes a joined attendance+student row into the same { ...attendance, student: {...} }
 // structure the old Mongoose .populate('student', ...) produced.
@@ -20,6 +21,9 @@ function shapeRecord(row) {
     intimation: row.intimation,
     followUp: row.follow_up,
     markedBy: row.marked_by,
+    isLocked: !!row.is_locked,
+    lockedAt: row.locked_at,
+    lockedBy: row.locked_by,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     student: {
@@ -40,6 +44,20 @@ const STUDENT_JOIN_COLUMNS = [
   'students.roll_no as s_roll_no', 'students.grade as s_grade',
   'students.division as s_division', 'students.student_code as s_student_code',
 ];
+
+async function assertGradeAccess(req, res, grade) {
+  if (req.user.role === 'admin' || req.user.role === 'principal') return true;
+  if (req.user.role === 'teacher' && await teacherCanAccessGrade(db, req.user.id, grade)) return true;
+  res.status(403).json({ message: 'You are not assigned to this grade.' });
+  return false;
+}
+
+async function isParentOfStudent(userId, studentId) {
+  const guardian = await db('guardians').where({ user_id: userId }).first();
+  if (!guardian) return false;
+  const link = await db('student_guardians').where({ guardian_id: guardian.id, student_id: studentId }).first();
+  return !!link;
+}
 
 // GET /api/attendance?date=YYYY-MM-DD&grade=&division=
 router.get('/', auth, async (req, res) => {
@@ -69,14 +87,69 @@ router.get('/', auth, async (req, res) => {
   }
 });
 
+// GET /api/attendance/roster?date=&grade=&division= — the class roster with a
+// computed default status per student: 'Absent' if a leave_requests row covers
+// this date, else the already-saved attendance status, else 'Present'. This is
+// what the teacher-facing attendance modal initializes from.
+router.get('/roster', auth, async (req, res) => {
+  try {
+    const { date, grade, division } = req.query;
+    if (!date || !grade || !division) {
+      return res.status(400).json({ message: 'date, grade, and division are required.' });
+    }
+    if (!(await assertGradeAccess(req, res, grade))) return;
+
+    const students = await db('students')
+      .where({ grade: Number(grade), division: String(division).toLowerCase(), status: 'Active' })
+      .orderBy('roll_no');
+
+    const [existingRows, leaveRows] = await Promise.all([
+      db('attendance').where({ date, grade: Number(grade), division: String(division).toLowerCase() }),
+      db('leave_requests').where('from_date', '<=', date).where('to_date', '>=', date)
+        .whereIn('student_id', students.map((s) => s.id)),
+    ]);
+    const existingByStudent = Object.fromEntries(existingRows.map((r) => [r.student_id, r]));
+    const onLeave = new Set(leaveRows.map((r) => r.student_id));
+
+    const roster = students.map((s) => {
+      const existing = existingByStudent[s.id];
+      const defaultStatus = onLeave.has(s.id) ? 'Absent' : 'Present';
+      return {
+        studentId: s.id,
+        studentCode: s.student_code,
+        firstName: s.first_name,
+        lastName: s.last_name,
+        rollNo: s.roll_no,
+        status: existing ? existing.status : defaultStatus,
+        reason: existing ? existing.reason : (onLeave.has(s.id) ? 'On approved leave' : ''),
+        isOnLeave: onLeave.has(s.id),
+        isLocked: existing ? !!existing.is_locked : false,
+      };
+    });
+
+    return res.json({ roster, isLocked: existingRows.length > 0 && existingRows.every((r) => r.is_locked) });
+  } catch (err) {
+    console.error('GET /api/attendance/roster error:', err.message);
+    return res.status(500).json({ message: 'Server error' });
+  }
+});
+
 // POST /api/attendance/bulk
-// body: { date, grade, division, records: [{studentId, status, reason, intimation, followUp}] }
+// body: { date, grade, division, records: [{studentId, status, reason, intimation, followUp}], lock }
 router.post('/bulk', auth, authorize(['admin', 'principal', 'teacher']), async (req, res) => {
   try {
-    const { date, grade, division, records } = req.body;
+    const { date, grade, division, records, lock } = req.body;
 
     if (!date || !grade || !division || !Array.isArray(records)) {
       return res.status(400).json({ message: 'date, grade, division, and records[] are required.' });
+    }
+    if (!(await assertGradeAccess(req, res, grade))) return;
+
+    const divisionLower = String(division).toLowerCase();
+    const existingLocked = await db('attendance')
+      .where({ date, grade: Number(grade), division: divisionLower, is_locked: true }).first();
+    if (existingLocked && !['admin', 'principal'].includes(req.user.role)) {
+      return res.status(409).json({ message: 'Attendance for this class and date is locked. Ask an admin to unlock it first.' });
     }
 
     const now = new Date().toISOString();
@@ -98,17 +171,56 @@ router.post('/bulk', auth, authorize(['admin', 'principal', 'teacher']), async (
           intimation: rec.intimation || '',
           follow_up: rec.followUp || '',
           marked_by: req.user.id,
+          is_locked: !!lock,
+          locked_at: lock ? now : null,
+          locked_by: lock ? req.user.id : null,
           created_at: now,
           updated_at: now,
         })
         .onConflict(['date', 'student_id'])
-        .merge(['status', 'reason', 'intimation', 'follow_up', 'marked_by', 'updated_at']);
+        .merge(['status', 'reason', 'intimation', 'follow_up', 'marked_by', 'is_locked', 'locked_at', 'locked_by', 'updated_at']);
       saved += 1;
+
+      if (lock) {
+        const link = await db('student_guardians').where({ student_id: rec.studentId, is_primary: true }).first()
+          || await db('student_guardians').where({ student_id: rec.studentId }).first();
+        if (link) {
+          const guardian = await db('guardians').where({ id: link.guardian_id }).first();
+          if (guardian && guardian.user_id) {
+            await db('notifications').insert({
+              user_id: guardian.user_id,
+              title: `Attendance marked for ${date}`,
+              body: `${student.first_name} ${student.last_name} was marked ${rec.status || 'Present'} on ${date}.`,
+              related_type: 'attendance',
+              related_id: rec.studentId,
+              created_at: now,
+            });
+          }
+        }
+      }
     }
 
-    return res.json({ message: `${saved} attendance records saved.`, count: saved });
+    return res.json({ message: `${saved} attendance records saved.`, count: saved, locked: !!lock });
   } catch (err) {
     console.error('POST /api/attendance/bulk error:', err.message);
+    return res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// POST /api/attendance/unlock (admin/principal) — clears the lock for a
+// date+grade+division so corrections can be made.
+router.post('/unlock', auth, authorize(['admin', 'principal']), async (req, res) => {
+  try {
+    const { date, grade, division } = req.body;
+    if (!date || !grade || !division) {
+      return res.status(400).json({ message: 'date, grade, and division are required.' });
+    }
+    const count = await db('attendance')
+      .where({ date, grade: Number(grade), division: String(division).toLowerCase() })
+      .update({ is_locked: false, locked_at: null, locked_by: null, updated_at: new Date().toISOString() });
+    return res.json({ message: `Unlocked ${count} attendance record(s).`, count });
+  } catch (err) {
+    console.error('POST /api/attendance/unlock error:', err.message);
     return res.status(500).json({ message: 'Server error' });
   }
 });
@@ -116,6 +228,15 @@ router.post('/bulk', auth, authorize(['admin', 'principal', 'teacher']), async (
 // PUT /api/attendance/:id
 router.put('/:id', auth, authorize(['admin', 'principal', 'teacher']), async (req, res) => {
   try {
+    const existing = await db('attendance').where({ id: req.params.id }).first();
+    if (!existing) return res.status(404).json({ message: 'Attendance record not found.' });
+    if (existing.is_locked && !['admin', 'principal'].includes(req.user.role)) {
+      return res.status(409).json({ message: 'This attendance record is locked. Ask an admin to unlock it first.' });
+    }
+    if (req.user.role === 'teacher' && !(await teacherCanAccessGrade(db, req.user.id, existing.grade))) {
+      return res.status(403).json({ message: 'You are not assigned to this grade.' });
+    }
+
     const updates = {};
     if (req.body.status !== undefined) updates.status = req.body.status;
     if (req.body.reason !== undefined) updates.reason = req.body.reason;
@@ -123,10 +244,7 @@ router.put('/:id', auth, authorize(['admin', 'principal', 'teacher']), async (re
     if (req.body.followUp !== undefined) updates.follow_up = req.body.followUp;
     updates.updated_at = new Date().toISOString();
 
-    const count = await db('attendance').where({ id: req.params.id }).update(updates);
-    if (!count) {
-      return res.status(404).json({ message: 'Attendance record not found.' });
-    }
+    await db('attendance').where({ id: req.params.id }).update(updates);
 
     const row = await db('attendance')
       .join('students', 'students.id', 'attendance.student_id')
@@ -139,9 +257,20 @@ router.put('/:id', auth, authorize(['admin', 'principal', 'teacher']), async (re
   }
 });
 
-// In-memory leave requests store (simple, no separate table needed yet).
-// For a proper implementation these would be in their own SQLite table.
-const leaveStore = {}; // studentId -> [{id, ...}]
+function shapeLeaveRequest(row) {
+  return {
+    id: row.id,
+    studentId: row.student_id,
+    type: row.type,
+    fromDate: row.from_date,
+    toDate: row.to_date,
+    reason: row.reason,
+    status: row.status,
+    submittedAt: row.created_at,
+    approvedBy: null,
+    approvedAt: row.status !== 'Pending' ? row.updated_at : null,
+  };
+}
 
 // GET /api/attendance/leave-requests?studentId=
 router.get('/leave-requests', auth, async (req, res) => {
@@ -150,37 +279,37 @@ router.get('/leave-requests', auth, async (req, res) => {
     if (!studentId) {
       return res.status(400).json({ message: 'studentId is required.' });
     }
-    const requests = leaveStore[studentId] || [];
-    return res.json({ leaveRequests: requests });
+    if (req.user.role === 'parent' && !(await isParentOfStudent(req.user.id, studentId))) {
+      return res.status(403).json({ message: 'Not your child.' });
+    }
+    const requests = await db('leave_requests').where({ student_id: studentId }).orderBy('created_at', 'desc');
+    return res.json({ leaveRequests: requests.map(shapeLeaveRequest) });
   } catch (err) {
     console.error('GET /api/attendance/leave-requests error:', err.message);
     return res.status(500).json({ message: 'Server error' });
   }
 });
 
-// POST /api/attendance/leave-requests
+// POST /api/attendance/leave-requests — takes effect immediately (no approval
+// gate): the roster endpoint above treats any leave_requests row covering the
+// date as an automatic Absent default, overridable by the marking teacher.
 router.post('/leave-requests', auth, async (req, res) => {
   try {
     const { studentId, type, fromDate, toDate, reason } = req.body;
     if (!studentId || !fromDate || !toDate || !reason) {
       return res.status(400).json({ message: 'studentId, fromDate, toDate, and reason are required.' });
     }
-    if (!leaveStore[studentId]) leaveStore[studentId] = [];
-    const existingCount = leaveStore[studentId].length;
-    const newReq = {
-      id: `LR-${String(existingCount + 1).padStart(3, '0')}`,
-      studentId,
-      type: type || 'advance',
-      fromDate,
-      toDate,
-      reason,
-      status: 'Pending',
-      submittedAt: new Date().toLocaleString('en-IN'),
-      approvedBy: null,
-      approvedAt: null,
-    };
-    leaveStore[studentId].push(newReq);
-    return res.status(201).json(newReq);
+    if (req.user.role === 'parent' && !(await isParentOfStudent(req.user.id, studentId))) {
+      return res.status(403).json({ message: 'Not your child.' });
+    }
+
+    const now = new Date().toISOString();
+    const [id] = await db('leave_requests').insert({
+      student_id: studentId, type: type || 'advance', from_date: fromDate, to_date: toDate, reason,
+      requested_by: req.user.id, created_at: now, updated_at: now,
+    });
+    const row = await db('leave_requests').where({ id }).first();
+    return res.status(201).json(shapeLeaveRequest(row));
   } catch (err) {
     console.error('POST /api/attendance/leave-requests error:', err.message);
     return res.status(500).json({ message: 'Server error' });

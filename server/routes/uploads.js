@@ -6,7 +6,7 @@ const authorize = require('../middleware/authorize');
 const { upload, publicUrlFor } = require('../utils/upload');
 const { serializeRow } = require('../utils/serialize');
 
-const OWNER_TYPES = ['student', 'admission'];
+const OWNER_TYPES = ['student', 'admission', 'period_note', 'leave_request'];
 const DOC_TYPES = ['Birth Certificate', 'Aadhar', 'Transfer Certificate', 'Photo', 'Medical Certificate', 'Other'];
 
 // POST /api/uploads — multipart form: file, category, and optionally

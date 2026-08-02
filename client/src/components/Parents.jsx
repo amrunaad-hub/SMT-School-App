@@ -33,6 +33,8 @@ const Parents = () => {
   ]);
   const [notifications, setNotifications] = useState([]);
   const [apiNotices, setApiNotices] = useState([]);
+  const [dailyActivities, setDailyActivities] = useState([]);
+  const [serverNotifications, setServerNotifications] = useState({ unreadCount: 0, notifications: [] });
 
   const apiBase = import.meta.env.VITE_API_BASE_URL || '';
 
@@ -50,6 +52,14 @@ const Parents = () => {
   useEffect(() => {
     api.get('/api/notices', { isActive: true })
       .then((data) => setApiNotices(data.notices || []))
+      .catch(() => {});
+  }, []);
+
+  // In-app notifications (e.g. "attendance locked for today") — no email/push
+  // infra exists yet, so this is what the parent sees on next portal visit.
+  useEffect(() => {
+    api.get('/api/notifications')
+      .then((data) => setServerNotifications(data))
       .catch(() => {});
   }, []);
 
@@ -197,6 +207,38 @@ const Parents = () => {
 
   const currentStudent = linkedStudents.find((child) => child.id === selectedChildId) || linkedStudents[0];
 
+  // Real classwork/homework for the selected date, replacing the old hardcoded
+  // mock: joins the weekly timetable template (subject/teacher per period) with
+  // that specific date's period-notes overlay, keeping only periods a teacher
+  // actually filled in.
+  useEffect(() => {
+    if (!currentStudent) { setDailyActivities([]); return; }
+    const dateKey = `${selectedActivityDate.getFullYear()}-${String(selectedActivityDate.getMonth() + 1).padStart(2, '0')}-${String(selectedActivityDate.getDate()).padStart(2, '0')}`;
+    const jsDay = selectedActivityDate.getDay();
+    if (jsDay === 0) { setDailyActivities([]); return; }
+
+    Promise.all([
+      api.get('/api/timetable', { grade: currentStudent.grade, division: currentStudent.division, day: jsDay }),
+      api.get('/api/period-notes', { grade: currentStudent.grade, division: currentStudent.division, date: dateKey }),
+    ])
+      .then(([timetableData, notesData]) => {
+        const periods = timetableData.periods || [];
+        const notes = (notesData.notes || []).filter((n) => n.classwork || n.homework);
+        setDailyActivities(notes.map((n) => {
+          const p = periods.find((per) => per.periodIndex === n.periodIndex) || {};
+          return {
+            date: dateKey,
+            period: `Period ${n.periodIndex} - ${p.subject || ''}`,
+            classwork: n.classwork || '',
+            homework: n.homework || '',
+            teacher: p.teacherName || '',
+            attachments: (n.attachments || []).map((a) => a.fileUrl),
+          };
+        }));
+      })
+      .catch(() => setDailyActivities([]));
+  }, [currentStudent, selectedActivityDate]);
+
   const parentProfile = {
     name: 'Mr. Rajesh Kulkarni',
     relation: 'Father',
@@ -258,14 +300,6 @@ const Parents = () => {
     { id: 1, title: 'Annual Sports Day', date: '2026-03-15', type: 'past', photos: ['sports1.jpg', 'sports2.jpg'], takeaways: 'Great participation, Aarav won 100m race silver medal', details: 'Held at school ground, 200 students participated' },
     { id: 2, title: 'PTM Meeting', date: '2026-04-20', type: 'upcoming', preparation: 'Prepare progress report discussion, bring any concerns', details: 'Meeting with class teacher and subject teachers' },
     { id: 3, title: 'Science Exhibition', date: '2026-05-10', type: 'upcoming', preparation: 'Help child prepare project on renewable energy', details: 'Inter-school competition, theme: Future of Energy' },
-  ];
-
-  const dailyActivities = [
-    { date: '2026-04-14', period: 'Period 1 - Science', classwork: 'Dictation practice completed in class.', homework: 'Revise categories: herbivore, carnivore, omnivore, producer, consumer.', topics: ['Animals', 'Food chain'], teacher: 'Ms. Saraswati Venkatesh', attachments: [] },
-    { date: '2026-04-14', period: 'Period 2 - Hindi', classwork: 'Language notebook notes were discussed.', homework: 'Complete two notebook pages based on class examples.', topics: ['Bhasha', 'Lipi'], teacher: 'Ms. Prity Pandey', attachments: ['hindi-notebook-notes.pdf'] },
-    { date: '2026-04-15', period: 'Period 3 - ICT', classwork: 'Practical conducted in computer lab.', homework: 'Write definitions of hardware and software.', topics: ['ICT basics'], teacher: 'Ms. Kinjal Shah', attachments: [] },
-    { date: '2026-04-16', period: 'Period 4 - Physical Education', classwork: 'Warm-up and agility drills done.', homework: 'Practice breathing exercise for 10 minutes.', topics: ['Fitness'], teacher: 'Mr. Omkar Patil', attachments: [] },
-    { date: '2026-04-17', period: 'Period 5 - English', classwork: 'Collective noun workbook practice.', homework: 'Write wrong dictation words 5 times each.', topics: ['Grammar'], teacher: 'Ms. Pooja Maheshwari', attachments: ['dictation-list.docx'] },
   ];
 
   const circularNotices = [
@@ -763,6 +797,15 @@ const Parents = () => {
               setLeaveRequests((prev) => [...prev, newReq]);
               setLeaveSubmitting(false);
               setShowLeaveModal(false);
+              if (leaveForm.document) {
+                const formData = new FormData();
+                formData.append('category', 'leave-requests');
+                formData.append('ownerType', 'leave_request');
+                formData.append('ownerId', newReq.id);
+                formData.append('file', leaveForm.document);
+                const token = window.localStorage.getItem('smt-school-token');
+                fetch('/api/uploads', { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: formData }).catch(() => {});
+              }
               setLeaveForm({ type: 'advance', fromDate: '', toDate: '', reason: '', document: null, docName: '' });
               setLeaveFormErrors({});
               pushNotification(leaveForm.type === 'advance' ? 'Leave application submitted. Awaiting teacher approval.' : 'Regularization request submitted.');
@@ -1356,9 +1399,17 @@ const Parents = () => {
     <main style={{ padding: isMobile ? '12px 12px 80px' : '24px', maxWidth: '1240px', margin: '0 auto', color: '#1f2937', background: 'linear-gradient(180deg, #fff1f2 0%, #fff7ed 100%)', minHeight: 'calc(100vh - 100px)' }}>
       <section style={{ marginBottom: '16px' }}>
         <div style={{ borderRadius: '18px', overflow: 'hidden', border: '1px solid #fecdd3', boxShadow: '0 12px 28px rgba(244, 63, 94, 0.15)' }}>
-          <div style={{ background: 'linear-gradient(135deg, #ef4444 0%, #e11d48 100%)', color: '#fff', padding: isMobile ? '14px' : '20px' }}>
+          <div style={{ background: 'linear-gradient(135deg, #ef4444 0%, #e11d48 100%)', color: '#fff', padding: isMobile ? '14px' : '20px', position: 'relative' }}>
             <h2 style={{ margin: 0, fontSize: isMobile ? '1.25rem' : '1.7rem', fontWeight: 800 }}>Parents Portal</h2>
             <p style={{ margin: '6px 0 0', color: '#ffe4e6', fontWeight: 600, fontSize: isMobile ? '0.84rem' : '0.95rem' }}>SMT School, Thane</p>
+            {serverNotifications.unreadCount > 0 && (
+              <div
+                title={serverNotifications.notifications.slice(0, 5).map((n) => n.title).join('\n')}
+                style={{ position: 'absolute', top: isMobile ? '10px' : '16px', right: isMobile ? '10px' : '16px', background: '#fff', color: '#e11d48', borderRadius: '999px', padding: '4px 10px', fontWeight: 800, fontSize: '0.78rem' }}
+              >
+                🔔 {serverNotifications.unreadCount}
+              </div>
+            )}
           </div>
 
           <div style={{ background: '#fff', padding: isMobile ? '12px' : '16px' }}>

@@ -2,99 +2,94 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
 import { api } from '../api';
 
+const jsDayToApiDay = (jsDay) => (jsDay === 0 ? null : jsDay);
+
 const PeriodDetails = () => {
-  const { id } = useParams();
+  const { grade, division, periodIndex, date } = useParams();
   const navigate = useNavigate();
 
   const [period, setPeriod] = useState(null);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
+  const [note, setNote] = useState({ classwork: '', homework: '', specialInstructions: '' });
+  const [noteId, setNoteId] = useState(null);
+  const [attachments, setAttachments] = useState([]);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState('');
+  const [uploading, setUploading] = useState(false);
 
-  useEffect(() => {
-    if (!id) {
-      setNotFound(true);
-      setLoading(false);
-      return;
-    }
+  const role = window.localStorage.getItem('smt-school-role');
+  const canEdit = ['admin', 'principal', 'teacher'].includes(role);
 
-    // Parse id as "${grade}-${division}-${periodIndex}"
-    const parts = id.split('-');
-    if (parts.length < 3) {
-      setNotFound(true);
-      setLoading(false);
-      return;
-    }
+  const loadPeriod = () => {
+    setLoading(true);
+    const dow = jsDayToApiDay(new Date(date).getDay());
+    if (!dow) { setNotFound(true); setLoading(false); return; }
 
-    const grade = parts[0];
-    const division = parts[1];
-    const periodIndex = parseInt(parts[2], 10);
-    const dayOfWeek = new Date().getDay();
+    Promise.all([
+      api.get('/api/timetable', { grade, division, day: dow }),
+      api.get('/api/period-notes', { grade, division, date }),
+    ])
+      .then(([timetableData, notesData]) => {
+        const periods = timetableData.periods || [];
+        const idx = Number(periodIndex);
+        const found = periods.find((p) => p.periodIndex === idx);
+        if (!found) { setNotFound(true); setLoading(false); return; }
+        setPeriod(found);
 
-    api.get('/api/timetable', { grade, division, day: dayOfWeek })
-      .then((data) => {
-        const schedule = data.schedule || data.timetable || [];
-        const todaySchedule = Array.isArray(schedule)
-          ? schedule.find((s) => s.day === dayOfWeek || s.dayIndex === dayOfWeek)
-          : null;
-        const periods = todaySchedule
-          ? (todaySchedule.periods || [])
-          : (Array.isArray(schedule) ? schedule : []);
-
-        const found = periods[periodIndex];
-        if (found) {
-          setPeriod({ ...found, grade: Number(grade), division, id });
+        const existingNote = (notesData.notes || []).find((n) => n.periodIndex === idx);
+        if (existingNote) {
+          setNote({
+            classwork: existingNote.classwork || '',
+            homework: existingNote.homework || '',
+            specialInstructions: existingNote.specialInstructions || '',
+          });
+          setNoteId(existingNote.id);
+          setAttachments(existingNote.attachments || []);
         } else {
-          setNotFound(true);
+          setNote({ classwork: '', homework: '', specialInstructions: '' });
+          setNoteId(null);
+          setAttachments([]);
         }
+        setLoading(false);
       })
-      .catch(() => {
-        setNotFound(true);
-      })
-      .finally(() => setLoading(false));
-  }, [id]);
-
-  const objectives = {
-    'English': 'Develop phonics, reading fluency, listening comprehension, and spoken confidence.',
-    'Hindi': 'Build grammar foundation, vocabulary, and expressive language through stories and poems.',
-    'Marathi': 'Strengthen regional language reading, pronunciation, and cultural-literary understanding.',
-    'Maths': 'Develop number sense, operations fluency, and hands-on problem solving.',
-    'EVS': 'Connect classroom learning with environment, community life, and practical observation.',
-    'Library': 'Cultivate reading habit, silent reading discipline, and book care practices.',
-    'Yoga': 'Improve posture, breathing, focus, and calm mind-body routines.',
-    'Gym': 'Build stamina, flexibility, coordination, and teamwork via physical drills.',
-    'Cyber / Computer': 'Introduce keyboard basics, safe digital behavior, and beginner computer skills.',
+      .catch(() => { setNotFound(true); setLoading(false); });
   };
 
-  const materials = {
-    'English': 'Readers, workbook, flash cards, notebook, pencil set',
-    'Hindi': 'Hindi textbook, practice notebook, vocabulary cards',
-    'Marathi': 'Marathi reader, writing notebook, story cards',
-    'Maths': 'Math workbook, abacus kit, ruler, counters',
-    'EVS': 'EVS textbook, picture charts, activity notebook',
-    'Library': 'Curated story books, issue register, reading tracker',
-    'Yoga': 'Yoga mats, posture chart, calm-breathing audio cues',
-    'Gym': 'Cones, agility ladder, bean bags, fitness markers',
-    'Cyber / Computer': 'Computer lab access, keyboard worksheet, projector support',
+  useEffect(loadPeriod, [grade, division, periodIndex, date]);
+
+  const saveNote = () => {
+    setSaving(true);
+    setSaveError('');
+    api.put('/api/period-notes', { grade: Number(grade), division, date, periodIndex: Number(periodIndex), ...note })
+      .then((row) => { setNoteId(row.id); setSaving(false); })
+      .catch((err) => { setSaveError(err.message || 'Failed to save.'); setSaving(false); });
+  };
+
+  const handleUpload = (e) => {
+    const file = e.target.files && e.target.files[0];
+    if (!file || !noteId) { setSaveError('Save the note first, then attach a file.'); return; }
+    setUploading(true);
+    const formData = new FormData();
+    formData.append('category', 'period-notes');
+    formData.append('ownerType', 'period_note');
+    formData.append('ownerId', noteId);
+    formData.append('file', file);
+    const token = window.localStorage.getItem('smt-school-token');
+    fetch('/api/uploads', { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: formData })
+      .then((r) => r.json().then((data) => { if (!r.ok) throw new Error(data.message); return data; }))
+      .then(() => { setUploading(false); loadPeriod(); })
+      .catch((err) => { setUploading(false); setSaveError(err.message || 'Upload failed.'); });
+    e.target.value = '';
   };
 
   const backButtonStyle = {
-    padding: '12px 24px',
-    background: '#2563eb',
-    color: 'white',
-    border: 'none',
-    borderRadius: '6px',
-    cursor: 'pointer',
-    textDecoration: 'none',
-    display: 'inline-block',
-    marginBottom: '20px'
+    padding: '12px 24px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '6px',
+    cursor: 'pointer', textDecoration: 'none', display: 'inline-block', marginBottom: '20px',
   };
 
   if (loading) {
-    return (
-      <main style={{ padding: '24px', maxWidth: '1000px', margin: '0 auto' }}>
-        <div style={{ padding: '40px', textAlign: 'center', color: '#64748b' }}>Loading period details...</div>
-      </main>
-    );
+    return <main style={{ padding: '24px', maxWidth: '1000px', margin: '0 auto' }}><div style={{ padding: '40px', textAlign: 'center', color: '#64748b' }}>Loading period details...</div></main>;
   }
 
   if (notFound || !period) {
@@ -102,30 +97,16 @@ const PeriodDetails = () => {
       <main style={{ padding: '24px', maxWidth: '1000px', margin: '0 auto' }}>
         <section>
           <h2>Period Details</h2>
-          <p style={{ color: '#64748b' }}>Invalid period link. Please return to timetable.</p>
+          <p style={{ color: '#64748b' }}>Invalid period link, or no period scheduled for that day. Please return to timetable.</p>
           <Link to="/timetable" style={{ color: '#1d4ed8', textDecoration: 'none', fontWeight: 600 }}>← Back to Timetable</Link>
         </section>
       </main>
     );
   }
 
-  const periodAttendance = period.subject !== 'Break' && period.subject !== 'Assembly'
-    ? `${32 + ((period.grade + id.length) % 8)} students present`
-    : 'All students';
-
-  const detailStyle = {
-    display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
-    gap: '16px',
-    marginTop: '20px'
-  };
-
-  const fieldStyle = {
-    padding: '16px',
-    border: '1px solid #e5e7eb',
-    borderRadius: '8px',
-    background: '#f9fafb'
-  };
+  const detailStyle = { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '16px', marginTop: '20px' };
+  const fieldStyle = { padding: '16px', border: '1px solid #e5e7eb', borderRadius: '8px', background: '#f9fafb' };
+  const textareaStyle = { width: '100%', minHeight: '80px', padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1', marginTop: '8px', boxSizing: 'border-box', fontFamily: 'inherit' };
 
   return (
     <main style={{ padding: '24px', maxWidth: '1000px', margin: '0 auto' }}>
@@ -133,43 +114,71 @@ const PeriodDetails = () => {
         <button type="button" onClick={() => navigate(-1)} style={{ ...backButtonStyle, background: '#0f766e', marginRight: '10px' }}>← Previous Menu</button>
         <Link to="/timetable" style={backButtonStyle}>← Back to Timetable</Link>
         <h2>Period Details</h2>
-        <h3>Grade {period.grade} {period.division} - {period.type}</h3>
+        <h3>Grade {grade} {division.charAt(0).toUpperCase() + division.slice(1)} · {period.type} · {new Date(date).toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</h3>
 
         <div style={detailStyle}>
-          <div style={fieldStyle}>
-            <strong>Time:</strong> {period.time}
-          </div>
-          <div style={fieldStyle}>
-            <strong>Subject:</strong> {period.subject}
-          </div>
-          <div style={fieldStyle}>
-            <strong>Teacher:</strong> {period.teacher}
-          </div>
-          <div style={fieldStyle}>
-            <strong>Room:</strong> {period.room}
-          </div>
-          <div style={fieldStyle}>
-            <strong>Grade:</strong> {period.grade}
-          </div>
-          <div style={fieldStyle}>
-            <strong>Attendance:</strong> {period.attendance || '-'}
-          </div>
-          <div style={fieldStyle}>
-            <strong>Live Attendance Snapshot:</strong> {periodAttendance}
-          </div>
-          <div style={{ ...fieldStyle, gridColumn: '1 / -1' }}>
-            <strong>Learning Objectives:</strong>
-            <p style={{ marginTop: '8px', marginBottom: 0 }}>{objectives[period.subject] || (period.subject === 'Assembly' ? 'Morning prayer, announcements, and national anthem.' : 'Structured instructional learning outcomes.')}</p>
-          </div>
-          <div style={{ ...fieldStyle, gridColumn: '1 / -1' }}>
-            <strong>Materials Required:</strong>
-            <p style={{ marginTop: '8px', marginBottom: 0 }}>{materials[period.subject] || (period.subject === 'Break' ? 'N/A' : 'Standard classroom resources')}</p>
-          </div>
-          <div style={{ ...fieldStyle, gridColumn: '1 / -1' }}>
-            <strong>Additional Notes:</strong>
-            <p style={{ marginTop: '8px', marginBottom: 0 }}>{period.subject === 'Assembly' ? 'Compulsory attendance for all learners and staff.' : period.subject === 'Break' ? 'Student refreshment and supervised movement break.' : 'Teacher assignment synchronized with master faculty allocation across all divisions.'}</p>
-          </div>
+          <div style={fieldStyle}><strong>Time:</strong> {period.time}</div>
+          <div style={fieldStyle}><strong>Subject:</strong> {period.subject}</div>
+          <div style={fieldStyle}><strong>Teacher:</strong> {period.teacherName || '—'}</div>
+          <div style={fieldStyle}><strong>Room:</strong> {period.room || '—'}</div>
         </div>
+
+        {period.type === 'Period' && (
+          <div style={{ marginTop: '20px' }}>
+            <h3>Classwork, Homework &amp; Notes</h3>
+            {saveError && <p style={{ color: '#dc2626', fontSize: '0.85rem' }}>{saveError}</p>}
+            <div style={detailStyle}>
+              <div style={{ ...fieldStyle, gridColumn: '1 / -1' }}>
+                <strong>Classwork</strong>
+                {canEdit ? (
+                  <textarea style={textareaStyle} value={note.classwork} onChange={(e) => setNote({ ...note, classwork: e.target.value })} placeholder="What was covered in class today" />
+                ) : (
+                  <p style={{ marginTop: '8px', marginBottom: 0 }}>{note.classwork || 'Not added yet.'}</p>
+                )}
+              </div>
+              <div style={{ ...fieldStyle, gridColumn: '1 / -1' }}>
+                <strong>Homework</strong>
+                {canEdit ? (
+                  <textarea style={textareaStyle} value={note.homework} onChange={(e) => setNote({ ...note, homework: e.target.value })} placeholder="Homework assigned for this period" />
+                ) : (
+                  <p style={{ marginTop: '8px', marginBottom: 0 }}>{note.homework || 'None assigned.'}</p>
+                )}
+              </div>
+              <div style={{ ...fieldStyle, gridColumn: '1 / -1' }}>
+                <strong>Special Instructions</strong>
+                {canEdit ? (
+                  <textarea style={textareaStyle} value={note.specialInstructions} onChange={(e) => setNote({ ...note, specialInstructions: e.target.value })} placeholder="Anything parents/students should know" />
+                ) : (
+                  <p style={{ marginTop: '8px', marginBottom: 0 }}>{note.specialInstructions || 'None.'}</p>
+                )}
+              </div>
+
+              <div style={{ ...fieldStyle, gridColumn: '1 / -1' }}>
+                <strong>Attachments</strong>
+                <div style={{ marginTop: '8px', display: 'grid', gap: '6px' }}>
+                  {attachments.length === 0 && <p style={{ margin: 0, color: '#94a3b8', fontSize: '0.88rem' }}>No files attached.</p>}
+                  {attachments.map((a) => (
+                    <a key={a.id} href={a.fileUrl} target="_blank" rel="noreferrer" style={{ color: '#2563eb', fontSize: '0.88rem' }}>{a.originalFilename}</a>
+                  ))}
+                </div>
+                {canEdit && (
+                  <label style={{ display: 'inline-block', marginTop: '10px', padding: '8px 14px', borderRadius: '8px', border: '1px solid #cbd5e1', background: '#fff', cursor: 'pointer', fontSize: '0.85rem' }}>
+                    {uploading ? 'Uploading…' : (noteId ? '+ Attach File' : 'Save note first to attach files')}
+                    <input type="file" onChange={handleUpload} disabled={uploading || !noteId} style={{ display: 'none' }} />
+                  </label>
+                )}
+              </div>
+            </div>
+
+            {canEdit && (
+              <div style={{ marginTop: '14px', display: 'flex', justifyContent: 'flex-end' }}>
+                <button type="button" onClick={saveNote} disabled={saving} style={{ padding: '10px 22px', borderRadius: '10px', border: 'none', background: '#1e3a8a', color: '#fff', fontWeight: 700, cursor: 'pointer' }}>
+                  {saving ? 'Saving…' : 'Save Notes'}
+                </button>
+              </div>
+            )}
+          </div>
+        )}
       </section>
     </main>
   );

@@ -24,6 +24,8 @@ const commandCenterRoutes = require('./routes/command-center');
 const uploadsRoutes = require('./routes/uploads');
 const publicRoutes = require('./routes/public');
 const housesRoutes = require('./routes/houses');
+const periodNotesRoutes = require('./routes/period-notes');
+const notificationsRoutes = require('./routes/notifications');
 const { UPLOAD_ROOT } = require('./utils/upload');
 
 const app = express();
@@ -124,6 +126,8 @@ app.use('/api/command-center', commandCenterRoutes);
 app.use('/api/uploads', uploadsRoutes);
 app.use('/api/public', publicRoutes);
 app.use('/api/houses', housesRoutes);
+app.use('/api/period-notes', periodNotesRoutes);
+app.use('/api/notifications', notificationsRoutes);
 
 // Health check endpoint - must be before static files and wildcard
 app.get('/api/health', (req, res) => {

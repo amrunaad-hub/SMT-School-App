@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../api';
+import { formatDateKey, isSameDate, generateCalendarDays } from '../utils/calendarHelpers';
 
 const SUBJECTS_G1_G4 = [
   'Library', 'Maths', 'EVS', 'English', 'Hindi', 'Marathi', 'Yoga', 'Gym', 'Cyber / Computer',
@@ -70,6 +71,8 @@ const buildTimetableFromDocs = (docs) => {
 
 const Timetable = () => {
   const [currentDate, setCurrentDate] = useState(new Date());
+  const [showCalendar, setShowCalendar] = useState(false);
+  const [calendarMonth, setCalendarMonth] = useState(new Date());
   const [isMobile, setIsMobile] = useState(() => window.innerWidth < 960);
   const [timetableDocs, setTimetableDocs] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -136,12 +139,11 @@ const Timetable = () => {
     return periodStyle;
   };
 
-  // Build period id for linking (grade-division-periodIndex style)
-  const makePeriodId = (className, periodIndex) => {
+  const makePeriodLink = (className, periodIndex) => {
     const parts = className.split(' ');
     const grade = parts[1];
     const div = (parts[2] || '').toLowerCase();
-    return `${grade}-${div}-${periodIndex}`;
+    return `/timetable/period/${grade}/${div}/${periodIndex}/${formatDateKey(currentDate)}`;
   };
 
   return (
@@ -187,7 +189,7 @@ const Timetable = () => {
               {(timetable[selectedClass] || []).map((period, idx) => (
                 <Link
                   key={idx}
-                  to={`/timetable/period/${makePeriodId(selectedClass, period.periodIndex !== undefined ? period.periodIndex : idx)}`}
+                  to={makePeriodLink(selectedClass, period.periodIndex !== undefined ? period.periodIndex : idx)}
                   style={{ color: 'inherit', textDecoration: 'none' }}
                 >
                   <article style={{ ...mobileCardStyle, ...getCellStyle(period.type), boxShadow: '0 2px 8px rgba(0,0,0,0.08)', border: `2px solid ${(period.type || '').includes('Break') ? '#fbbf24' : period.type === 'Prayer & Assembly' ? '#0ea5e9' : '#93c5fd'}` }}>
@@ -223,7 +225,7 @@ const Timetable = () => {
                     {(periods.length > 0 ? periods : Array.from({ length: timeSlots.length }, (_, i) => ({ periodIndex: i, time: timeSlots[i], type: 'Period', subject: '—', teacherName: '—', room: '—' }))).map((period, idx) => (
                       <td key={idx} style={{ ...tdStyle, ...getCellStyle(period.type) }}>
                         <Link
-                          to={`/timetable/period/${makePeriodId(className, period.periodIndex !== undefined ? period.periodIndex : idx)}`}
+                          to={makePeriodLink(className, period.periodIndex !== undefined ? period.periodIndex : idx)}
                           style={{ color: 'inherit', textDecoration: 'none', display: 'block', height: '100%' }}
                         >
                           <div style={{ fontWeight: '700', marginBottom: '2px', color: '#1f2937' }}>{period.subject}</div>
@@ -239,14 +241,49 @@ const Timetable = () => {
           </div>
         )}
 
-        <div style={{ ...navStyle, background: 'linear-gradient(135deg, #f0f9ff 0%, #f3f4f6 100%)', border: '2px solid #3b82f6' }}>
+        <div style={{ ...navStyle, background: 'linear-gradient(135deg, #f0f9ff 0%, #f3f4f6 100%)', border: '2px solid #3b82f6', position: 'relative' }}>
           <button style={{ ...buttonStyle, background: 'linear-gradient(135deg, #1e40af 0%, #1e3a8a 100%)', fontWeight: '700', boxShadow: '0 4px 12px rgba(30, 64, 175, 0.3)' }} onClick={() => navigateDate(-1)}>
             Previous Day
           </button>
-          <h3 style={{ margin: 0, fontSize: isMobile ? '1rem' : '1.1rem', color: '#1e40af', fontWeight: '700' }}>{formatDateLabel(currentDate)}</h3>
+          <button
+            type="button"
+            onClick={() => { setCalendarMonth(new Date(currentDate.getFullYear(), currentDate.getMonth(), 1)); setShowCalendar((v) => !v); }}
+            style={{ border: 'none', background: 'none', cursor: 'pointer', padding: 0 }}
+          >
+            <h3 style={{ margin: 0, fontSize: isMobile ? '1rem' : '1.1rem', color: '#1e40af', fontWeight: '700' }}>📅 {formatDateLabel(currentDate)}</h3>
+          </button>
           <button style={{ ...buttonStyle, background: 'linear-gradient(135deg, #1e40af 0%, #1e3a8a 100%)', fontWeight: '700', boxShadow: '0 4px 12px rgba(30, 64, 175, 0.3)' }} onClick={() => navigateDate(1)}>
             Next Day
           </button>
+
+          {showCalendar && (
+            <div style={{ position: 'absolute', top: '100%', left: '50%', transform: 'translateX(-50%)', marginTop: '8px', zIndex: 20, background: '#fff', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '12px', boxShadow: '0 12px 30px rgba(15,23,42,0.18)', width: '260px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                <button type="button" onClick={() => setCalendarMonth(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() - 1, 1))} style={{ border: 'none', background: '#f1f5f9', borderRadius: '6px', padding: '4px 8px', cursor: 'pointer' }}>←</button>
+                <strong style={{ fontSize: '0.85rem' }}>{calendarMonth.toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })}</strong>
+                <button type="button" onClick={() => setCalendarMonth(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + 1, 1))} style={{ border: 'none', background: '#f1f5f9', borderRadius: '6px', padding: '4px 8px', cursor: 'pointer' }}>→</button>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '4px', fontSize: '0.72rem' }}>
+                {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((d, i) => <div key={i} style={{ textAlign: 'center', color: '#94a3b8', fontWeight: 700 }}>{d}</div>)}
+                {generateCalendarDays(calendarMonth).map((d, i) => (
+                  <button
+                    key={i}
+                    type="button"
+                    disabled={!d}
+                    onClick={() => { setCurrentDate(d); setShowCalendar(false); }}
+                    style={{
+                      border: 'none', borderRadius: '6px', padding: '6px 0', cursor: d ? 'pointer' : 'default',
+                      background: d && isSameDate(d, currentDate) ? '#1e3a8a' : 'transparent',
+                      color: d && isSameDate(d, currentDate) ? '#fff' : d ? '#334155' : 'transparent',
+                      fontWeight: d && isSameDate(d, currentDate) ? 700 : 400,
+                    }}
+                  >
+                    {d ? d.getDate() : '·'}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       </section>
     </main>
