@@ -650,7 +650,9 @@ const Parents = () => {
       .filter((n) => ['General', 'Academic', 'Event', 'Holiday', 'Exam', 'Urgent'].includes(n.category))
       .filter((n) => !n.expiresAt || n.expiresAt.slice(0, 10) >= todayStr)
       .map((n) => ({
+        id: n._id,
         date: n.publishedAt ? new Date(n.publishedAt).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10),
+        eventDate: n.eventDate || null,
         title: n.title,
         body: n.body,
         attachments: n.attachmentUrl ? [n.attachmentUrl] : [],
@@ -704,6 +706,18 @@ const Parents = () => {
     }));
   };
 
+  // Records a read event the moment a circular is actually opened (not just
+  // listed) — feeds the admin-facing Reached/Opened comparison on the
+  // Communication screen. Guarded on notice.id since the static fallback
+  // circulars (shown only if the API has none) aren't real notices.
+  const toggleCircularAccordion = (notice, cardId, index) => {
+    const wasOpen = isAccordionOpen(cardId, index);
+    if (!wasOpen && notice.id) {
+      api.post(`/api/notices/${notice.id}/read`).catch(() => {});
+    }
+    toggleAccordion(cardId);
+  };
+
   const isAccordionOpen = (cardId, index) => {
     if (expandedCards[cardId] === undefined) {
       return index === 0;
@@ -733,7 +747,7 @@ const Parents = () => {
   const renderModule = () => {
     switch (activeModule) {
       case 'profile':
-        return typeof currentStudent.id === 'number'
+        return /^\d+$/.test(String(currentStudent.id))
           ? <ParentStudentProfile studentId={currentStudent.id} isMobile={isMobile} />
           : (
             <div style={{ padding: isMobile ? '16px' : '24px', borderRadius: '16px', background: 'linear-gradient(135deg, #f0f9ff 0%, #eff6ff 100%)', border: '2px solid #0ea5e9' }}>
@@ -1196,7 +1210,9 @@ const Parents = () => {
       case 'circular':
         return (
           <div style={{ padding: isMobile ? '16px' : '24px', borderRadius: '16px', background: 'linear-gradient(135deg, #fff7ed 0%, #fff1f2 100%)', border: '2px solid #fb7185', boxShadow: '0 4px 16px rgba(244, 63, 94, 0.1)' }}>
-            <h3 style={{ color: '#9f1239', fontSize: isMobile ? '1.2rem' : '1.4rem', fontWeight: '700', marginBottom: '12px' }}>📢 Ecampus Circular</h3>
+            <h3 style={{ color: '#9f1239', fontSize: isMobile ? '1.2rem' : '1.4rem', fontWeight: '700', marginBottom: '12px' }}>
+              📢 Ecampus Circular <span style={{ fontSize: isMobile ? '0.75rem' : '0.85rem', fontWeight: 600, color: '#be123c' }}>(Communication from School Admin)</span>
+            </h3>
             <input
               value={circularSearch}
               onChange={(e) => setCircularSearch(e.target.value)}
@@ -1209,10 +1225,13 @@ const Parents = () => {
 
               return (
                 <div key={cardId} style={{ marginBottom: '10px', background: '#fff', borderRadius: '12px', border: '1px solid #fecdd3', overflow: 'hidden' }}>
-                  <button onClick={() => toggleAccordion(cardId)} style={{ width: '100%', border: 'none', background: '#fff', padding: isMobile ? '12px' : '14px', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <button onClick={() => toggleCircularAccordion(notice, cardId, index)} style={{ width: '100%', border: 'none', background: '#fff', padding: isMobile ? '12px' : '14px', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <div style={{ textAlign: 'left' }}>
                       <p style={{ margin: 0, color: '#9f1239', fontWeight: 800, fontSize: isMobile ? '0.95rem' : '1rem' }}>{notice.title}</p>
-                      <p style={{ margin: '4px 0 0', color: '#be123c', fontWeight: 700, fontSize: isMobile ? '0.75rem' : '0.82rem' }}>{new Date(notice.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</p>
+                      <p style={{ margin: '4px 0 0', color: '#be123c', fontWeight: 700, fontSize: isMobile ? '0.75rem' : '0.82rem' }}>
+                        Received: {new Date(notice.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
+                        {notice.eventDate && ` · Important: ${new Date(notice.eventDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}`}
+                      </p>
                     </div>
                     <span style={{ color: '#9f1239', fontWeight: 800, fontSize: '1rem', transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 180ms ease' }}>⌃</span>
                   </button>

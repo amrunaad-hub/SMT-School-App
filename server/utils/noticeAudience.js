@@ -61,4 +61,44 @@ async function noticeAppliesToUser(db, notice, user) {
   return false;
 }
 
-module.exports = { noticeAppliesToUser, normalizeAudience, AUDIENCE_DEFAULT };
+// Size of a notice's resolved audience, computed via SQL aggregates rather
+// than looping every user through noticeAppliesToUser (which would be
+// O(users) per notice) — cheap enough to show eagerly in the admin list.
+async function resolveReachCount(db, targetAudience) {
+  const audience = normalizeAudience(targetAudience);
+  const gradeDivisionActive = audience.allGrades || audience.grades.length > 0;
+  const hasStudentIds = audience.studentIds.length > 0;
+
+  let parentCount = 0;
+  if (gradeDivisionActive || hasStudentIds) {
+    const row = await db('student_guardians')
+      .join('students', 'students.id', 'student_guardians.student_id')
+      .join('guardians', 'guardians.id', 'student_guardians.guardian_id')
+      .whereNotNull('guardians.user_id')
+      .where((qb) => {
+        if (gradeDivisionActive) {
+          qb.orWhere((gb) => {
+            if (!audience.allGrades) gb.whereIn('students.grade', audience.grades);
+            if (!audience.allDivisions) gb.whereIn('students.division', audience.divisions);
+          });
+        }
+        if (hasStudentIds) qb.orWhereIn('students.id', audience.studentIds);
+      })
+      .countDistinct({ count: 'guardians.user_id' })
+      .first();
+    parentCount = Number(row?.count || 0);
+  }
+
+  let teacherCount = 0;
+  if (audience.allTeachers) {
+    const row = await db('staff').whereNotNull('user_id').count({ count: '*' }).first();
+    teacherCount = Number(row?.count || 0);
+  } else if (audience.teacherIds.length > 0) {
+    const row = await db('staff').whereNotNull('user_id').whereIn('id', audience.teacherIds).count({ count: '*' }).first();
+    teacherCount = Number(row?.count || 0);
+  }
+
+  return parentCount + teacherCount;
+}
+
+module.exports = { noticeAppliesToUser, normalizeAudience, resolveReachCount, AUDIENCE_DEFAULT };

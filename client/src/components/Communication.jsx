@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import ReactQuill, { Quill } from 'react-quill-new';
 import QuillTableBetter from 'quill-table-better';
 import MagicUrl from 'quill-magic-url';
@@ -281,6 +281,19 @@ const Communication = () => {
 
   useEffect(loadNotices, []);
 
+  // Teachers see notice bodies immediately (no click-to-expand step like the
+  // parent portal has), so mark them read as soon as the list loads — once
+  // per notice id per page visit.
+  const markedReadRef = useRef(new Set());
+  useEffect(() => {
+    if (canManage) return;
+    notices.forEach((n) => {
+      if (markedReadRef.current.has(n._id)) return;
+      markedReadRef.current.add(n._id);
+      api.post(`/api/notices/${n._id}/read`).catch(() => {});
+    });
+  }, [canManage, notices]);
+
   const todayStr = new Date().toISOString().slice(0, 10);
   const { activeNotices, archivedNotices } = useMemo(() => {
     const active = [];
@@ -481,6 +494,11 @@ const Communication = () => {
                     {notice.eventDate && <span>Event: {formatDate(notice.eventDate)}</span>}
                     {notice.expiresAt && <span>Until: {formatDate(notice.expiresAt)}</span>}
                   </div>
+                  {canManage && (
+                    <div style={{ fontSize: '0.74rem', color: '#64748b', marginTop: '4px' }}>
+                      👥 Reached: {notice.reachCount ?? 0} · 👁 Opened: {notice.openCount ?? 0}
+                    </div>
+                  )}
                   {canManage && (
                     <div style={{ display: 'flex', gap: '8px', marginTop: '10px' }}>
                       <button type="button" onClick={() => handleDeactivate(notice)} style={{ flex: 1, padding: '6px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', background: '#fff', color: '#475569', fontSize: '0.76rem', fontWeight: 600, cursor: 'pointer' }}>

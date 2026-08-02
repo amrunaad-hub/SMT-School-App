@@ -4,7 +4,7 @@ const db = require('../db/database');
 const auth = require('../middleware/auth');
 const authorize = require('../middleware/authorize');
 const { serializeRow, serializeRows } = require('../utils/serialize');
-const { noticeAppliesToUser, normalizeAudience, AUDIENCE_DEFAULT } = require('../utils/noticeAudience');
+const { noticeAppliesToUser, normalizeAudience, resolveReachCount, AUDIENCE_DEFAULT } = require('../utils/noticeAudience');
 
 const JSON_FIELDS = ['target_audience'];
 const BOOL_FIELDS = ['is_active'];
@@ -33,7 +33,16 @@ router.get('/', auth, async (req, res) => {
     if (isActive !== undefined && isActive !== '') query = query.where({ is_active: isActive === 'true' ? 1 : 0 });
 
     const rows = await query.orderBy('published_at', 'desc');
-    const notices = rows.map(serialize);
+    const notices = await Promise.all(rows.map(async (row) => {
+      const notice = serialize(row);
+      const [reachCount, openRow] = await Promise.all([
+        resolveReachCount(db, notice.targetAudience),
+        db('notice_reads').where({ notice_id: notice.id }).countDistinct({ count: 'user_id' }).first(),
+      ]);
+      notice.reachCount = reachCount;
+      notice.openCount = Number(openRow?.count || 0);
+      return notice;
+    }));
 
     return res.json({ notices, total: notices.length });
   } catch (err) {
@@ -139,6 +148,22 @@ router.put('/:id', auth, authorize(['admin', 'principal']), async (req, res) => 
     return res.json(serialize(notice));
   } catch (err) {
     console.error('PUT /api/notices/:id error:', err.message);
+    return res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// POST /api/notices/:id/read (any authenticated role) — records that this
+// user actually viewed the notice's content (not just fetched the list), for
+// the admin-facing reach-vs-open comparison. Idempotent: re-opening the same
+// notice doesn't inflate the count.
+router.post('/:id/read', auth, async (req, res) => {
+  try {
+    await db('notice_reads')
+      .insert({ notice_id: req.params.id, user_id: req.user.id, opened_at: new Date().toISOString() })
+      .onConflict(['notice_id', 'user_id']).ignore();
+    return res.json({ message: 'Recorded.' });
+  } catch (err) {
+    console.error('POST /api/notices/:id/read error:', err.message);
     return res.status(500).json({ message: 'Server error' });
   }
 });
