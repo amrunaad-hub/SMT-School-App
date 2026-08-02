@@ -11,7 +11,7 @@ const DOC_TYPES = ['Birth Certificate', 'Aadhar', 'Transfer Certificate', 'Photo
 
 // POST /api/uploads — multipart form: file, category, and optionally
 // ownerType/ownerId/docType to also record a `documents` row.
-router.post('/', auth, authorize(['admin', 'teacher', 'principal']), (req, res) => {
+router.post('/', auth, authorize(['admin', 'teacher', 'principal', 'parent']), (req, res) => {
   upload.single('file')(req, res, async (err) => {
     if (err) {
       return res.status(400).json({ message: err.message || 'Upload failed.' });
@@ -23,6 +23,13 @@ router.post('/', auth, authorize(['admin', 'teacher', 'principal']), (req, res) 
     try {
       const fileUrl = publicUrlFor(req.file.path);
       const { ownerType, ownerId, docType } = req.body;
+
+      // Parents may only upload a bare file (no owner attachment) — they must
+      // go through POST /api/students/:id/edit-requests to actually attach it,
+      // so an upload alone can never bypass the approval queue.
+      if (req.user.role === 'parent' && (ownerType || ownerId)) {
+        return res.status(403).json({ message: 'Parents cannot attach documents directly; submit an edit request instead.' });
+      }
 
       if (!ownerType && !ownerId) {
         return res.json({ fileUrl, originalFilename: req.file.originalname });

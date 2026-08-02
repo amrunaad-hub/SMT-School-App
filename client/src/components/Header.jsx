@@ -55,6 +55,7 @@ const Header = ({ role = 'admin', onLogout, homePath = '/' }) => {
                 { to: '/hr', label: '👔 HR' },
                 { to: '/parents', label: '👨‍👩‍👧 Parents' },
                 { to: '/communication', label: '💬 Communication' },
+                { to: '/edit-requests', label: '✅ Edit Requests' },
             ],
         },
     ];

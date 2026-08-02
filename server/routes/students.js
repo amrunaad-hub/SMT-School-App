@@ -6,6 +6,7 @@ const auth = require('../middleware/auth');
 const authorize = require('../middleware/authorize');
 const { serializeRow, serializeRows } = require('../utils/serialize');
 const { generateUsername, generateTempPassword } = require('../utils/credentials');
+const { parentOwnsStudent } = require('../utils/parentAccess');
 
 const BOOL_FIELDS = ['is_rte', 'is_maharashtrian'];
 const JSON_FIELDS = ['siblings_declared'];
@@ -73,9 +74,44 @@ router.get('/', auth, async (req, res) => {
   }
 });
 
-// GET /api/students/:id
+// GET /api/students/edit-requests — admin/principal see the full queue
+// (optionally filtered by status); a parent sees only their own submissions
+// across any of their children, regardless of status filter. Registered
+// ahead of GET /:id so "edit-requests" isn't swallowed as an :id value.
+router.get('/edit-requests', auth, async (req, res) => {
+  try {
+    const isAdmin = req.user.role === 'admin' || req.user.role === 'principal';
+    const { status } = req.query;
+    let query = db('student_edit_requests as r')
+      .join('students as s', 's.id', 'r.student_id')
+      .join('users as u', 'u.id', 'r.requested_by')
+      .select('r.*', 's.first_name as student_first_name', 's.last_name as student_last_name', 's.student_code', 'u.username as requester_username');
+    if (isAdmin) {
+      if (status) query = query.where('r.status', status);
+    } else {
+      query = query.where('r.requested_by', req.user.id);
+    }
+    const rows = await query.orderBy('r.created_at', 'desc');
+    const requests = rows.map((row) => ({
+      ...serializeRow(row, { jsonFields: ['changes'], jsonDefault: {} }),
+      studentName: `${row.student_first_name} ${row.student_last_name}`.trim(),
+    }));
+    return res.json({ requests, total: requests.length });
+  } catch (err) {
+    console.error('GET /api/students/edit-requests error:', err.message);
+    return res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// GET /api/students/:id — admin/principal see any student; every other role
+// (parent) must be a linked guardian of this specific student.
 router.get('/:id', auth, async (req, res) => {
   try {
+    if (req.user.role !== 'admin' && req.user.role !== 'principal') {
+      const owns = await parentOwnsStudent(db, req.user.id, req.params.id);
+      if (!owns) return res.status(403).json({ message: 'Not authorized for this student.' });
+    }
+
     const student = await db('students').where({ id: req.params.id }).first();
     if (!student) {
       return res.status(404).json({ message: 'Student not found.' });
@@ -337,6 +373,206 @@ router.delete('/:id/guardians/:guardianId', auth, authorize(['admin']), async (r
     return res.json({ message: 'Guardian unlinked.' });
   } catch (err) {
     console.error('DELETE /api/students/:id/guardians/:guardianId error:', err.message);
+    return res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Parent self-service field classification (see migration 009 + the plan doc
+// for the full rationale): identity/KYC fields go through admin approval
+// instead of being writable here, even if a request tries to sneak them in.
+const DIRECT_EDIT_FIELDS = [
+  'gender', 'address', 'photoUrl', 'bloodGroup', 'medicalConditions', 'medicalNotes',
+  'religion', 'caste', 'subCaste', 'category', 'nationality', 'motherTongue',
+  'birthPlace', 'birthTaluka', 'birthDistrict', 'birthState', 'nativeAddress',
+  'heightCm', 'weightKg', 'handicapType', 'studentEmail', 'studentMobile',
+  'previousSchoolName', 'previousSchoolBoard', 'previousGradeCompleted',
+  'previousSchoolPassYear', 'previousSchoolSeatNumber', 'previousSchoolPercentage',
+  'previousSchoolLcNumber', 'previousSchoolLcDate', 'previousSchoolLeaveDate',
+  'previousSchoolRemarks', 'previousSchoolReasonLeave', 'previousSchoolMedium',
+];
+const LOCKED_EDIT_FIELDS = ['firstName', 'middleName', 'lastName', 'dob', 'aadharNumber', 'apaarId', 'grNo', 'penNo', 'studentSaralNo'];
+const GUARDIAN_SELF_FIELDS = { fullName: 'full_name', mobile: 'mobile', email: 'email', occupation: 'occupation', qualification: 'qualification', officeAddress: 'office_address', address: 'address' };
+
+// PUT /api/students/:id/self (parent) — direct-edit fields only; anything
+// else in the body (including locked/view-only columns) is silently ignored.
+router.put('/:id/self', auth, async (req, res) => {
+  try {
+    const owns = await parentOwnsStudent(db, req.user.id, req.params.id);
+    if (!owns) return res.status(403).json({ message: 'Not authorized for this student.' });
+
+    const updates = {};
+    Object.entries(req.body).forEach(([key, value]) => {
+      if (key === 'siblingsDeclared') { updates.siblings_declared = JSON.stringify(value || []); return; }
+      if (!DIRECT_EDIT_FIELDS.includes(key)) return;
+      const column = CAMEL_TO_SNAKE[key];
+      if (column) updates[column] = value;
+    });
+    if (Object.keys(updates).length === 0) {
+      return res.status(400).json({ message: 'No valid fields to update.' });
+    }
+    updates.updated_at = new Date().toISOString();
+
+    await db('students').where({ id: req.params.id }).update(updates);
+    const student = await db('students').where({ id: req.params.id }).first();
+    return res.json(serialize(student));
+  } catch (err) {
+    console.error('PUT /api/students/:id/self error:', err.message);
+    return res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// PUT /api/students/:id/guardians/:guardianId/self (parent) — a guardian may
+// only edit their own linked row, not a co-parent's.
+router.put('/:id/guardians/:guardianId/self', auth, async (req, res) => {
+  try {
+    const guardian = await db('guardians').where({ id: req.params.guardianId }).first();
+    if (!guardian) return res.status(404).json({ message: 'Guardian not found.' });
+    if (guardian.user_id !== req.user.id) return res.status(403).json({ message: 'Not authorized for this guardian record.' });
+
+    const updates = {};
+    Object.entries(req.body).forEach(([key, value]) => {
+      if (key === 'contributionAreas') { updates.contribution_areas = JSON.stringify(value || []); return; }
+      const column = GUARDIAN_SELF_FIELDS[key];
+      if (column) updates[column] = value;
+    });
+    if (Object.keys(updates).length === 0) {
+      return res.status(400).json({ message: 'No valid fields to update.' });
+    }
+    updates.updated_at = new Date().toISOString();
+
+    await db('guardians').where({ id: req.params.guardianId }).update(updates);
+
+    const link = await db('student_guardians').where({ student_id: req.params.id, guardian_id: req.params.guardianId }).first();
+    if (link && link.is_primary) await syncPrimaryGuardianSnapshot(req.params.id, db);
+
+    const updated = await db('guardians').where({ id: req.params.guardianId }).first();
+    return res.json(serializeRow(updated, { jsonFields: ['contribution_areas'], jsonDefault: [] }));
+  } catch (err) {
+    console.error('PUT /api/students/:id/guardians/:guardianId/self error:', err.message);
+    return res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// POST /api/students/:id/edit-requests (parent) — locked-field changes or a
+// document add/replace; notifies every admin. Applying the change is deferred
+// to the approve step below, not done here.
+router.post('/:id/edit-requests', auth, async (req, res) => {
+  try {
+    const owns = await parentOwnsStudent(db, req.user.id, req.params.id);
+    if (!owns) return res.status(403).json({ message: 'Not authorized for this student.' });
+
+    const { kind, changes, docType, fileUrl, originalFilename } = req.body;
+    let payload;
+    if (kind === 'fields') {
+      const filtered = {};
+      Object.entries(changes || {}).forEach(([key, value]) => {
+        if (LOCKED_EDIT_FIELDS.includes(key)) filtered[key] = value;
+      });
+      if (Object.keys(filtered).length === 0) {
+        return res.status(400).json({ message: 'No valid locked fields in changes.' });
+      }
+      payload = filtered;
+    } else if (kind === 'document') {
+      if (!fileUrl) return res.status(400).json({ message: 'fileUrl is required.' });
+      payload = { docType: docType || 'Other', fileUrl, originalFilename: originalFilename || null };
+    } else {
+      return res.status(400).json({ message: 'kind must be "fields" or "document".' });
+    }
+
+    const now = new Date().toISOString();
+    const [id] = await db('student_edit_requests').insert({
+      student_id: req.params.id, requested_by: req.user.id, kind,
+      changes: JSON.stringify(payload), status: 'Pending', created_at: now,
+    });
+
+    const student = await db('students').where({ id: req.params.id }).first();
+    const admins = await db('users').where({ role: 'admin' });
+    await Promise.all(admins.map((admin) => db('notifications').insert({
+      user_id: admin.id,
+      title: 'New profile edit request',
+      body: `${student.first_name} ${student.last_name} (${student.student_code}) has a pending ${kind === 'fields' ? 'field change' : 'document'} request.`,
+      related_type: 'student_edit_request', related_id: id, created_at: now,
+    })));
+
+    const request = await db('student_edit_requests').where({ id }).first();
+    return res.status(201).json(serializeRow(request, { jsonFields: ['changes'], jsonDefault: {} }));
+  } catch (err) {
+    console.error('POST /api/students/:id/edit-requests error:', err.message);
+    return res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// POST /api/students/edit-requests/:id/approve (admin/principal)
+router.post('/edit-requests/:id/approve', auth, authorize(['admin', 'principal']), async (req, res) => {
+  try {
+    const request = await db('student_edit_requests').where({ id: req.params.id }).first();
+    if (!request) return res.status(404).json({ message: 'Request not found.' });
+    if (request.status !== 'Pending') return res.status(409).json({ message: `Request already ${request.status}.` });
+
+    const changes = JSON.parse(request.changes || '{}');
+    const now = new Date().toISOString();
+
+    if (request.kind === 'fields') {
+      const updates = {};
+      Object.entries(changes).forEach(([key, value]) => {
+        if (!LOCKED_EDIT_FIELDS.includes(key)) return;
+        const column = CAMEL_TO_SNAKE[key];
+        if (column) updates[column] = value;
+      });
+      updates.updated_at = now;
+      await db('students').where({ id: request.student_id }).update(updates);
+    } else if (request.kind === 'document') {
+      await db('documents').insert({
+        owner_type: 'student', owner_id: request.student_id,
+        doc_type: changes.docType || 'Other', file_url: changes.fileUrl,
+        original_filename: changes.originalFilename || null,
+        uploaded_by: request.requested_by, uploaded_at: now,
+      });
+    }
+
+    await db('student_edit_requests').where({ id: req.params.id }).update({
+      status: 'Approved', reviewed_by: req.user.id, reviewed_at: now,
+    });
+
+    await db('notifications').insert({
+      user_id: request.requested_by,
+      title: 'Profile edit request approved',
+      body: `Your ${request.kind === 'fields' ? 'field change' : 'document'} request has been approved.`,
+      related_type: 'student_edit_request', related_id: request.id, created_at: now,
+    });
+
+    const updated = await db('student_edit_requests').where({ id: req.params.id }).first();
+    return res.json(serializeRow(updated, { jsonFields: ['changes'], jsonDefault: {} }));
+  } catch (err) {
+    console.error('POST /api/students/edit-requests/:id/approve error:', err.message);
+    return res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// POST /api/students/edit-requests/:id/reject (admin/principal) — {note}
+router.post('/edit-requests/:id/reject', auth, authorize(['admin', 'principal']), async (req, res) => {
+  try {
+    const request = await db('student_edit_requests').where({ id: req.params.id }).first();
+    if (!request) return res.status(404).json({ message: 'Request not found.' });
+    if (request.status !== 'Pending') return res.status(409).json({ message: `Request already ${request.status}.` });
+
+    const { note } = req.body;
+    const now = new Date().toISOString();
+    await db('student_edit_requests').where({ id: req.params.id }).update({
+      status: 'Rejected', admin_note: note || null, reviewed_by: req.user.id, reviewed_at: now,
+    });
+
+    await db('notifications').insert({
+      user_id: request.requested_by,
+      title: 'Profile edit request rejected',
+      body: note ? `Your request was rejected: ${note}` : 'Your request was rejected.',
+      related_type: 'student_edit_request', related_id: request.id, created_at: now,
+    });
+
+    const updated = await db('student_edit_requests').where({ id: req.params.id }).first();
+    return res.json(serializeRow(updated, { jsonFields: ['changes'], jsonDefault: {} }));
+  } catch (err) {
+    console.error('POST /api/students/edit-requests/:id/reject error:', err.message);
     return res.status(500).json({ message: 'Server error' });
   }
 });

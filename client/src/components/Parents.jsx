@@ -2,6 +2,7 @@ import React, { useEffect, useState, useMemo } from 'react';
 import { jsPDF } from 'jspdf';
 import DOMPurify from 'dompurify';
 import { api } from '../api';
+import ParentStudentProfile from './ParentStudentProfile';
 
 const Parents = () => {
   const [activeModule, setActiveModule] = useState('profile');
@@ -732,32 +733,13 @@ const Parents = () => {
   const renderModule = () => {
     switch (activeModule) {
       case 'profile':
-        return (
-          <div style={{ padding: isMobile ? '16px' : '24px', borderRadius: '16px', background: 'linear-gradient(135deg, #f0f9ff 0%, #eff6ff 100%)', border: '2px solid #0ea5e9', boxShadow: '0 4px 16px rgba(6, 182, 212, 0.1)' }}>
-            <h3 style={{ color: '#0369a1', fontSize: isMobile ? '1.2rem' : '1.4rem', fontWeight: '700', marginBottom: '16px' }}>👤 Student Profile</h3>
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: isMobile ? 'center' : 'flex-start', gap: '16px' }}>
-              <img src={currentStudent.photo} alt="Student" onClick={() => setSelectedStudent(currentStudent)} style={{ cursor: 'pointer', borderRadius: '12px', width: isMobile ? '100px' : '120px', height: isMobile ? '100px' : '120px', border: '4px solid #0ea5e9', boxShadow: '0 4px 12px rgba(6, 182, 212, 0.2)' }} />
-              <div style={{ width: '100%', textAlign: isMobile ? 'center' : 'left' }}>
-                <p style={{ fontSize: isMobile ? '0.95rem' : '1.1rem', marginBottom: '8px' }}><strong>👨 Name:</strong> {currentStudent.name}</p>
-                <p style={{ fontSize: isMobile ? '0.9rem' : '1rem', marginBottom: '8px' }}><strong>📚 Grade:</strong> {currentStudent.grade} {currentStudent.division}</p>
-                <p style={{ fontSize: isMobile ? '0.9rem' : '1rem', marginBottom: '8px' }}><strong>🎫 Roll No:</strong> {currentStudent.rollNo}</p>
-              </div>
+        return typeof currentStudent.id === 'number'
+          ? <ParentStudentProfile studentId={currentStudent.id} isMobile={isMobile} />
+          : (
+            <div style={{ padding: isMobile ? '16px' : '24px', borderRadius: '16px', background: 'linear-gradient(135deg, #f0f9ff 0%, #eff6ff 100%)', border: '2px solid #0ea5e9' }}>
+              <p style={{ color: '#0369a1' }}>This demo login isn't linked to a real student record, so the full profile can't be shown. Log in as a real parent account to see it.</p>
             </div>
-            {selectedStudent && (
-              <div style={{ marginTop: '20px', padding: isMobile ? '14px' : '20px', background: '#fff', borderRadius: '12px', border: '1px solid #e0f2fe' }}>
-                <h4 style={{ color: '#0369a1', fontWeight: '600', fontSize: isMobile ? '1.05rem' : '1.1rem' }}>📋 Detailed Profile</h4>
-                <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(2, 1fr)', gap: isMobile ? '8px' : '12px' }}>
-                  <p style={{ fontSize: isMobile ? '0.85rem' : '0.95rem' }}><strong>🎂 DOB:</strong> {selectedStudent.dob}</p>
-                  <p style={{ fontSize: isMobile ? '0.85rem' : '0.95rem' }}><strong>📍 Address:</strong> {selectedStudent.address}</p>
-                  <p style={{ fontSize: isMobile ? '0.85rem' : '0.95rem' }}><strong>☎️ Phone:</strong> {selectedStudent.phone}</p>
-                  <p style={{ fontSize: isMobile ? '0.85rem' : '0.95rem' }}><strong>📧 Email:</strong> {selectedStudent.email}</p>
-                  <p style={{ fontSize: isMobile ? '0.85rem' : '0.95rem' }}><strong>🩸 Blood Group:</strong> {selectedStudent.bloodGroup}</p>
-                  <p style={{ fontSize: isMobile ? '0.85rem' : '0.95rem' }}><strong>🚨 Emergency Contact:</strong> {selectedStudent.emergencyContact}</p>
-                </div>
-              </div>
-            )}
-          </div>
-        );
+          );
       case 'parent-profile':
         return (
           <div style={{ padding: isMobile ? '16px' : '24px', borderRadius: '16px', background: 'linear-gradient(135deg, #f3f4f6 0%, #f9fafb 100%)', border: '2px solid #6b7280' }}>
