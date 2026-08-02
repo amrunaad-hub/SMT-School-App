@@ -18,10 +18,14 @@ async function sendToSubscriptions(db, subscriptions, payload) {
 
   await Promise.all(subscriptions.map(async (sub) => {
     try {
+      // Without an explicit urgency, this defaults to 'normal', which Chrome
+      // on Android is free to defer under Doze/background power-saving —
+      // matches the reported symptom of it only showing up once the app is
+      // opened. 'high' asks the push service to wake the device promptly.
       await webpush.sendNotification({
         endpoint: sub.endpoint,
         keys: { p256dh: sub.p256dh, auth: sub.auth },
-      }, body);
+      }, body, { urgency: 'high', TTL: 86400 });
     } catch (err) {
       if (err.statusCode === 404 || err.statusCode === 410) {
         await db('push_subscriptions').where({ id: sub.id }).del();
