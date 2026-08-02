@@ -34,7 +34,7 @@ const Parents = () => {
   const [notifications, setNotifications] = useState([]);
   const [apiNotices, setApiNotices] = useState([]);
 
-  const apiBase = process.env.REACT_APP_API_BASE_URL || '';
+  const apiBase = import.meta.env.VITE_API_BASE_URL || '';
 
   useEffect(() => {
     const onResize = () => setIsMobile(window.innerWidth < 900);
