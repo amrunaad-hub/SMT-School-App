@@ -1,16 +1,16 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import ReactQuill, { Quill } from 'react-quill';
-import QuillBetterTable from 'quill-better-table';
 import MagicUrl from 'quill-magic-url';
 import DOMPurify from 'dompurify';
 import 'react-quill/dist/quill.snow.css';
-import 'quill-better-table/dist/quill-better-table.css';
 import { api } from '../api';
 
-Quill.register({ 'modules/better-table': QuillBetterTable }, true);
+// quill-better-table requires Quill 2.x; this app runs react-quill 2.0.0,
+// which bundles Quill 1.3.7 — the table module crashed on mount (blank page)
+// due to that version mismatch, so it's been removed. See the plan doc for
+// what a compatible table solution would need (an upgrade to Quill 2.x /
+// react-quill-new, not a drop-in module swap).
 Quill.register('modules/magicUrl', MagicUrl);
-const icons = Quill.import('ui/icons');
-icons.table = '<svg viewBox="0 0 18 18"><rect class="ql-stroke" x="2" y="2" width="14" height="14" rx="1"></rect><line class="ql-stroke" x1="2" y1="7" x2="16" y2="7"></line><line class="ql-stroke" x1="2" y1="12" x2="16" y2="12"></line><line class="ql-stroke" x1="7" y1="2" x2="7" y2="16"></line><line class="ql-stroke" x1="12" y1="2" x2="12" y2="16"></line></svg>';
 
 const CATEGORY_STYLE = {
   General: { bg: '#f1f5f9', color: '#475569' },
@@ -44,21 +44,11 @@ const EMPTY_FORM = {
 };
 
 const QUILL_MODULES = {
-  toolbar: {
-    container: [
-      ['bold', 'italic', 'underline'],
-      [{ list: 'ordered' }, { list: 'bullet' }],
-      ['link'], ['table'], ['clean'],
-    ],
-    handlers: {
-      table: function insertTableHandler() {
-        this.quill.getModule('better-table').insertTable(3, 3);
-      },
-    },
-  },
-  table: false,
-  'better-table': { operationMenu: { items: { unmergeCells: { text: 'Unmerge cells' } } } },
-  keyboard: { bindings: QuillBetterTable.keyboardBindings },
+  toolbar: [
+    ['bold', 'italic', 'underline'],
+    [{ list: 'ordered' }, { list: 'bullet' }],
+    ['link'], ['clean'],
+  ],
   magicUrl: true,
 };
 

@@ -6,7 +6,6 @@
   "dependencies": {
     "dompurify": "^3.4.12",
     "jspdf": "^2.3.1",
-    "quill-better-table": "^1.2.10",
     "quill-magic-url": "^4.2.0",
     "react": "^17.0.2",
     "react-dom": "^17.0.2",
