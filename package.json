@@ -22,6 +22,7 @@
     "format": "prettier --write \"server/**/*.js\" \"client/src/**/*.{js,jsx}\"",
     "format:check": "prettier --check \"server/**/*.js\" \"client/src/**/*.{js,jsx}\"",
     "seed": "node server/utils/seedUsers.js",
+    "seed:demo": "node server/utils/seedSchoolData.js",
     "build:analyze": "cross-env GENERATE_SOURCEMAP=true npm run build --prefix client"
   },
   "dependencies": {
@@ -33,6 +34,7 @@
     "helmet": "^8.1.0",
     "jsonwebtoken": "^8.5.1",
     "knex": "^3.3.0",
+    "multer": "^2.2.0",
     "node-cron": "^4.6.0",
     "sqlite3": "^6.0.1"
   },

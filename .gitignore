@@ -4,6 +4,7 @@ client/build/
 client/dist/
 client/.vite/
 server/uploads/
+backups/
 *.db
 *.sqlite
 .env

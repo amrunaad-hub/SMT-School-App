@@ -21,6 +21,7 @@ import Washrooms from './components/Washrooms';
 import Parents from './components/Parents';
 import Teachers from './components/Teachers';
 import Login from './components/Login';
+import PublicAdmissionForm from './components/PublicAdmissionForm';
 
 const getHomePath = (role) => {
   if (role === 'parent') return '/parents';
@@ -88,6 +89,8 @@ function App() {
         {authRole && <Header role={authRole} onLogout={handleLogout} homePath={getHomePath(authRole)} />}
         <Routes>
           <Route path="/login" element={authRole ? <Navigate to={getHomePath(authRole)} replace /> : <Login onLogin={handleLogin} />} />
+          {/* Public, unauthenticated online admission application — no login required. */}
+          <Route path="/apply" element={<PublicAdmissionForm />} />
 
           <Route
             path="/"

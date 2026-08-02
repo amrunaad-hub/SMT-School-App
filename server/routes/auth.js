@@ -3,6 +3,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const db = require('../db/database');
 const { encryptText, decryptText } = require('../utils/crypto');
+const { serializeRow } = require('../utils/serialize');
 const auth = require('../middleware/auth');
 const authorize = require('../middleware/authorize');
 const router = express.Router();
@@ -108,6 +109,71 @@ router.post('/login', async (req, res) => {
         });
     } catch (err) {
         console.error('Login error:', err.message);
+        return res.status(500).json({ message: 'Server error' });
+    }
+});
+
+// GET /api/me/children — resolves the logged-in parent to their linked
+// student(s) via guardians.user_id -> student_guardians -> students. Any other
+// role (or an unlinked demo login) just gets an empty list, not an error.
+router.get('/me/children', auth, async (req, res) => {
+    try {
+        if (typeof req.user.id !== 'number') {
+            return res.json({ children: [] });
+        }
+
+        const rows = await db('guardians')
+            .join('student_guardians', 'student_guardians.guardian_id', 'guardians.id')
+            .join('students', 'students.id', 'student_guardians.student_id')
+            .leftJoin('houses', 'houses.id', 'students.house_id')
+            .where('guardians.user_id', req.user.id)
+            .select(
+                'students.*',
+                'student_guardians.relation as my_relation',
+                'houses.name as house_name',
+                'houses.color_hex as house_color'
+            );
+
+        const children = rows.map((r) => serializeRow(r, { boolFields: ['is_rte', 'is_maharashtrian'] }));
+        return res.json({ children });
+    } catch (err) {
+        console.error('GET /api/me/children error:', err.message);
+        return res.status(500).json({ message: 'Server error' });
+    }
+});
+
+// GET /api/auth/me/staff-profile — resolves the logged-in user to their staff
+// record (staff.user_id -> users), plus which classes they teach and whether
+// they're currently the official class teacher of any grade+division. The
+// teacher-side equivalent of /me/children. Any role without a linked staff row
+// (or a non-teacher role, or the unlinked demo `teacher` login) just gets null.
+router.get('/me/staff-profile', auth, async (req, res) => {
+    try {
+        if (typeof req.user.id !== 'number') {
+            return res.json({ staffProfile: null });
+        }
+
+        const staffMember = await db('staff').where({ user_id: req.user.id }).first();
+        if (!staffMember) {
+            return res.json({ staffProfile: null });
+        }
+
+        const [classAssignments, currentClassTeacherOf, house] = await Promise.all([
+            db('staff_class_assignments').where({ staff_id: staffMember.id }),
+            db('class_teacher_history').where({ staff_id: staffMember.id, unassigned_at: null }),
+            staffMember.house_id ? db('houses').where({ id: staffMember.house_id }).first() : null,
+        ]);
+
+        return res.json({
+            staffProfile: {
+                ...serializeRow(staffMember, { jsonFields: ['assigned_subjects', 'compensation', 'roles'], boolFields: ['is_maharashtrian', 'is_brahmin'], jsonDefault: [] }),
+                house: house ? serializeRow(house) : null,
+                classAssignments: classAssignments.map((c) => serializeRow(c)),
+                currentClassTeacherOf: currentClassTeacherOf.map((c) => serializeRow(c)),
+            },
+        });
+    } catch (err) {
+        console.error('GET /api/auth/me/staff-profile error:', err.message);
         return res.status(500).json({ message: 'Server error' });
     }
 });

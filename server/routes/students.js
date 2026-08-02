@@ -1,12 +1,32 @@
 const express = require('express');
+const bcrypt = require('bcryptjs');
 const router = express.Router();
 const db = require('../db/database');
 const auth = require('../middleware/auth');
 const authorize = require('../middleware/authorize');
 const { serializeRow, serializeRows } = require('../utils/serialize');
+const { generateUsername, generateTempPassword } = require('../utils/credentials');
 
 const BOOL_FIELDS = ['is_rte', 'is_maharashtrian'];
 const serialize = (row) => serializeRow(row, { boolFields: BOOL_FIELDS });
+
+// Keeps students.parent_name/parent_mobile/parent_email in sync as a denormalized
+// snapshot of the primary guardian, so existing reads (StudentProfile, SIS search)
+// that predate the guardians table keep working unchanged.
+async function syncPrimaryGuardianSnapshot(studentId, executor) {
+  const primary = await executor('student_guardians')
+    .join('guardians', 'guardians.id', 'student_guardians.guardian_id')
+    .where({ 'student_guardians.student_id': studentId, 'student_guardians.is_primary': true })
+    .select('guardians.full_name', 'guardians.mobile', 'guardians.email')
+    .first();
+  if (!primary) return;
+  await executor('students').where({ id: studentId }).update({
+    parent_name: primary.full_name,
+    parent_mobile: primary.mobile,
+    parent_email: primary.email,
+    updated_at: new Date().toISOString(),
+  });
+}
 
 // Helper: auto-generate studentCode like "G1-ALPHA-001"
 const generateStudentCode = (grade, division, rollNo) => {
@@ -59,7 +79,22 @@ router.get('/:id', auth, async (req, res) => {
     if (!student) {
       return res.status(404).json({ message: 'Student not found.' });
     }
-    return res.json(serialize(student));
+
+    const [guardians, documents, house] = await Promise.all([
+      db('student_guardians')
+        .join('guardians', 'guardians.id', 'student_guardians.guardian_id')
+        .where({ 'student_guardians.student_id': student.id })
+        .select('guardians.*', 'student_guardians.id as link_id', 'student_guardians.relation', 'student_guardians.is_primary', 'student_guardians.is_emergency_contact'),
+      db('documents').where({ owner_type: 'student', owner_id: student.id }).orderBy('uploaded_at', 'desc'),
+      student.house_id ? db('houses').where({ id: student.house_id }).first() : null,
+    ]);
+
+    return res.json({
+      ...serialize(student),
+      house: house ? serializeRow(house) : null,
+      guardians: serializeRows(guardians, { boolFields: ['is_primary', 'is_emergency_contact'] }),
+      documents: serializeRows(documents),
+    });
   } catch (err) {
     console.error('GET /api/students/:id error:', err.message);
     return res.status(500).json({ message: 'Server error' });
@@ -133,6 +168,10 @@ const CAMEL_TO_SNAKE = {
   isRte: 'is_rte', isMaharashtrian: 'is_maharashtrian', admissionYear: 'admission_year',
   grade: 'grade', division: 'division', rollNo: 'roll_no', gender: 'gender',
   dob: 'dob', address: 'address', status: 'status',
+  houseId: 'house_id', bloodGroup: 'blood_group', medicalConditions: 'medical_conditions',
+  medicalNotes: 'medical_notes', transportRouteId: 'transport_route_id',
+  previousSchoolName: 'previous_school_name', previousSchoolBoard: 'previous_school_board',
+  previousGradeCompleted: 'previous_grade_completed', isTwinOf: 'is_twin_of',
 };
 
 // PUT /api/students/:id
@@ -170,6 +209,90 @@ router.delete('/:id', auth, authorize(['admin']), async (req, res) => {
     return res.json({ message: 'Student deleted.' });
   } catch (err) {
     console.error('DELETE /api/students/:id error:', err.message);
+    return res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// POST /api/students/:id/guardians (admin) — link a new or existing guardian
+// (deduped by mobile, same as the admission-approval flow) to a student.
+router.post('/:id/guardians', auth, authorize(['admin']), async (req, res) => {
+  const { fullName, mobile, email, relation, isPrimary, isEmergencyContact, createParentLogin } = req.body;
+  if (!fullName || !mobile) {
+    return res.status(400).json({ message: 'fullName and mobile are required.' });
+  }
+
+  try {
+    const result = await db.transaction(async (trx) => {
+      const student = await trx('students').where({ id: req.params.id }).first();
+      if (!student) {
+        const err = new Error('Student not found.');
+        err.status = 404;
+        throw err;
+      }
+
+      let guardian = await trx('guardians').where({ mobile }).first();
+      let guardianId;
+      const now = new Date().toISOString();
+      if (guardian) {
+        guardianId = guardian.id;
+      } else {
+        [guardianId] = await trx('guardians').insert({
+          full_name: fullName, mobile, email: email || null, created_at: now, updated_at: now,
+        });
+        guardian = { id: guardianId, user_id: null };
+      }
+
+      let credentials = null;
+      if (createParentLogin && !guardian.user_id) {
+        const username = await generateUsername(trx, mobile);
+        const tempPassword = generateTempPassword();
+        const [userId] = await trx('users').insert({
+          username, role: 'parent', password: await bcrypt.hash(tempPassword, 12),
+        });
+        await trx('guardians').where({ id: guardianId }).update({ user_id: userId, updated_at: now });
+        credentials = { username, tempPassword };
+      }
+
+      if (isPrimary) {
+        await trx('student_guardians').where({ student_id: student.id }).update({ is_primary: false });
+      }
+
+      await trx('student_guardians').insert({
+        student_id: student.id,
+        guardian_id: guardianId,
+        relation: ['Father', 'Mother', 'Guardian', 'Other'].includes(relation) ? relation : 'Guardian',
+        is_primary: !!isPrimary,
+        is_emergency_contact: !!isEmergencyContact,
+      });
+
+      if (isPrimary) await syncPrimaryGuardianSnapshot(student.id, trx);
+
+      const guardianRow = await trx('guardians').where({ id: guardianId }).first();
+      return { guardian: serializeRow(guardianRow), credentials };
+    });
+
+    return res.status(201).json(result);
+  } catch (err) {
+    if (err.status) return res.status(err.status).json({ message: err.message });
+    if (err.message && err.message.includes('UNIQUE constraint failed')) {
+      return res.status(409).json({ message: 'This guardian is already linked to this student.' });
+    }
+    console.error('POST /api/students/:id/guardians error:', err.message);
+    return res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// DELETE /api/students/:id/guardians/:guardianId (admin) — unlink (the guardian
+// row itself is kept in case it's shared with a sibling).
+router.delete('/:id/guardians/:guardianId', auth, authorize(['admin']), async (req, res) => {
+  try {
+    const count = await db('student_guardians')
+      .where({ student_id: req.params.id, guardian_id: req.params.guardianId }).delete();
+    if (!count) return res.status(404).json({ message: 'Guardian link not found.' });
+    await syncPrimaryGuardianSnapshot(req.params.id, db);
+    return res.json({ message: 'Guardian unlinked.' });
+  } catch (err) {
+    console.error('DELETE /api/students/:id/guardians/:guardianId error:', err.message);
     return res.status(500).json({ message: 'Server error' });
   }
 });

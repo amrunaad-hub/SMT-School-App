@@ -8,7 +8,19 @@ const DB_PATH = process.env.DB_PATH
   : path.join(__dirname, '../school.db');
 
 const LOCAL_DIR = path.join(__dirname, '../backups');
+const UPLOADS_DIR = path.join(__dirname, 'uploads');
+const UPLOADS_BACKUP_DIR = path.join(LOCAL_DIR, 'uploads-latest');
 const KEEP_DAYS = parseInt(process.env.BACKUP_KEEP_DAYS, 10) || 30;
+
+// Mirrors server/uploads/ (admission documents, student photos) into the backup
+// dir. Not timestamped per run like the DB snapshot — these files are immutable
+// once uploaded, so a single up-to-date mirror (refreshed daily) is enough to
+// restore from without unbounded disk growth.
+function backupUploads() {
+  if (!fs.existsSync(UPLOADS_DIR)) return;
+  fs.cpSync(UPLOADS_DIR, UPLOADS_BACKUP_DIR, { recursive: true });
+  console.log(`[Backup] Uploads mirrored: ${UPLOADS_BACKUP_DIR}`);
+}
 
 function pruneOldBackups(dir) {
   if (!fs.existsSync(dir)) return;
@@ -46,6 +58,7 @@ function runBackup() {
         if (vacErr) return reject(vacErr);
         console.log(`[Backup] Local: ${dest}`);
         pruneOldBackups(LOCAL_DIR);
+        backupUploads();
         resolve();
       });
     });

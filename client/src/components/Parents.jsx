@@ -5,7 +5,7 @@ import { api } from '../api';
 const Parents = () => {
   const [activeModule, setActiveModule] = useState('profile');
   const [selectedStudent, setSelectedStudent] = useState(null);
-  const [selectedChildId, setSelectedChildId] = useState('S-7A-15');
+  const [selectedChildId, setSelectedChildId] = useState(null);
   const [selectedActivityDate, setSelectedActivityDate] = useState(new Date(2026, 3, 15));
   const [selectedTimetableDate, setSelectedTimetableDate] = useState(new Date(2026, 3, 15));
   const [activityMonth, setActivityMonth] = useState(new Date(2026, 3, 1));
@@ -156,29 +156,39 @@ const Parents = () => {
 
   const [linkedStudents, setLinkedStudents] = useState(STATIC_LINKED_STUDENTS);
 
-  // Attempt to load real linked students from API (search for Kulkarni)
+  // Resolve the logged-in parent's real linked children (guardians.user_id ->
+  // student_guardians -> students). Falls back to demo data if this login isn't
+  // linked to any student yet (e.g. the shared demo `parent` account) or the
+  // request fails, so the portal never shows a blank state.
+  //
+  // Note: fee details below (feeDetailsByStudent) are still keyed off the demo
+  // student IDs (S-7A-15 etc.) — Module 1 only wires up the child-linkage itself,
+  // not the Fees module, so a real linked child currently falls back to showing
+  // the demo student's fee data on that tab. Worth a follow-up once Fees is revisited.
   useEffect(() => {
-    api.get('/api/students', { search: 'Kulkarni', limit: 5 })
+    api.get('/api/auth/me/children')
       .then((data) => {
-        const students = (data.students || []).slice(0, 2);
-        if (students.length >= 2) {
-          const mapped = students.map((s) => ({
-            id: s._id,
-            name: `${s.firstName} ${s.lastName}`,
-            grade: `Grade ${s.grade}`,
-            division: s.division ? s.division.charAt(0).toUpperCase() + s.division.slice(1) : '',
-            rollNo: `${s.grade}${s.division ? s.division[0].toUpperCase() : ''}-${String(s.rollNo).padStart(2, '0')}`,
-            dob: s.dob ? new Date(s.dob).toISOString().slice(0, 10) : '-',
-            address: s.address || 'Thane, Maharashtra',
-            phone: s.parentMobile || '-',
-            email: s.parentEmail || '-',
-            bloodGroup: '-',
-            emergencyContact: s.parentName || '-',
-            photo: `https://api.dicebear.com/7.x/adventurer/svg?seed=${encodeURIComponent(s.firstName + '-' + s.lastName)}`,
-            admissionDate: s.admissionYear ? `${s.admissionYear}-06-01` : '-',
-          }));
-          setLinkedStudents(mapped);
-        }
+        const children = data.children || [];
+        if (!children.length) return;
+        const mapped = children.map((s) => ({
+          id: s._id,
+          name: `${s.firstName} ${s.lastName}`.trim(),
+          grade: `Grade ${s.grade}`,
+          division: s.division ? s.division.charAt(0).toUpperCase() + s.division.slice(1) : '',
+          rollNo: `${s.grade}${s.division ? s.division[0].toUpperCase() : ''}-${String(s.rollNo).padStart(2, '0')}`,
+          dob: s.dob ? new Date(s.dob).toISOString().slice(0, 10) : '-',
+          address: s.address || '-',
+          phone: s.parentMobile || '-',
+          email: s.parentEmail || '-',
+          bloodGroup: s.bloodGroup || '-',
+          emergencyContact: s.parentName || '-',
+          relation: s.myRelation || '-',
+          house: s.houseName || '-',
+          photo: `https://api.dicebear.com/7.x/adventurer/svg?seed=${encodeURIComponent(s.firstName + '-' + s.lastName)}`,
+          admissionDate: s.admissionYear ? `${s.admissionYear}-06-01` : '-',
+        }));
+        setLinkedStudents(mapped);
+        setSelectedChildId(mapped[0].id);
       })
       .catch(() => {
         // Keep static fallback

@@ -21,6 +21,10 @@ const inventoryRoutes = require('./routes/inventory');
 const noticesRoutes = require('./routes/notices');
 const washroomsRoutes = require('./routes/washrooms');
 const commandCenterRoutes = require('./routes/command-center');
+const uploadsRoutes = require('./routes/uploads');
+const publicRoutes = require('./routes/public');
+const housesRoutes = require('./routes/houses');
+const { UPLOAD_ROOT } = require('./utils/upload');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -117,6 +121,9 @@ app.use('/api/inventory', inventoryRoutes);
 app.use('/api/notices', noticesRoutes);
 app.use('/api/washrooms', washroomsRoutes);
 app.use('/api/command-center', commandCenterRoutes);
+app.use('/api/uploads', uploadsRoutes);
+app.use('/api/public', publicRoutes);
+app.use('/api/houses', housesRoutes);
 
 // Health check endpoint - must be before static files and wildcard
 app.get('/api/health', (req, res) => {
@@ -127,6 +134,9 @@ app.get('/api/health', (req, res) => {
         commit: process.env.RAILWAY_GIT_COMMIT_SHA || 'unknown',
     });
 });
+
+// Uploaded documents/photos (admission attachments, student photos, etc.)
+app.use('/uploads', express.static(UPLOAD_ROOT));
 
 // Serve static files
 const clientBuildPath = path.join(__dirname, '../client/build');

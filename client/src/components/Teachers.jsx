@@ -1,8 +1,10 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { api } from '../api';
 
-// Teacher identity (would come from auth context in a real app)
-const TEACHER = {
+// Fallback identity shown until the real logged-in teacher's profile resolves
+// (or permanently, for the shared demo `teacher` login / any account not yet
+// linked to a staff record via GET /api/auth/me/staff-profile).
+const DEMO_TEACHER = {
   name: 'Ms. Anuja Kulkarni',
   code: 'TCH001',
   classGrade: 3,
@@ -19,7 +21,7 @@ const STATUS_COLORS = { present: '#16a34a', absent: '#dc2626', late: '#d97706', 
 const STATUS_BG = { present: '#dcfce7', absent: '#fee2e2', late: '#fef3c7', '': '#f1f5f9' };
 
 // ── Attendance Capture Modal ──────────────────────────────────────────────────
-const AttendanceModal = ({ students, period, onClose, onSubmit }) => {
+const AttendanceModal = ({ students, period, teacher, onClose, onSubmit }) => {
   const [marks, setMarks] = useState(() => {
     const m = {};
     students.forEach((s) => { m[s.id] = { status: '', remark: '' }; });
@@ -67,8 +69,8 @@ const AttendanceModal = ({ students, period, onClose, onSubmit }) => {
 
         await api.post('/api/attendance/bulk', {
           date: TODAY_STR,
-          grade: TEACHER.classGrade,
-          division: TEACHER.classDivision,
+          grade: teacher.classGrade,
+          division: teacher.classDivision,
           records,
         });
       } catch (err) {
@@ -92,7 +94,7 @@ const AttendanceModal = ({ students, period, onClose, onSubmit }) => {
           <div style={{ textAlign: 'center', padding: '24px 0' }}>
             <div style={{ fontSize: '3rem' }}>✅</div>
             <h3 style={{ margin: '12px 0 6px', color: '#166534' }}>Attendance Submitted!</h3>
-            <p style={{ color: '#475569' }}>Grade {TEACHER.classGrade} {TEACHER.classDivisionLabel} — {period.type} recorded for {TODAY_STR}.</p>
+            <p style={{ color: '#475569' }}>Grade {teacher.classGrade} {teacher.classDivisionLabel} — {period.type} recorded for {TODAY_STR}.</p>
             <div style={{ display: 'flex', gap: '10px', justifyContent: 'center', marginTop: '16px', flexWrap: 'wrap' }}>
               <span style={{ padding: '6px 14px', background: '#dcfce7', color: '#166534', borderRadius: '999px', fontWeight: 700 }}>Present: {counts.present}</span>
               <span style={{ padding: '6px 14px', background: '#fee2e2', color: '#dc2626', borderRadius: '999px', fontWeight: 700 }}>Absent: {counts.absent}</span>
@@ -105,7 +107,7 @@ const AttendanceModal = ({ students, period, onClose, onSubmit }) => {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '14px', gap: '10px' }}>
               <div>
                 <h3 style={{ margin: 0, color: '#0f172a', fontWeight: 800 }}>Record Attendance</h3>
-                <p style={{ margin: '4px 0 0', color: '#64748b', fontSize: '0.88rem' }}>Grade {TEACHER.classGrade} {TEACHER.classDivisionLabel} · {period.type} · {period.time} · {TODAY_STR}</p>
+                <p style={{ margin: '4px 0 0', color: '#64748b', fontSize: '0.88rem' }}>Grade {teacher.classGrade} {teacher.classDivisionLabel} · {period.type} · {period.time} · {TODAY_STR}</p>
               </div>
               <button type="button" onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '1.4rem', cursor: 'pointer', color: '#64748b' }}>×</button>
             </div>
@@ -200,6 +202,29 @@ const Teachers = () => {
   const [selectedPeriod, setSelectedPeriod] = useState(null);
   const [classStudents, setClassStudents] = useState([]);
   const [todayPeriods, setTodayPeriods] = useState([]);
+  const [teacher, setTeacher] = useState(DEMO_TEACHER);
+
+  // Resolve the logged-in teacher's real identity + assigned class. Falls back
+  // to the demo teacher (unchanged) if this login isn't linked to a staff record
+  // yet (e.g. the shared demo `teacher` account) or has no class assigned.
+  useEffect(() => {
+    api.get('/api/auth/me/staff-profile')
+      .then((data) => {
+        const profile = data.staffProfile;
+        if (!profile) return;
+        const cls = (profile.currentClassTeacherOf || [])[0] || (profile.classAssignments || [])[0];
+        if (!cls) return;
+        setTeacher({
+          name: profile.displayName,
+          code: profile.staffCode,
+          classGrade: cls.grade,
+          classDivision: cls.division,
+          classDivisionLabel: cls.division.charAt(0).toUpperCase() + cls.division.slice(1),
+          subjects: profile.assignedSubjects || [],
+        });
+      })
+      .catch(() => {});
+  }, []);
 
   const dayOfWeek = TODAY.getDay();
   const isWorkingDay = dayOfWeek !== 0 && !(dayOfWeek === 6 && ([2, 4].includes(Math.floor((TODAY.getDate() - 1) / 7) + 1)));
@@ -207,8 +232,8 @@ const Teachers = () => {
   // Load students from API
   useEffect(() => {
     api.get('/api/students', {
-      grade: TEACHER.classGrade,
-      division: TEACHER.classDivision,
+      grade: teacher.classGrade,
+      division: teacher.classDivision,
       limit: 40,
     })
       .then((data) => {
@@ -224,7 +249,7 @@ const Teachers = () => {
       .catch(() => {
         setClassStudents([]);
       });
-  }, []);
+  }, [teacher.classGrade, teacher.classDivision]);
 
   // Load timetable from API
   useEffect(() => {
@@ -233,8 +258,8 @@ const Teachers = () => {
       return;
     }
     api.get('/api/timetable', {
-      grade: TEACHER.classGrade,
-      division: TEACHER.classDivision,
+      grade: teacher.classGrade,
+      division: teacher.classDivision,
       day: dayOfWeek,
     })
       .then((data) => {
@@ -252,7 +277,7 @@ const Teachers = () => {
       .catch(() => {
         setTodayPeriods([]);
       });
-  }, [dayOfWeek, isWorkingDay]);
+  }, [dayOfWeek, isWorkingDay, teacher.classGrade, teacher.classDivision]);
 
   const firstPeriod = useMemo(() => todayPeriods.find((p) => p.type && p.type.startsWith('Period')), [todayPeriods]);
 
@@ -419,7 +444,7 @@ const Teachers = () => {
           <div>
             <h2 style={{ margin: 0, color: '#1e3a8a', fontWeight: 800 }}>Teachers Portal</h2>
             <p style={{ margin: '6px 0 0', color: '#334155', fontSize: '0.9rem' }}>
-              Welcome, <strong>{TEACHER.name}</strong> · Class Teacher, Grade {TEACHER.classGrade} {TEACHER.classDivisionLabel} · {classStudents.length} students
+              Welcome, <strong>{teacher.name}</strong> · Class Teacher, Grade {teacher.classGrade} {teacher.classDivisionLabel} · {classStudents.length} students
             </p>
           </div>
           <div style={{ padding: '8px 14px', borderRadius: '12px', background: '#dbeafe', color: '#1e3a8a', fontWeight: 700, fontSize: '0.88rem' }}>
@@ -451,6 +476,7 @@ const Teachers = () => {
         <AttendanceModal
           students={classStudents}
           period={selectedPeriod}
+          teacher={teacher}
           onClose={() => setShowAttendanceModal(false)}
           onSubmit={handleSubmitAttendance}
         />

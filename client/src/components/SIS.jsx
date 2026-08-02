@@ -39,6 +39,17 @@ const AdmissionModal = ({ onClose, onSuccess }) => {
     reader.readAsDataURL(file);
   };
 
+  const uploadPhoto = async (file) => {
+    const token = window.localStorage.getItem('smt-school-token');
+    const formData = new FormData();
+    formData.append('category', 'student-photos');
+    formData.append('file', file);
+    const res = await fetch('/api/uploads', { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: formData });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.message || 'Photo upload failed.');
+    return data.fileUrl;
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     const errs = validate();
@@ -49,12 +60,14 @@ const AdmissionModal = ({ onClose, onSuccess }) => {
       const nameParts = form.name.trim().split(/\s+/);
       const firstName = nameParts[0];
       const lastName = nameParts.slice(1).join(' ') || '';
+      const photoUrl = form.photo ? await uploadPhoto(form.photo) : undefined;
       await api.post('/api/students', {
         firstName,
         lastName,
         grade: Number(form.grade),
         division: form.division,
         parentMobile: form.mobile.trim(),
+        ...(photoUrl ? { photoUrl } : {}),
       });
       setSubmitted(true);
       if (onSuccess) onSuccess(form.name.trim());
@@ -87,9 +100,15 @@ const AdmissionModal = ({ onClose, onSuccess }) => {
     >
       <div style={{ background: '#fff', borderRadius: '20px', padding: '28px', maxWidth: '520px', width: '100%', boxShadow: '0 24px 60px rgba(15,23,42,0.28)', maxHeight: '92vh', overflowY: 'auto' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '18px' }}>
-          <h3 style={{ margin: 0, color: '#1e3a8a', fontWeight: 800, fontSize: '1.15rem' }}>New Student Admission</h3>
+          <h3 style={{ margin: 0, color: '#1e3a8a', fontWeight: 800, fontSize: '1.15rem' }}>Manual Add (Walk-in)</h3>
           <button type="button" onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '1.4rem', cursor: 'pointer', color: '#64748b', lineHeight: 1 }}>x</button>
         </div>
+
+        <p style={{ margin: '0 0 16px', color: '#64748b', fontSize: '0.82rem' }}>
+          Enrolls a student directly, bypassing the enquiry workflow — for walk-ins and corrections only. New
+          applications should normally go through <Link to="/admissions" style={{ color: '#1d4ed8' }}>Admissions</Link> so
+          they get reviewed and approved with guardian records attached.
+        </p>
 
         {submitted ? (
           <div style={{ textAlign: 'center', padding: '24px 0' }}>
@@ -243,7 +262,7 @@ const SIS = () => {
             onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-1px)'; }}
             onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; }}
           >
-            + New Student Admission
+            + Manual Add (Walk-in)
           </button>
         </div>
 

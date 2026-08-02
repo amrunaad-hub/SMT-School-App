@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Link } from 'react-router-dom';
 
 const Login = ({ onLogin }) => {
   const [username, setUsername] = useState('');
@@ -61,6 +62,10 @@ const Login = ({ onLogin }) => {
             {isSubmitting ? 'Signing in...' : 'Login'}
           </button>
         </form>
+
+        <p style={{ textAlign: 'center', marginTop: '16px', marginBottom: 0, fontSize: '0.86rem', color: '#475569' }}>
+          New family? <Link to="/apply" style={{ color: '#1d4ed8', fontWeight: 700 }}>Apply for admission</Link>
+        </p>
       </section>
     </main>
   );

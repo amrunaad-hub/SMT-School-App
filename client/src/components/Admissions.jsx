@@ -1,5 +1,14 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api } from '../api';
+
+const GRADES = Array.from({ length: 10 }, (_, i) => i + 1);
+const DIVISIONS = ['alpha', 'beta', 'gamma'];
+const OPEN_STATUSES = ['Enquiry', 'In Process', 'Document Verification', 'Clarification Requested'];
+const RELATIONS = ['Father', 'Mother', 'Guardian', 'Other'];
+
+const emptyGuardian = (overrides = {}) => ({
+  fullName: '', mobile: '', email: '', relation: 'Father', isPrimary: false, isEmergencyContact: false, ...overrides,
+});
 
 const Admissions = () => {
   const [selectedGrade, setSelectedGrade] = useState(null);
@@ -7,6 +16,7 @@ const Admissions = () => {
   const detailsRef = useRef(null);
 
   const [admissions, setAdmissions] = useState([]);
+  const [houses, setHouses] = useState([]);
   const [stats, setStats] = useState({
     totalEnquiries: 0,
     enquiries: 0,
@@ -18,15 +28,17 @@ const Admissions = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  useEffect(() => {
-    const onResize = () => setIsMobile(window.innerWidth < 900);
-    window.addEventListener('resize', onResize);
-    return () => window.removeEventListener('resize', onResize);
-  }, []);
+  const [actionAdmission, setActionAdmission] = useState(null); // { id, mode: 'approve'|'reject'|'clarify' }
+  const [approveForm, setApproveForm] = useState({ grade: '', division: '', houseId: '', guardians: [emptyGuardian()] });
+  const [rejectReason, setRejectReason] = useState('');
+  const [clarifyNote, setClarifyNote] = useState('');
+  const [actionSubmitting, setActionSubmitting] = useState(false);
+  const [actionError, setActionError] = useState('');
+  const [approveResult, setApproveResult] = useState(null);
 
-  useEffect(() => {
+  const reload = useCallback(() => {
     setLoading(true);
-    api.get('/api/admissions', { academicYear: '2025-26' })
+    return api.get('/api/admissions', { academicYear: '2025-26' })
       .then((data) => {
         setAdmissions(data.admissions || []);
         if (data.stats) setStats(data.stats);
@@ -35,6 +47,83 @@ const Admissions = () => {
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
   }, []);
+
+  useEffect(() => {
+    const onResize = () => setIsMobile(window.innerWidth < 900);
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
+
+  useEffect(() => { reload(); }, [reload]);
+  useEffect(() => { api.get('/api/houses').then((d) => setHouses(d.houses || [])).catch(() => {}); }, []);
+
+  const openApprove = (admission) => {
+    setActionAdmission({ id: admission._id, mode: 'approve' });
+    setApproveForm({
+      grade: String(admission.applyingForGrade || ''),
+      division: '',
+      houseId: '',
+      guardians: [emptyGuardian({ fullName: admission.parentName || '', mobile: admission.parentMobile || '', email: admission.parentEmail || '', isPrimary: true, isEmergencyContact: true })],
+    });
+    setActionError('');
+    setApproveResult(null);
+  };
+
+  const openReject = (admission) => {
+    setActionAdmission({ id: admission._id, mode: 'reject' });
+    setRejectReason('');
+    setActionError('');
+  };
+
+  const openClarify = (admission) => {
+    setActionAdmission({ id: admission._id, mode: 'clarify' });
+    setClarifyNote('');
+    setActionError('');
+  };
+
+  const closeAction = () => { if (!actionSubmitting) { setActionAdmission(null); setApproveResult(null); } };
+
+  const updateGuardian = (index, patch) => {
+    setApproveForm((f) => ({
+      ...f,
+      guardians: f.guardians.map((g, i) => (i === index ? { ...g, ...patch } : (patch.isPrimary ? { ...g, isPrimary: false } : g))),
+    }));
+  };
+
+  const addGuardianRow = () => setApproveForm((f) => ({ ...f, guardians: [...f.guardians, emptyGuardian({ relation: 'Mother' })] }));
+  const removeGuardianRow = (index) => setApproveForm((f) => ({ ...f, guardians: f.guardians.filter((_, i) => i !== index) }));
+
+  const submitApprove = () => {
+    if (!approveForm.grade || !approveForm.division) { setActionError('Grade and division are required.'); return; }
+    if (approveForm.guardians.some((g) => !g.fullName.trim() || !g.mobile.trim())) { setActionError('Every guardian needs a name and mobile number.'); return; }
+    setActionSubmitting(true);
+    setActionError('');
+    api.post(`/api/admissions/${actionAdmission.id}/approve`, {
+      grade: Number(approveForm.grade),
+      division: approveForm.division,
+      houseId: approveForm.houseId || undefined,
+      guardians: approveForm.guardians.map((g) => ({ ...g, createParentLogin: true })),
+    })
+      .then((result) => { setActionSubmitting(false); setApproveResult(result); reload(); })
+      .catch((err) => { setActionSubmitting(false); setActionError(err.message || 'Failed to approve admission.'); });
+  };
+
+  const submitReject = () => {
+    setActionSubmitting(true);
+    setActionError('');
+    api.post(`/api/admissions/${actionAdmission.id}/reject`, { reason: rejectReason })
+      .then(() => { setActionSubmitting(false); setActionAdmission(null); reload(); })
+      .catch((err) => { setActionSubmitting(false); setActionError(err.message || 'Failed to reject admission.'); });
+  };
+
+  const submitClarify = () => {
+    if (!clarifyNote.trim()) { setActionError('A clarification note is required.'); return; }
+    setActionSubmitting(true);
+    setActionError('');
+    api.post(`/api/admissions/${actionAdmission.id}/request-clarification`, { note: clarifyNote })
+      .then(() => { setActionSubmitting(false); setActionAdmission(null); reload(); })
+      .catch((err) => { setActionSubmitting(false); setActionError(err.message || 'Failed to request clarification.'); });
+  };
 
   const gradeStats = stats.byGrade || [];
 
@@ -227,7 +316,14 @@ const Admissions = () => {
                 <p style={{ marginTop: '8px', color: '#334155' }}>{detail.currentSchool}</p>
                 <p style={{ marginTop: '6px', color: '#475569', fontSize: '0.9rem' }}>{detail.enquiryType} • {detail.area}</p>
                 <p style={{ marginTop: '6px', color: '#475569', fontSize: '0.88rem' }}>{detail.followUp}</p>
-                <p style={{ marginTop: '6px', color: '#64748b', fontSize: '0.82rem' }}>Source: {detail.source}</p>
+                <p style={{ marginTop: '6px', color: '#64748b', fontSize: '0.82rem' }}>Source: {detail.source} • Status: {detail.status}</p>
+                {OPEN_STATUSES.includes(detail.status) && (
+                  <div style={{ display: 'flex', gap: '8px', marginTop: '10px', flexWrap: 'wrap' }}>
+                    <button type="button" onClick={() => openApprove(admissions.find((a) => a._id === detail.id))} style={{ padding: '7px 12px', borderRadius: '8px', border: 'none', background: '#16a34a', color: '#fff', fontWeight: 700, fontSize: '0.82rem', cursor: 'pointer' }}>Approve</button>
+                    <button type="button" onClick={() => openClarify(admissions.find((a) => a._id === detail.id))} style={{ padding: '7px 12px', borderRadius: '8px', border: '1px solid #f59e0b', background: '#fff', color: '#92400e', fontWeight: 700, fontSize: '0.82rem', cursor: 'pointer' }}>Clarify</button>
+                    <button type="button" onClick={() => openReject(admissions.find((a) => a._id === detail.id))} style={{ padding: '7px 12px', borderRadius: '8px', border: '1px solid #dc2626', background: '#fff', color: '#dc2626', fontWeight: 700, fontSize: '0.82rem', cursor: 'pointer' }}>Reject</button>
+                  </div>
+                )}
               </article>
             )) : (
               <p style={{ color: '#64748b' }}>No enquiries found{selectedGrade ? ` for ${selectedGrade}` : ''}.</p>
@@ -245,6 +341,8 @@ const Admissions = () => {
                   <th style={{ padding: '12px 16px' }}>Area</th>
                   <th style={{ padding: '12px 16px' }}>Follow-up</th>
                   <th style={{ padding: '12px 16px' }}>Source</th>
+                  <th style={{ padding: '12px 16px' }}>Status</th>
+                  <th style={{ padding: '12px 16px' }}>Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -258,11 +356,21 @@ const Admissions = () => {
                       <td style={{ padding: '14px 16px' }}>{detail.area}</td>
                       <td style={{ padding: '14px 16px' }}>{detail.followUp}</td>
                       <td style={{ padding: '14px 16px' }}>{detail.source}</td>
+                      <td style={{ padding: '14px 16px' }}>{detail.status}</td>
+                      <td style={{ padding: '14px 16px' }}>
+                        {OPEN_STATUSES.includes(detail.status) && (
+                          <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                            <button type="button" onClick={() => openApprove(admissions.find((a) => a._id === detail.id))} style={{ padding: '6px 10px', borderRadius: '8px', border: 'none', background: '#16a34a', color: '#fff', fontWeight: 700, fontSize: '0.78rem', cursor: 'pointer' }}>Approve</button>
+                            <button type="button" onClick={() => openClarify(admissions.find((a) => a._id === detail.id))} style={{ padding: '6px 10px', borderRadius: '8px', border: '1px solid #f59e0b', background: '#fff', color: '#92400e', fontWeight: 700, fontSize: '0.78rem', cursor: 'pointer' }}>Clarify</button>
+                            <button type="button" onClick={() => openReject(admissions.find((a) => a._id === detail.id))} style={{ padding: '6px 10px', borderRadius: '8px', border: '1px solid #dc2626', background: '#fff', color: '#dc2626', fontWeight: 700, fontSize: '0.78rem', cursor: 'pointer' }}>Reject</button>
+                          </div>
+                        )}
+                      </td>
                     </tr>
                   ))
                 ) : (
                   <tr>
-                    <td colSpan="7" style={{ padding: '18px 16px', color: '#64748b', textAlign: 'center' }}>
+                    <td colSpan="9" style={{ padding: '18px 16px', color: '#64748b', textAlign: 'center' }}>
                       No enquiries found{selectedGrade ? ` for ${selectedGrade}` : ''}.
                     </td>
                   </tr>
@@ -313,6 +421,120 @@ const Admissions = () => {
           </div>
         )}
       </section>
+
+      {actionAdmission && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '16px' }} onClick={closeAction}>
+          <div style={{ background: '#fff', borderRadius: '16px', padding: '24px', maxWidth: '560px', width: '100%', maxHeight: '90vh', overflowY: 'auto' }} onClick={(e) => e.stopPropagation()}>
+            {actionError && <p style={{ color: '#dc2626', fontSize: '0.85rem' }}>{actionError}</p>}
+
+            {actionAdmission.mode === 'approve' && (
+              approveResult ? (
+                <div>
+                  <h3 style={{ marginTop: 0, color: '#166534' }}>Admission Approved</h3>
+                  <p>{approveResult.student.firstName} {approveResult.student.lastName} is now enrolled as <strong>{approveResult.student.studentCode}</strong>.</p>
+                  {approveResult.generatedCredentials.length > 0 ? (
+                    <>
+                      <p style={{ fontWeight: 600 }}>New parent logins were created — relay these to the family, they're shown only once:</p>
+                      {approveResult.generatedCredentials.map((c) => (
+                        <div key={c.username} style={{ padding: '10px 12px', border: '1px solid #e5e7eb', borderRadius: '8px', background: '#f9fafb', fontFamily: 'monospace', marginBottom: '8px' }}>
+                          {c.guardianName}: {c.username} / {c.tempPassword}
+                        </div>
+                      ))}
+                    </>
+                  ) : (
+                    <p style={{ color: '#64748b' }}>All linked guardians already had a login — no new credentials to relay.</p>
+                  )}
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '16px' }}>
+                    <button type="button" onClick={closeAction} style={{ padding: '10px 18px', borderRadius: '10px', border: 'none', background: '#1e3a8a', color: '#fff', fontWeight: 700, cursor: 'pointer' }}>Done</button>
+                  </div>
+                </div>
+              ) : (
+                <div>
+                  <h3 style={{ marginTop: 0 }}>Approve Admission</h3>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px' }}>
+                    <label style={{ fontSize: '0.85rem', fontWeight: 600 }}>Grade
+                      <select value={approveForm.grade} onChange={(e) => setApproveForm((f) => ({ ...f, grade: e.target.value }))} style={{ width: '100%', padding: '8px', borderRadius: '8px', border: '1px solid #cbd5e1', marginTop: '4px' }}>
+                        <option value="">Select</option>
+                        {GRADES.map((g) => <option key={g} value={g}>Grade {g}</option>)}
+                      </select>
+                    </label>
+                    <label style={{ fontSize: '0.85rem', fontWeight: 600 }}>Division
+                      <select value={approveForm.division} onChange={(e) => setApproveForm((f) => ({ ...f, division: e.target.value }))} style={{ width: '100%', padding: '8px', borderRadius: '8px', border: '1px solid #cbd5e1', marginTop: '4px' }}>
+                        <option value="">Select</option>
+                        {DIVISIONS.map((d) => <option key={d} value={d}>{d.charAt(0).toUpperCase() + d.slice(1)}</option>)}
+                      </select>
+                    </label>
+                    <label style={{ fontSize: '0.85rem', fontWeight: 600 }}>House
+                      <select value={approveForm.houseId} onChange={(e) => setApproveForm((f) => ({ ...f, houseId: e.target.value }))} style={{ width: '100%', padding: '8px', borderRadius: '8px', border: '1px solid #cbd5e1', marginTop: '4px' }}>
+                        <option value="">Auto</option>
+                        {houses.map((h) => <option key={h.id} value={h.id}>{h.name}</option>)}
+                      </select>
+                    </label>
+                  </div>
+
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '18px' }}>
+                    <h4 style={{ margin: 0 }}>Guardians</h4>
+                    <button type="button" onClick={addGuardianRow} style={{ padding: '5px 10px', borderRadius: '8px', border: '1px solid #cbd5e1', background: '#f8fafc', cursor: 'pointer', fontSize: '0.78rem' }}>+ Add Guardian</button>
+                  </div>
+                  {approveForm.guardians.map((g, i) => (
+                    <div key={i} style={{ border: '1px solid #e2e8f0', borderRadius: '10px', padding: '10px', marginTop: '8px' }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                        <input placeholder="Full name" value={g.fullName} onChange={(e) => updateGuardian(i, { fullName: e.target.value })} style={{ padding: '7px 8px', borderRadius: '7px', border: '1px solid #cbd5e1' }} />
+                        <input placeholder="Mobile" value={g.mobile} onChange={(e) => updateGuardian(i, { mobile: e.target.value })} style={{ padding: '7px 8px', borderRadius: '7px', border: '1px solid #cbd5e1' }} />
+                      </div>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginTop: '8px' }}>
+                        <input placeholder="Email" value={g.email} onChange={(e) => updateGuardian(i, { email: e.target.value })} style={{ padding: '7px 8px', borderRadius: '7px', border: '1px solid #cbd5e1' }} />
+                        <select value={g.relation} onChange={(e) => updateGuardian(i, { relation: e.target.value })} style={{ padding: '7px 8px', borderRadius: '7px', border: '1px solid #cbd5e1' }}>
+                          {RELATIONS.map((r) => <option key={r} value={r}>{r}</option>)}
+                        </select>
+                      </div>
+                      <div style={{ display: 'flex', gap: '14px', marginTop: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+                        <label style={{ fontSize: '0.8rem' }}><input type="checkbox" checked={g.isPrimary} onChange={(e) => updateGuardian(i, { isPrimary: e.target.checked })} /> Primary</label>
+                        <label style={{ fontSize: '0.8rem' }}><input type="checkbox" checked={g.isEmergencyContact} onChange={(e) => updateGuardian(i, { isEmergencyContact: e.target.checked })} /> Emergency contact</label>
+                        {approveForm.guardians.length > 1 && (
+                          <button type="button" onClick={() => removeGuardianRow(i)} style={{ marginLeft: 'auto', padding: '4px 8px', borderRadius: '6px', border: '1px solid #fecaca', background: '#fff', color: '#dc2626', cursor: 'pointer', fontSize: '0.76rem' }}>Remove</button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                  <p style={{ fontSize: '0.78rem', color: '#64748b', marginTop: '8px' }}>A parent login is created automatically for any guardian who doesn't already have one.</p>
+
+                  <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', marginTop: '18px' }}>
+                    <button type="button" onClick={closeAction} disabled={actionSubmitting} style={{ padding: '10px 16px', borderRadius: '10px', border: '1px solid #cbd5e1', background: '#fff', cursor: 'pointer' }}>Cancel</button>
+                    <button type="button" onClick={submitApprove} disabled={actionSubmitting} style={{ padding: '10px 18px', borderRadius: '10px', border: 'none', background: '#16a34a', color: '#fff', fontWeight: 700, cursor: 'pointer' }}>{actionSubmitting ? 'Approving…' : 'Approve & Enroll'}</button>
+                  </div>
+                </div>
+              )
+            )}
+
+            {actionAdmission.mode === 'reject' && (
+              <div>
+                <h3 style={{ marginTop: 0 }}>Reject Admission</h3>
+                <label style={{ fontSize: '0.85rem', fontWeight: 600 }}>Reason
+                  <textarea value={rejectReason} onChange={(e) => setRejectReason(e.target.value)} style={{ width: '100%', minHeight: '80px', padding: '8px', borderRadius: '8px', border: '1px solid #cbd5e1', marginTop: '4px', boxSizing: 'border-box' }} />
+                </label>
+                <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', marginTop: '16px' }}>
+                  <button type="button" onClick={closeAction} disabled={actionSubmitting} style={{ padding: '10px 16px', borderRadius: '10px', border: '1px solid #cbd5e1', background: '#fff', cursor: 'pointer' }}>Cancel</button>
+                  <button type="button" onClick={submitReject} disabled={actionSubmitting} style={{ padding: '10px 18px', borderRadius: '10px', border: 'none', background: '#dc2626', color: '#fff', fontWeight: 700, cursor: 'pointer' }}>{actionSubmitting ? 'Rejecting…' : 'Reject'}</button>
+                </div>
+              </div>
+            )}
+
+            {actionAdmission.mode === 'clarify' && (
+              <div>
+                <h3 style={{ marginTop: 0 }}>Request Clarification</h3>
+                <label style={{ fontSize: '0.85rem', fontWeight: 600 }}>Note to family
+                  <textarea value={clarifyNote} onChange={(e) => setClarifyNote(e.target.value)} style={{ width: '100%', minHeight: '80px', padding: '8px', borderRadius: '8px', border: '1px solid #cbd5e1', marginTop: '4px', boxSizing: 'border-box' }} />
+                </label>
+                <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', marginTop: '16px' }}>
+                  <button type="button" onClick={closeAction} disabled={actionSubmitting} style={{ padding: '10px 16px', borderRadius: '10px', border: '1px solid #cbd5e1', background: '#fff', cursor: 'pointer' }}>Cancel</button>
+                  <button type="button" onClick={submitClarify} disabled={actionSubmitting} style={{ padding: '10px 18px', borderRadius: '10px', border: 'none', background: '#f59e0b', color: '#fff', fontWeight: 700, cursor: 'pointer' }}>{actionSubmitting ? 'Sending…' : 'Send'}</button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </main>
   );
 };
