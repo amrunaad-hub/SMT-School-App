@@ -1,8 +1,16 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import ReactQuill from 'react-quill';
+import ReactQuill, { Quill } from 'react-quill';
+import QuillBetterTable from 'quill-better-table';
+import MagicUrl from 'quill-magic-url';
 import DOMPurify from 'dompurify';
 import 'react-quill/dist/quill.snow.css';
+import 'quill-better-table/dist/quill-better-table.css';
 import { api } from '../api';
+
+Quill.register({ 'modules/better-table': QuillBetterTable }, true);
+Quill.register('modules/magicUrl', MagicUrl);
+const icons = Quill.import('ui/icons');
+icons.table = '<svg viewBox="0 0 18 18"><rect class="ql-stroke" x="2" y="2" width="14" height="14" rx="1"></rect><line class="ql-stroke" x1="2" y1="7" x2="16" y2="7"></line><line class="ql-stroke" x1="2" y1="12" x2="16" y2="12"></line><line class="ql-stroke" x1="7" y1="2" x2="7" y2="16"></line><line class="ql-stroke" x1="12" y1="2" x2="12" y2="16"></line></svg>';
 
 const CATEGORY_STYLE = {
   General: { bg: '#f1f5f9', color: '#475569' },
@@ -39,7 +47,24 @@ const EMPTY_FORM = {
   eventDate: '', expiresAt: '', targetAudience: EMPTY_AUDIENCE,
 };
 
-const QUILL_MODULES = { toolbar: [['bold', 'italic', 'underline'], [{ list: 'ordered' }, { list: 'bullet' }], ['link'], ['clean']] };
+const QUILL_MODULES = {
+  toolbar: {
+    container: [
+      ['bold', 'italic', 'underline'],
+      [{ list: 'ordered' }, { list: 'bullet' }],
+      ['link'], ['table'], ['clean'],
+    ],
+    handlers: {
+      table: function insertTableHandler() {
+        this.quill.getModule('better-table').insertTable(3, 3);
+      },
+    },
+  },
+  table: false,
+  'better-table': { operationMenu: { items: { unmergeCells: { text: 'Unmerge cells' } } } },
+  keyboard: { bindings: QuillBetterTable.keyboardBindings },
+  magicUrl: true,
+};
 
 // ── Audience funnel picker ────────────────────────────────────────────────────
 const AudiencePicker = ({ audience, onChange, houses, inputStyle, labelStyle }) => {
@@ -200,8 +225,17 @@ const Communication = () => {
 
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState(EMPTY_FORM);
+  const [expiresAtTouched, setExpiresAtTouched] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState(null);
+
+  const handleEventDateChange = (value) => {
+    setForm((f) => ({ ...f, eventDate: value, expiresAt: expiresAtTouched ? f.expiresAt : value }));
+  };
+  const handleExpiresAtChange = (value) => {
+    setExpiresAtTouched(true);
+    setForm((f) => ({ ...f, expiresAt: value }));
+  };
 
   const loadNotices = () => {
     setLoading(true);
@@ -237,6 +271,18 @@ const Communication = () => {
       setSaveError('Title and message are required.');
       return;
     }
+    const a = form.targetAudience;
+    const scopedEmpty = (
+      (a.mode === 'role' && a.roles.length === 0)
+      || (a.mode === 'grade' && a.grades.length === 0)
+      || (a.mode === 'house' && a.houseIds.length === 0)
+      || (a.mode === 'gradeDivision' && a.gradeDivisions.length === 0)
+      || (a.mode === 'students' && a.studentIds.length === 0)
+    );
+    if (scopedEmpty) {
+      setSaveError('Audience is set to a specific selection but nothing was added — click "+ Add" (or select at least one option) before publishing, otherwise this notice reaches no one.');
+      return;
+    }
     setSaving(true);
     setSaveError(null);
     try {
@@ -246,6 +292,7 @@ const Communication = () => {
         expiresAt: form.expiresAt || null,
       });
       setForm(EMPTY_FORM);
+      setExpiresAtTouched(false);
       setShowForm(false);
       loadNotices();
     } catch (err) {
@@ -300,7 +347,7 @@ const Communication = () => {
           </div>
           <button
             type="button"
-            onClick={() => { setShowForm((s) => !s); setSaveError(null); }}
+            onClick={() => { setShowForm((s) => !s); setSaveError(null); setForm(EMPTY_FORM); setExpiresAtTouched(false); }}
             style={{ padding: '10px 18px', borderRadius: '8px', border: 'none', background: showForm ? '#64748b' : '#1e40af', color: '#fff', fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer' }}
           >
             {showForm ? '✕ Cancel' : '+ New Notice'}
@@ -315,7 +362,9 @@ const Communication = () => {
             </div>
             <div>
               <label style={labelStyle}>Message *</label>
-              <ReactQuill theme="snow" value={form.body} onChange={(html) => setForm((f) => ({ ...f, body: html }))} modules={QUILL_MODULES} style={{ background: '#fff' }} />
+              <div style={{ overflowX: 'auto' }}>
+                <ReactQuill theme="snow" value={form.body} onChange={(html) => setForm((f) => ({ ...f, body: html }))} modules={QUILL_MODULES} style={{ background: '#fff' }} />
+              </div>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '14px' }}>
               <div>
@@ -332,12 +381,12 @@ const Communication = () => {
               </div>
               <div>
                 <label style={labelStyle}>Event / Important Date (optional)</label>
-                <input type="date" style={inputStyle} value={form.eventDate} onChange={(e) => setForm((f) => ({ ...f, eventDate: e.target.value }))} />
+                <input type="date" style={inputStyle} value={form.eventDate} onChange={(e) => handleEventDateChange(e.target.value)} />
               </div>
               <div>
                 <label style={labelStyle}>Show Until (optional)</label>
-                <input type="date" style={inputStyle} value={form.expiresAt} onChange={(e) => setForm((f) => ({ ...f, expiresAt: e.target.value }))} />
-                <p style={{ margin: '4px 0 0', fontSize: '0.72rem', color: '#94a3b8' }}>Moves to Archived after this date — not deleted.</p>
+                <input type="date" style={inputStyle} value={form.expiresAt} onChange={(e) => handleExpiresAtChange(e.target.value)} />
+                <p style={{ margin: '4px 0 0', fontSize: '0.72rem', color: '#94a3b8' }}>Defaults to the Event Date, but you can pick a different one. Moves to Archived after this date — not deleted.</p>
               </div>
             </div>
 
