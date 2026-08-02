@@ -306,6 +306,26 @@ router.post('/:id/guardians', auth, authorize(['admin']), async (req, res) => {
   }
 });
 
+// POST /api/students/:id/guardians/:guardianId/reset-password (admin) — no
+// email infra exists yet, so this is the workaround for "forgot password":
+// admin generates a fresh temp password and relays it directly.
+router.post('/:id/guardians/:guardianId/reset-password', auth, authorize(['admin']), async (req, res) => {
+  try {
+    const guardian = await db('guardians').where({ id: req.params.guardianId }).first();
+    if (!guardian) return res.status(404).json({ message: 'Guardian not found.' });
+    if (!guardian.user_id) return res.status(409).json({ message: 'This guardian has no linked login to reset.' });
+
+    const user = await db('users').where({ id: guardian.user_id }).first();
+    const tempPassword = generateTempPassword(guardian.full_name);
+    await db('users').where({ id: guardian.user_id }).update({ password: await bcrypt.hash(tempPassword, 12) });
+
+    return res.json({ username: user.username, tempPassword });
+  } catch (err) {
+    console.error('POST /api/students/:id/guardians/:guardianId/reset-password error:', err.message);
+    return res.status(500).json({ message: 'Server error' });
+  }
+});
+
 // DELETE /api/students/:id/guardians/:guardianId (admin) — unlink (the guardian
 // row itself is kept in case it's shared with a sibling).
 router.delete('/:id/guardians/:guardianId', auth, authorize(['admin']), async (req, res) => {

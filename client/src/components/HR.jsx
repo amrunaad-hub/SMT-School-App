@@ -44,6 +44,10 @@ const HR = () => {
   const [loginResult, setLoginResult] = useState(null);
   const [loginError, setLoginError] = useState('');
 
+  const [resetModalCode, setResetModalCode] = useState(null);
+  const [resetResult, setResetResult] = useState(null);
+  const [resetError, setResetError] = useState('');
+
   useEffect(() => {
     const onResize = () => setIsMobile(window.innerWidth < 920);
     window.addEventListener('resize', onResize);
@@ -162,6 +166,15 @@ const HR = () => {
     api.post(`/api/staff/${loginModalCode}/link-login`, loginUsername.trim() ? { username: loginUsername.trim() } : {})
       .then((result) => { setLoginResult(result); reload(); })
       .catch((err) => setLoginError(err.message || 'Failed to link login.'));
+  };
+
+  const openResetModal = (person) => {
+    setResetModalCode(person.staffCode);
+    setResetResult(null);
+    setResetError('');
+    api.post(`/api/staff/${person.staffCode}/reset-password`)
+      .then((result) => setResetResult(result))
+      .catch((err) => setResetError(err.message || 'Failed to reset password.'));
   };
 
   const getAcademicYearLabel = (date) => {
@@ -407,8 +420,10 @@ const HR = () => {
               <div style={{ display: 'flex', gap: '6px', marginTop: '10px', flexWrap: 'wrap' }}>
                 <button type="button" onClick={() => openEditStaff(person)} style={{ padding: '6px 10px', borderRadius: '8px', border: '1px solid #cbd5e1', background: '#fff', cursor: 'pointer', fontSize: '0.78rem' }}>Edit</button>
                 <button type="button" onClick={() => openClassModal(person)} style={{ padding: '6px 10px', borderRadius: '8px', border: '1px solid #cbd5e1', background: '#fff', cursor: 'pointer', fontSize: '0.78rem' }}>Manage Classes</button>
-                {!person.userId && (
+                {!person.userId ? (
                   <button type="button" onClick={() => openLoginModal(person)} style={{ padding: '6px 10px', borderRadius: '8px', border: '1px solid #cbd5e1', background: '#fff', cursor: 'pointer', fontSize: '0.78rem' }}>Link Login</button>
+                ) : (
+                  <button type="button" onClick={() => openResetModal(person)} style={{ padding: '6px 10px', borderRadius: '8px', border: '1px solid #cbd5e1', background: '#fff', cursor: 'pointer', fontSize: '0.78rem' }}>Reset Password</button>
                 )}
               </div>
             </article>
@@ -614,6 +629,26 @@ const HR = () => {
                 </div>
               </>
             )}
+          </div>
+        </div>
+      )}
+
+      {resetModalCode && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '16px' }} onClick={() => setResetModalCode(null)}>
+          <div style={{ background: '#fff', borderRadius: '16px', padding: '24px', maxWidth: '440px', width: '100%' }} onClick={(e) => e.stopPropagation()}>
+            <h3 style={{ marginTop: 0 }}>Reset Password — {resetModalCode}</h3>
+            {resetError && <p style={{ color: '#dc2626', fontSize: '0.85rem' }}>{resetError}</p>}
+            {resetResult && (
+              <>
+                <p style={{ color: '#16a34a', fontWeight: 600 }}>New password generated — relay this, shown only once:</p>
+                <div style={{ padding: '10px 12px', border: '1px solid #e5e7eb', borderRadius: '8px', background: '#f9fafb', fontFamily: 'monospace' }}>
+                  {resetResult.username} / {resetResult.tempPassword}
+                </div>
+              </>
+            )}
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '16px' }}>
+              <button type="button" onClick={() => setResetModalCode(null)} style={{ padding: '10px 18px', borderRadius: '10px', border: 'none', background: '#1e3a8a', color: '#fff', fontWeight: 700, cursor: 'pointer' }}>Done</button>
+            </div>
           </div>
         </div>
       )}

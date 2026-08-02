@@ -292,4 +292,24 @@ router.post('/:code/link-login', auth, authorize(['admin']), async (req, res) =>
   }
 });
 
+// POST /api/staff/:code/reset-password (admin) — no email infra exists yet, so
+// this is the workaround for "forgot password": admin generates a fresh temp
+// password and relays it directly, same one-time-shown pattern as link-login.
+router.post('/:code/reset-password', auth, authorize(['admin']), async (req, res) => {
+  try {
+    const staffMember = await db('staff').where({ staff_code: req.params.code }).first();
+    if (!staffMember) return res.status(404).json({ message: 'Staff member not found.' });
+    if (!staffMember.user_id) return res.status(409).json({ message: 'This staff member has no linked login to reset.' });
+
+    const user = await db('users').where({ id: staffMember.user_id }).first();
+    const tempPassword = generateTempPassword(staffMember.display_name);
+    await db('users').where({ id: staffMember.user_id }).update({ password: await bcrypt.hash(tempPassword, 12) });
+
+    return res.json({ username: user.username, tempPassword });
+  } catch (err) {
+    console.error('POST /api/staff/:code/reset-password error:', err.message);
+    return res.status(500).json({ message: 'Server error' });
+  }
+});
+
 module.exports = router;

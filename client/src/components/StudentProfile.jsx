@@ -50,6 +50,7 @@ const StudentProfile = () => {
   const [guardianSaving, setGuardianSaving] = useState(false);
   const [guardianError, setGuardianError] = useState('');
   const [newCredentials, setNewCredentials] = useState(null);
+  const [resetResult, setResetResult] = useState(null);
 
   const [uploading, setUploading] = useState(false);
   const [uploadDocType, setUploadDocType] = useState('Other');
@@ -149,6 +150,13 @@ const StudentProfile = () => {
   const removeGuardian = (guardianId) => {
     if (!window.confirm('Unlink this guardian from the student?')) return;
     api.delete(`/api/students/${id}/guardians/${guardianId}`).then(loadStudent).catch(() => {});
+  };
+
+  const resetGuardianPassword = (guardianId) => {
+    setResetResult(null);
+    api.post(`/api/students/${id}/guardians/${guardianId}/reset-password`)
+      .then((result) => setResetResult(result))
+      .catch((err) => setResetResult({ error: err.message || 'Failed to reset password.' }));
   };
 
   const handleUpload = (e) => {
@@ -331,7 +339,10 @@ const StudentProfile = () => {
                       <div style={{ fontSize: '0.8rem', color: '#94a3b8' }}>Contributes: {g.contributionAreas.join(', ')}</div>
                     )}
                   </div>
-                  <button type="button" style={btnStyle} onClick={() => removeGuardian(g.id)}>Unlink</button>
+                  <div style={{ display: 'flex', gap: '6px', flexDirection: 'column' }}>
+                    {g.userId && <button type="button" style={btnStyle} onClick={() => resetGuardianPassword(g.id)}>Reset Password</button>}
+                    <button type="button" style={btnStyle} onClick={() => removeGuardian(g.id)}>Unlink</button>
+                  </div>
                 </div>
               ))}
             </div>
@@ -668,6 +679,27 @@ const StudentProfile = () => {
                 </div>
               </>
             )}
+          </div>
+        </div>
+      )}
+
+      {resetResult && (
+        <div style={modalOverlay} onClick={() => setResetResult(null)}>
+          <div style={modalBox} onClick={(e) => e.stopPropagation()}>
+            <h3 style={{ marginTop: 0 }}>Reset Password</h3>
+            {resetResult.error ? (
+              <p style={{ color: '#dc2626', fontSize: '0.85rem' }}>{resetResult.error}</p>
+            ) : (
+              <>
+                <p style={{ color: '#16a34a', fontWeight: 600 }}>New password generated — relay this, shown only once:</p>
+                <div style={{ ...fieldStyle, fontFamily: 'monospace' }}>
+                  {resetResult.username} / {resetResult.tempPassword}
+                </div>
+              </>
+            )}
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '16px' }}>
+              <button type="button" style={primaryBtnStyle} onClick={() => setResetResult(null)}>Done</button>
+            </div>
           </div>
         </div>
       )}
