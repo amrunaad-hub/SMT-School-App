@@ -305,6 +305,16 @@ const Communication = () => {
     });
   }, [canManage, notices]);
 
+  // Deep link from a push notification (/communication?noticeId=123) —
+  // scroll straight to the notice instead of leaving the visitor to scan
+  // the whole list for it.
+  useEffect(() => {
+    const noticeId = new URLSearchParams(window.location.search).get('noticeId');
+    if (!noticeId || !notices.length) return;
+    const el = document.getElementById(`notice-${noticeId}`);
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }, [notices]);
+
   const todayStr = new Date().toISOString().slice(0, 10);
   const { activeNotices, archivedNotices } = useMemo(() => {
     const active = [];
@@ -517,7 +527,7 @@ const Communication = () => {
             {displayNotices.map((notice) => {
               const catStyle = CATEGORY_STYLE[notice.category] || CATEGORY_STYLE.General;
               return (
-                <div key={notice._id} style={{ ...cardStyle, padding: '12px 16px', borderLeft: `4px solid ${catStyle.color}`, display: 'flex', alignItems: 'center', gap: '14px', flexWrap: 'wrap', opacity: activeTab === 'archived' ? 0.7 : 1 }}>
+                <div id={`notice-${notice._id}`} key={notice._id} style={{ ...cardStyle, padding: '12px 16px', borderLeft: `4px solid ${catStyle.color}`, display: 'flex', alignItems: 'center', gap: '14px', flexWrap: 'wrap', opacity: activeTab === 'archived' ? 0.7 : 1 }}>
                   <span style={{ padding: '2px 8px', borderRadius: '6px', background: catStyle.bg, color: catStyle.color, fontSize: '0.72rem', fontWeight: 700, whiteSpace: 'nowrap' }}>{notice.category}</span>
                   <h3 style={{ margin: 0, color: '#0f172a', fontSize: '0.9rem', fontWeight: 700, flex: 1, minWidth: '160px' }}>{notice.title}</h3>
                   {notice.priority !== 'Normal' && (
@@ -546,7 +556,7 @@ const Communication = () => {
               const catStyle = CATEGORY_STYLE[notice.category] || CATEGORY_STYLE.General;
               const priStyle = PRIORITY_STYLE[notice.priority] || PRIORITY_STYLE.Normal;
               return (
-                <div key={notice._id} style={{ ...cardStyle, borderLeft: `4px solid ${catStyle.color}`, opacity: activeTab === 'archived' ? 0.7 : 1 }}>
+                <div id={`notice-${notice._id}`} key={notice._id} style={{ ...cardStyle, borderLeft: `4px solid ${catStyle.color}`, opacity: activeTab === 'archived' ? 0.7 : 1 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px', marginBottom: '8px' }}>
                     <h3 style={{ margin: 0, color: '#0f172a', fontSize: '0.95rem', fontWeight: '700', flex: 1 }}>{notice.title}</h3>
                     {notice.priority !== 'Normal' && (

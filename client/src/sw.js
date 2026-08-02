@@ -24,13 +24,20 @@ self.addEventListener('push', (event) => {
   }));
 });
 
+// Always navigate an existing tab to the target URL (including its query
+// string — deep links carry ?module=&noticeId=) rather than just focusing
+// whatever was already open, which previously left the click landing
+// wherever the app happened to already be instead of the actual notice.
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
   const url = event.notification.data?.url || '/';
   event.waitUntil(
-    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
-      const existing = clientList.find((c) => new URL(c.url).pathname === url);
-      if (existing) return existing.focus();
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(async (clientList) => {
+      const existing = clientList[0];
+      if (existing) {
+        if ('navigate' in existing) await existing.navigate(url);
+        return existing.focus();
+      }
       return self.clients.openWindow(url);
     })
   );

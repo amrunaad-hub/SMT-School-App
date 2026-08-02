@@ -98,6 +98,13 @@ router.get('/:id', auth, async (req, res) => {
 // /mine feed uses, just scoped to the (usually small) set of users who
 // opted into notifications rather than every user. Never awaited by the
 // caller: publishing shouldn't block on push delivery.
+const HTML_ENTITIES = { '&nbsp;': ' ', '&amp;': '&', '&lt;': '<', '&gt;': '>', '&quot;': '"', '&#39;': "'" };
+const stripHtml = (html) => html
+  .replace(/<[^>]*>/g, ' ')
+  .replace(/&nbsp;|&amp;|&lt;|&gt;|&quot;|&#39;/g, (m) => HTML_ENTITIES[m])
+  .replace(/\s+/g, ' ')
+  .trim();
+
 async function notifySubscribers(notice) {
   const subs = await db('push_subscriptions')
     .join('users', 'users.id', 'push_subscriptions.user_id')
@@ -113,8 +120,18 @@ async function notifySubscribers(notice) {
   }
   if (!matched.length) return;
 
-  const snippet = notice.body.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 120);
-  await sendToSubscriptions(db, matched, { title: notice.title, body: snippet, url: '/communication' });
+  const snippet = stripHtml(notice.body).slice(0, 120);
+  // Parents view notices inside the Parents SPA's own tab state (there's no
+  // dedicated route), while /communication is staff-only (admin/principal/
+  // teacher) and 404s the route guard for a parent — that mismatch is why
+  // tapping a notification previously dropped parents on the home page.
+  const byRole = { parent: [], teacher: [] };
+  matched.forEach((sub) => byRole[sub.role]?.push(sub));
+
+  await Promise.all([
+    sendToSubscriptions(db, byRole.parent, { title: notice.title, body: snippet, url: `/parents?module=circular&noticeId=${notice.id}` }),
+    sendToSubscriptions(db, byRole.teacher, { title: notice.title, body: snippet, url: `/communication?noticeId=${notice.id}` }),
+  ]);
 }
 
 // POST /api/notices (admin, principal, teacher)

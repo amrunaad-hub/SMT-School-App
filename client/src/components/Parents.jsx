@@ -9,7 +9,10 @@ import ParentStudentProfile from './ParentStudentProfile';
 const gradeNumber = (label) => Number(String(label).replace(/\D/g, ''));
 
 const Parents = () => {
-  const [activeModule, setActiveModule] = useState('profile');
+  const deepLinkNoticeId = new URLSearchParams(window.location.search).get('noticeId');
+  const [activeModule, setActiveModule] = useState(
+    () => new URLSearchParams(window.location.search).get('module') || 'profile'
+  );
   const [selectedStudent, setSelectedStudent] = useState(null);
   const [selectedChildId, setSelectedChildId] = useState(null);
   const today = new Date();
@@ -124,6 +127,18 @@ const Parents = () => {
       .then((data) => setApiNotices(data.notices || []))
       .catch(() => {});
   }, []);
+
+  // Deep link from a push notification (?module=circular&noticeId=123) —
+  // auto-expand the specific notice once it's loaded, instead of just
+  // landing on the tab and leaving the parent to hunt for it.
+  useEffect(() => {
+    if (!deepLinkNoticeId || !apiNotices.length) return;
+    const notice = apiNotices.find((n) => String(n._id) === deepLinkNoticeId);
+    if (!notice) return;
+    const date = notice.publishedAt ? new Date(notice.publishedAt).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10);
+    const cardId = `circular-${date}-${notice.title}`;
+    setExpandedCards((prev) => ({ ...prev, [cardId]: true }));
+  }, [apiNotices, deepLinkNoticeId]);
 
   // In-app notifications (e.g. "attendance locked for today") — no email/push
   // infra exists yet, so this is what the parent sees on next portal visit.
