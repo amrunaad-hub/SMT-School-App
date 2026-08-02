@@ -12,13 +12,16 @@ const Parents = () => {
   const [activeModule, setActiveModule] = useState('profile');
   const [selectedStudent, setSelectedStudent] = useState(null);
   const [selectedChildId, setSelectedChildId] = useState(null);
-  const [selectedActivityDate, setSelectedActivityDate] = useState(new Date(2026, 3, 15));
-  const [selectedTimetableDate, setSelectedTimetableDate] = useState(new Date(2026, 3, 15));
-  const [activityMonth, setActivityMonth] = useState(new Date(2026, 3, 1));
-  const [timetableMonth, setTimetableMonth] = useState(new Date(2026, 3, 1));
+  const today = new Date();
+  const [selectedActivityDate, setSelectedActivityDate] = useState(today);
+  const [selectedTimetableDate, setSelectedTimetableDate] = useState(today);
+  const [activityMonth, setActivityMonth] = useState(new Date(today.getFullYear(), today.getMonth(), 1));
+  const [timetableMonth, setTimetableMonth] = useState(new Date(today.getFullYear(), today.getMonth(), 1));
   const [timetableEntries, setTimetableEntries] = useState([]);
   const [activityView, setActivityView] = useState('classwork');
-  const [activityDrillLevel, setActivityDrillLevel] = useState('month'); // 'month' -> 'week' -> 'day' (a timetable instance)
+  // Opens straight to today's timetable instance rather than the month grid,
+  // so the parent lands on current data instead of navigating there each time.
+  const [activityDrillLevel, setActivityDrillLevel] = useState('day'); // 'month' -> 'week' -> 'day' (a timetable instance)
   const [activitySearch, setActivitySearch] = useState('');
   const [circularSearch, setCircularSearch] = useState('');
   const [isMobile, setIsMobile] = useState(() => window.innerWidth < 900);
@@ -696,6 +699,11 @@ const Parents = () => {
     return `${notice.title} ${notice.body} ${notice.date}`.toLowerCase().includes(query);
   });
 
+  // Real uploads (period-note/notice attachments) are served directly as
+  // static files at /uploads/... — only the handful of hardcoded demo
+  // filenames (no leading slash) go through the mock /api/attachments/:id
+  // route. Mixing the two up sends real file paths to that mock lookup,
+  // which 404s with "Attachment not found".
   const openAttachmentPreview = (title, attachments) => {
     if (!attachments || !attachments.length) {
       return;
@@ -704,6 +712,12 @@ const Parents = () => {
     const resolvedAttachments = attachments.map((attachmentId) => {
       if (attachmentMap[attachmentId]) {
         return attachmentMap[attachmentId];
+      }
+
+      if (attachmentId.startsWith('/uploads/')) {
+        const fileName = attachmentId.split('/').pop();
+        const url = `${apiBase}${attachmentId}`;
+        return { id: attachmentId, fileName, title: fileName, previewUrl: url, downloadUrl: url };
       }
 
       const encodedId = encodeURIComponent(attachmentId);
