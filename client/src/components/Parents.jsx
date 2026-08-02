@@ -731,7 +731,7 @@ const Parents = () => {
     { key: 'attendance', label: 'Attendance', icon: '📅' },
     { key: 'timetable', label: 'Timetable', icon: '⏰' },
     { key: 'activities', label: 'Student Activity', icon: '📚' },
-    { key: 'circular', label: 'Ecampus Circular', icon: '📢' },
+    { key: 'circular', label: 'Communication', icon: '📢' },
     { key: 'message', label: 'Ecampus Message', icon: '💬' },
     { key: 'fees', label: 'Fees', icon: '💳' },
     { key: 'events', label: 'Events', icon: '🎉' },
@@ -1227,7 +1227,7 @@ const Parents = () => {
         return (
           <div style={{ padding: isMobile ? '16px' : '24px', borderRadius: '16px', background: 'linear-gradient(135deg, #fff7ed 0%, #fff1f2 100%)', border: '2px solid #fb7185', boxShadow: '0 4px 16px rgba(244, 63, 94, 0.1)' }}>
             <h3 style={{ color: '#9f1239', fontSize: isMobile ? '1.2rem' : '1.4rem', fontWeight: '700', marginBottom: '12px' }}>
-              📢 Ecampus Circular <span style={{ fontSize: isMobile ? '0.75rem' : '0.85rem', fontWeight: 600, color: '#be123c' }}>(Communication from School Admin)</span>
+              📢 Communication <span style={{ fontSize: isMobile ? '0.75rem' : '0.85rem', fontWeight: 600, color: '#be123c' }}>(from School Admin)</span>
             </h3>
             <input
               value={circularSearch}
