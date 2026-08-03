@@ -16,9 +16,9 @@ export default defineConfig({
       filename: 'sw.js',
       includeAssets: ['icons/apple-touch-icon.png'],
       manifest: {
-        name: 'SMT English Medium School',
-        short_name: 'SMT School',
-        description: 'Student, teacher, principal and parent portal for SMT English Medium School.',
+        name: 'VidyaSetu',
+        short_name: 'VidyaSetu',
+        description: 'VidyaSetu — student, teacher, principal and parent portal for SMT English Medium School.',
         start_url: '/',
         scope: '/',
         display: 'standalone',

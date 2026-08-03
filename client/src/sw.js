@@ -16,7 +16,7 @@ self.addEventListener('push', (event) => {
   let data = {};
   try { data = event.data ? event.data.json() : {}; } catch { /* non-JSON payload, ignore */ }
 
-  event.waitUntil(self.registration.showNotification(data.title || 'SMT School', {
+  event.waitUntil(self.registration.showNotification(data.title || 'VidyaSetu', {
     body: data.body || '',
     icon: '/icons/icon-192.png',
     badge: '/icons/icon-192.png',

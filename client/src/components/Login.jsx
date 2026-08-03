@@ -24,7 +24,7 @@ const Login = ({ onLogin }) => {
   return (
     <main style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '18px', background: 'radial-gradient(circle at 10% 10%, #fde68a 0%, #fee2e2 40%, #dbeafe 100%)' }}>
       <section style={{ width: '100%', maxWidth: '420px', background: 'rgba(255,255,255,0.96)', border: '1px solid #fda4af', borderRadius: '18px', padding: '22px', boxShadow: '0 20px 34px rgba(30, 64, 175, 0.2)' }}>
-        <h1 style={{ margin: 0, color: '#1e3a8a', fontSize: '1.6rem' }}>School ERP Secure Login</h1>
+        <h1 style={{ margin: 0, color: '#1e3a8a', fontSize: '1.6rem' }}>VidyaSetu Secure Login</h1>
         <p style={{ color: '#475569', marginTop: '8px', marginBottom: '18px' }}>Role-based access for admin, parents and teachers.</p>
 
         <div style={{ background: '#fff7ed', border: '1px solid #fdba74', borderRadius: '10px', padding: '10px 12px', marginBottom: '14px', color: '#9a3412', fontSize: '0.86rem', lineHeight: 1.5 }}>
