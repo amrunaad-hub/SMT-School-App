@@ -314,7 +314,13 @@ const Parents = () => {
     },
   ], []);
 
-  const [linkedStudents, setLinkedStudents] = useState(STATIC_LINKED_STUDENTS);
+  // Starts empty (not STATIC_LINKED_STUDENTS) — seeding it with the fake
+  // Kulkarni family synchronously meant every real parent briefly saw someone
+  // else's child's name on every page load/refresh, until the real /children
+  // fetch below overwrote it a moment later. The fallback now only applies
+  // once we actually know the account has no real linked children.
+  const [linkedStudents, setLinkedStudents] = useState([]);
+  const [linkedStudentsLoaded, setLinkedStudentsLoaded] = useState(false);
 
   // Resolve the logged-in parent's real linked children (guardians.user_id ->
   // student_guardians -> students). Falls back to demo data if this login isn't
@@ -329,7 +335,12 @@ const Parents = () => {
     api.get('/api/auth/me/children')
       .then((data) => {
         const children = data.children || [];
-        if (!children.length) return;
+        if (!children.length) {
+          setLinkedStudents(STATIC_LINKED_STUDENTS);
+          setSelectedChildId(STATIC_LINKED_STUDENTS[0].id);
+          setLinkedStudentsLoaded(true);
+          return;
+        }
         const mapped = children.map((s) => ({
           id: s._id,
           name: `${s.firstName} ${s.lastName}`.trim(),
@@ -349,13 +360,23 @@ const Parents = () => {
         }));
         setLinkedStudents(mapped);
         setSelectedChildId(mapped[0].id);
+        setLinkedStudentsLoaded(true);
       })
       .catch(() => {
-        // Keep static fallback
+        setLinkedStudents(STATIC_LINKED_STUDENTS);
+        setSelectedChildId(STATIC_LINKED_STUDENTS[0].id);
+        setLinkedStudentsLoaded(true);
       });
   }, []);
 
-  const currentStudent = linkedStudents.find((child) => child.id === selectedChildId) || linkedStudents[0];
+  // Safe, non-identifying stand-in for the brief window before the real
+  // /children fetch resolves — never another child's actual name/details.
+  const PLACEHOLDER_STUDENT = {
+    id: '', name: 'Loading…', grade: '', division: '', rollNo: '', dob: '-',
+    address: '-', phone: '-', email: '-', bloodGroup: '-', emergencyContact: '-',
+    relation: '-', house: '-', photo: '', admissionDate: '-',
+  };
+  const currentStudent = linkedStudents.find((child) => child.id === selectedChildId) || linkedStudents[0] || PLACEHOLDER_STUDENT;
 
   // Real classwork/homework for the selected date, replacing the old hardcoded
   // mock: joins the weekly timetable template (subject/teacher per period) with
