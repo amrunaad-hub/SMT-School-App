@@ -55,6 +55,13 @@ const jsDayToApiDay = (jsDay) => {
   return jsDay; // Mon=1, Tue=2, ... Sat=6
 };
 
+// "Ms. Anuja Kulkarni" -> "AK" — drops common titles, initials of what's left.
+const getInitials = (name) => {
+  if (!name) return '';
+  const words = name.replace(/\b(Mr|Mrs|Ms|Dr|Miss)\.?/gi, '').trim().split(/\s+/).filter(Boolean);
+  return words.map((w) => w[0].toUpperCase()).join('').slice(0, 3);
+};
+
 // Build consolidated timetable object from API docs
 const buildTimetableFromDocs = (docs) => {
   const timetable = {};
@@ -76,6 +83,19 @@ const Timetable = () => {
   const [isMobile, setIsMobile] = useState(() => window.innerWidth < 960);
   const [timetableDocs, setTimetableDocs] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [myStaffCode, setMyStaffCode] = useState(null);
+  const [myInitials, setMyInitials] = useState('');
+
+  useEffect(() => {
+    api.get('/api/auth/me/staff-profile')
+      .then((data) => {
+        const profile = data.staffProfile;
+        if (!profile) return;
+        setMyStaffCode(profile.staffCode);
+        setMyInitials(getInitials(profile.displayName));
+      })
+      .catch(() => {});
+  }, []);
 
   const operationalDayStatus = useMemo(() => getOperationalDayStatus(currentDate), [currentDate]);
   const academicYearLabel = useMemo(() => getAcademicYearLabel(currentDate), [currentDate]);
@@ -157,91 +177,7 @@ const Timetable = () => {
           Subjects covered: {SUBJECTS_G1_G4.join(', ')}.
         </p>
 
-        <div style={{ marginBottom: '18px', padding: isMobile ? '12px' : '14px 16px', borderRadius: '12px', border: `2px solid ${operationalDayStatus.isWorkingDay ? '#16a34a' : '#f59e0b'}`, background: operationalDayStatus.isWorkingDay ? '#f0fdf4' : '#fffbeb' }}>
-          <strong style={{ color: operationalDayStatus.isWorkingDay ? '#166534' : '#92400e' }}>Day Status: {operationalDayStatus.label}</strong>
-          <p style={{ margin: '6px 0 0', color: operationalDayStatus.isWorkingDay ? '#166534' : '#92400e' }}>{operationalDayStatus.detail}</p>
-        </div>
-
-        {!operationalDayStatus.isWorkingDay ? (
-          <section style={{ border: '2px dashed #f59e0b', background: '#fffbeb', borderRadius: '14px', padding: isMobile ? '16px' : '20px' }}>
-            <h3 style={{ margin: 0, color: '#92400e' }}>No Timetable Periods Today</h3>
-            <p style={{ margin: '8px 0 0', color: '#92400e' }}>Classes are not scheduled for this date based on your Saturday/Sunday working policy.</p>
-          </section>
-        ) : loading ? (
-          <p style={{ color: '#64748b' }}>Loading timetable...</p>
-        ) : isMobile ? (
-          <section>
-            <div style={{ marginBottom: '14px' }}>
-              <label htmlFor="class-picker" style={{ display: 'block', marginBottom: '8px', fontWeight: 600, color: '#1e40af', fontSize: '1rem' }}>
-                Select Class Division
-              </label>
-              <select
-                id="class-picker"
-                value={selectedClass}
-                onChange={(e) => setSelectedClass(e.target.value)}
-                style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '2px solid #3b82f6', fontSize: '1rem', background: '#fff', color: '#1f2937', fontWeight: '600' }}
-              >
-                {classNames.map((name) => <option key={name} value={name}>{name}</option>)}
-              </select>
-            </div>
-
-            <div style={{ display: 'grid', gap: '10px' }}>
-              {(timetable[selectedClass] || []).map((period, idx) => (
-                <Link
-                  key={idx}
-                  to={makePeriodLink(selectedClass, period.periodIndex !== undefined ? period.periodIndex : idx)}
-                  style={{ color: 'inherit', textDecoration: 'none' }}
-                >
-                  <article style={{ ...mobileCardStyle, ...getCellStyle(period.type), boxShadow: '0 2px 8px rgba(0,0,0,0.08)', border: `2px solid ${(period.type || '').includes('Break') ? '#fbbf24' : period.type === 'Prayer & Assembly' ? '#0ea5e9' : '#93c5fd'}` }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px' }}>
-                      <strong style={{ color: '#0f172a', fontSize: '1.05rem' }}>{period.subject}</strong>
-                      <span style={{ fontSize: '0.78rem', color: '#475569', background: '#f3f4f6', padding: '4px 8px', borderRadius: '4px', fontWeight: '600' }}>{period.time}</span>
-                    </div>
-                    <p style={{ marginTop: '6px', color: '#334155', fontSize: '0.86rem', fontWeight: '500' }}>{period.type}</p>
-                    <p style={{ marginTop: '4px', color: '#64748b', fontSize: '0.82rem' }}>{period.teacherName}</p>
-                    <p style={{ marginTop: '2px', color: '#64748b', fontSize: '0.82rem' }}>Room {period.room}</p>
-                  </article>
-                </Link>
-              ))}
-            </div>
-          </section>
-        ) : (
-          <div style={{ overflowX: 'auto', background: '#fff', borderRadius: '16px', padding: '16px', border: '2px solid #e5e7eb', boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }}>
-            <table style={tableStyle}>
-              <thead>
-                <tr>
-                  <th style={{ ...thStyle, width: '120px', position: 'sticky', left: 0, background: 'linear-gradient(135deg, #1e40af 0%, #1e3a8a 100%)', color: '#fff', zIndex: 10, fontWeight: '700' }}>Class</th>
-                  {timeSlots.map((timeSlot) => (
-                    <th key={timeSlot} style={{ ...thStyle, background: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)', color: '#fff', fontWeight: '700' }}>{timeSlot}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {Object.entries(timetable).map(([className, periods]) => (
-                  <tr key={className}>
-                    <td style={{ ...tdStyle, ...classRowStyle, position: 'sticky', left: 0, background: 'linear-gradient(135deg, #f0f9ff 0%, #eff6ff 100%)', zIndex: 5, border: '2px solid #3b82f6', fontWeight: '700', color: '#1e40af' }}>
-                      {className}
-                    </td>
-                    {(periods.length > 0 ? periods : Array.from({ length: timeSlots.length }, (_, i) => ({ periodIndex: i, time: timeSlots[i], type: 'Period', subject: '—', teacherName: '—', room: '—' }))).map((period, idx) => (
-                      <td key={idx} style={{ ...tdStyle, ...getCellStyle(period.type) }}>
-                        <Link
-                          to={makePeriodLink(className, period.periodIndex !== undefined ? period.periodIndex : idx)}
-                          style={{ color: 'inherit', textDecoration: 'none', display: 'block', height: '100%' }}
-                        >
-                          <div style={{ fontWeight: '700', marginBottom: '2px', color: '#1f2937' }}>{period.subject}</div>
-                          <div style={{ fontSize: '0.7rem', color: '#4b5563', fontWeight: '500' }}>{period.teacherName}</div>
-                          <div style={{ fontSize: '0.7rem', color: '#4b5563', fontWeight: '500' }}>{period.room}</div>
-                        </Link>
-                      </td>
-                    ))}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-
-        <div style={{ ...navStyle, background: 'linear-gradient(135deg, #f0f9ff 0%, #f3f4f6 100%)', border: '2px solid #3b82f6', position: 'relative' }}>
+        <div style={{ ...navStyle, marginTop: 0, marginBottom: '18px', background: 'linear-gradient(135deg, #f0f9ff 0%, #f3f4f6 100%)', border: '2px solid #3b82f6', position: 'relative' }}>
           <button style={{ ...buttonStyle, background: 'linear-gradient(135deg, #1e40af 0%, #1e3a8a 100%)', fontWeight: '700', boxShadow: '0 4px 12px rgba(30, 64, 175, 0.3)' }} onClick={() => navigateDate(-1)}>
             Previous Day
           </button>
@@ -285,6 +221,108 @@ const Timetable = () => {
             </div>
           )}
         </div>
+
+        {myStaffCode && (
+          <p style={{ marginTop: '-8px', marginBottom: '18px', fontSize: '0.82rem', color: '#166534', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <span style={{ display: 'inline-block', width: '12px', height: '12px', borderRadius: '3px', background: '#16a34a' }} /> Green-highlighted periods are the ones you teach.
+          </p>
+        )}
+
+        <div style={{ marginBottom: '18px', padding: isMobile ? '12px' : '14px 16px', borderRadius: '12px', border: `2px solid ${operationalDayStatus.isWorkingDay ? '#16a34a' : '#f59e0b'}`, background: operationalDayStatus.isWorkingDay ? '#f0fdf4' : '#fffbeb' }}>
+          <strong style={{ color: operationalDayStatus.isWorkingDay ? '#166534' : '#92400e' }}>Day Status: {operationalDayStatus.label}</strong>
+          <p style={{ margin: '6px 0 0', color: operationalDayStatus.isWorkingDay ? '#166534' : '#92400e' }}>{operationalDayStatus.detail}</p>
+        </div>
+
+        {!operationalDayStatus.isWorkingDay ? (
+          <section style={{ border: '2px dashed #f59e0b', background: '#fffbeb', borderRadius: '14px', padding: isMobile ? '16px' : '20px' }}>
+            <h3 style={{ margin: 0, color: '#92400e' }}>No Timetable Periods Today</h3>
+            <p style={{ margin: '8px 0 0', color: '#92400e' }}>Classes are not scheduled for this date based on your Saturday/Sunday working policy.</p>
+          </section>
+        ) : loading ? (
+          <p style={{ color: '#64748b' }}>Loading timetable...</p>
+        ) : isMobile ? (
+          <section>
+            <div style={{ marginBottom: '14px' }}>
+              <label htmlFor="class-picker" style={{ display: 'block', marginBottom: '8px', fontWeight: 600, color: '#1e40af', fontSize: '1rem' }}>
+                Select Class Division
+              </label>
+              <select
+                id="class-picker"
+                value={selectedClass}
+                onChange={(e) => setSelectedClass(e.target.value)}
+                style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '2px solid #3b82f6', fontSize: '1rem', background: '#fff', color: '#1f2937', fontWeight: '600' }}
+              >
+                {classNames.map((name) => <option key={name} value={name}>{name}</option>)}
+              </select>
+            </div>
+
+            <div style={{ display: 'grid', gap: '10px' }}>
+              {(timetable[selectedClass] || []).map((period, idx) => {
+                const mine = !!myStaffCode && period.staffCode === myStaffCode;
+                return (
+                  <Link
+                    key={idx}
+                    to={makePeriodLink(selectedClass, period.periodIndex !== undefined ? period.periodIndex : idx)}
+                    style={{ color: 'inherit', textDecoration: 'none' }}
+                  >
+                    <article style={{ ...mobileCardStyle, ...getCellStyle(period.type), position: 'relative', boxShadow: mine ? '0 2px 10px rgba(22,163,74,0.25)' : '0 2px 8px rgba(0,0,0,0.08)', border: `2px solid ${mine ? '#16a34a' : (period.type || '').includes('Break') ? '#fbbf24' : period.type === 'Prayer & Assembly' ? '#0ea5e9' : '#93c5fd'}` }}>
+                      {mine && (
+                        <span style={{ position: 'absolute', top: '-9px', right: '10px', background: '#16a34a', color: '#fff', fontSize: '0.68rem', fontWeight: 700, padding: '2px 8px', borderRadius: '999px', letterSpacing: '0.02em' }}>👤 You · {myInitials}</span>
+                      )}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px' }}>
+                        <strong style={{ color: '#0f172a', fontSize: '1.05rem' }}>{period.subject}</strong>
+                        <span style={{ fontSize: '0.78rem', color: '#475569', background: '#f3f4f6', padding: '4px 8px', borderRadius: '4px', fontWeight: '600' }}>{period.time}</span>
+                      </div>
+                      <p style={{ marginTop: '6px', color: '#334155', fontSize: '0.86rem', fontWeight: '500' }}>{period.type}</p>
+                      <p style={{ marginTop: '4px', color: '#64748b', fontSize: '0.82rem' }}>{period.teacherName}</p>
+                      <p style={{ marginTop: '2px', color: '#64748b', fontSize: '0.82rem' }}>Room {period.room}</p>
+                    </article>
+                  </Link>
+                );
+              })}
+            </div>
+          </section>
+        ) : (
+          <div style={{ overflowX: 'auto', background: '#fff', borderRadius: '16px', padding: '16px', border: '2px solid #e5e7eb', boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }}>
+            <table style={tableStyle}>
+              <thead>
+                <tr>
+                  <th style={{ ...thStyle, width: '120px', position: 'sticky', left: 0, background: 'linear-gradient(135deg, #1e40af 0%, #1e3a8a 100%)', color: '#fff', zIndex: 10, fontWeight: '700' }}>Class</th>
+                  {timeSlots.map((timeSlot) => (
+                    <th key={timeSlot} style={{ ...thStyle, background: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)', color: '#fff', fontWeight: '700' }}>{timeSlot}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {Object.entries(timetable).map(([className, periods]) => (
+                  <tr key={className}>
+                    <td style={{ ...tdStyle, ...classRowStyle, position: 'sticky', left: 0, background: 'linear-gradient(135deg, #f0f9ff 0%, #eff6ff 100%)', zIndex: 5, border: '2px solid #3b82f6', fontWeight: '700', color: '#1e40af' }}>
+                      {className}
+                    </td>
+                    {(periods.length > 0 ? periods : Array.from({ length: timeSlots.length }, (_, i) => ({ periodIndex: i, time: timeSlots[i], type: 'Period', subject: '—', teacherName: '—', room: '—' }))).map((period, idx) => {
+                      const mine = !!myStaffCode && period.staffCode === myStaffCode;
+                      return (
+                        <td key={idx} style={{ ...tdStyle, ...getCellStyle(period.type), position: 'relative', ...(mine ? { background: '#ecfdf5', border: '2px solid #16a34a' } : {}) }}>
+                          {mine && (
+                            <span style={{ position: 'absolute', top: '2px', right: '2px', background: '#16a34a', color: '#fff', fontSize: '0.6rem', fontWeight: 700, padding: '1px 5px', borderRadius: '999px' }}>{myInitials}</span>
+                          )}
+                          <Link
+                            to={makePeriodLink(className, period.periodIndex !== undefined ? period.periodIndex : idx)}
+                            style={{ color: 'inherit', textDecoration: 'none', display: 'block', height: '100%' }}
+                          >
+                            <div style={{ fontWeight: '700', marginBottom: '2px', color: '#1f2937' }}>{period.subject}</div>
+                            <div style={{ fontSize: '0.7rem', color: '#4b5563', fontWeight: '500' }}>{period.teacherName}</div>
+                            <div style={{ fontSize: '0.7rem', color: '#4b5563', fontWeight: '500' }}>{period.room}</div>
+                          </Link>
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </section>
     </main>
   );

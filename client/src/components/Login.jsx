@@ -27,13 +27,6 @@ const Login = ({ onLogin }) => {
         <h1 style={{ margin: 0, color: '#1e3a8a', fontSize: '1.6rem' }}>VidyaSetu Secure Login</h1>
         <p style={{ color: '#475569', marginTop: '8px', marginBottom: '18px' }}>Role-based access for admin, parents and teachers.</p>
 
-        <div style={{ background: '#fff7ed', border: '1px solid #fdba74', borderRadius: '10px', padding: '10px 12px', marginBottom: '14px', color: '#9a3412', fontSize: '0.86rem', lineHeight: 1.5 }}>
-          <strong>Credentials:</strong><br />
-          Admin: admin / admin<br />
-          Parent: parent / parent<br />
-          Teacher: teacher / teacher
-        </div>
-
         <form onSubmit={handleSubmit}>
           <label style={{ display: 'block', marginBottom: '7px', color: '#334155', fontWeight: 700 }}>Username</label>
           <input
