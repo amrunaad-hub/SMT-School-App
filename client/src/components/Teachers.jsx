@@ -365,7 +365,6 @@ const Teachers = () => {
   const tabs = [
     { key: 'timetable', label: "⏰ Day's Timetable" },
     { key: 'attendance', label: '✅ Attendance Records' },
-    { key: 'links', label: '🔗 Quick Links' },
     { key: 'upcoming', label: '🚧 Upcoming Features' },
   ];
 
@@ -539,9 +538,13 @@ const Teachers = () => {
         ))}
       </div>
 
+      <div style={{ marginBottom: '20px' }}>
+        <h4 style={{ margin: '0 0 8px', color: '#475569', fontSize: '0.82rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Quick Links</h4>
+        {renderLinks()}
+      </div>
+
       {activeModule === 'timetable' && renderTimetable()}
       {activeModule === 'attendance' && renderAttendanceRecords()}
-      {activeModule === 'links' && renderLinks()}
       {activeModule === 'upcoming' && renderUpcoming()}
 
       {showAttendanceModal && (

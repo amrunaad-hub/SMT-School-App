@@ -26,6 +26,34 @@ const Header = ({ role = 'admin', onLogout, homePath = '/' }) => {
         return () => window.removeEventListener('resize', onResize);
     }, []);
 
+    // Admin-only: flat links for modules that actually work today, plus a
+    // single "Upcoming Features" dropdown for everything else — replaces the
+    // old Academics/Operations/People grouping for the admin role specifically
+    // (principal keeps groupedNav/principalNav below, unaffected).
+    const adminWorkingLinks = [
+        { to: '/sis', label: '👥 SIS' },
+        { to: '/attendance', label: '✅ Attendance' },
+        { to: '/timetable', label: '⏰ Timetable' },
+        { to: '/communication', label: '💬 Communication' },
+        { to: '/edit-requests', label: '✏️ Edit Requests' },
+    ];
+
+    const adminUpcomingGroup = {
+        key: 'upcoming',
+        label: '🚧 Upcoming Features',
+        items: [
+            { to: '/command-center', label: '🎛️ Command Center' },
+            { to: '/finance', label: '💰 Finance' },
+            { to: '/admissions', label: '📝 Admissions' },
+            { to: '/hr', label: '👔 HR' },
+            { to: '/exams', label: '📊 Exams' },
+            { to: '/transport', label: '🚌 Transport' },
+            { to: '/inventory', label: '📦 Inventory' },
+            { to: '/teachers', label: '👩‍🏫 Teachers Portal' },
+            { to: '/parents', label: '👨‍👩‍👧 Parents Portal' },
+        ],
+    };
+
     const groupedNav = [
         {
             key: 'academics',
@@ -115,12 +143,12 @@ const Header = ({ role = 'admin', onLogout, homePath = '/' }) => {
                             <li style={mobileNavItemStyle}>
                                 <Link style={{ ...topLinkStyle, width: isMobile ? '100%' : 'auto', textAlign: 'center', background: 'rgba(16,185,129,0.25)', border: '2px solid rgba(16,185,129,0.55)' }} to={isAdmin ? '/' : '/command-center'}>🏠 Home</Link>
                             </li>
-                            {isAdmin && (
-                                <li style={mobileNavItemStyle}>
-                                    <Link style={{ ...topLinkStyle, width: isMobile ? '100%' : 'auto', textAlign: 'center' }} to="/command-center">🎛️ Command</Link>
+                            {isAdmin && adminWorkingLinks.map((item) => (
+                                <li key={item.to} style={mobileNavItemStyle}>
+                                    <Link style={{ ...topLinkStyle, width: isMobile ? '100%' : 'auto', textAlign: 'center' }} to={item.to}>{item.label}</Link>
                                 </li>
-                            )}
-                            {(isAdmin ? groupedNav : principalNav).map((group) => {
+                            ))}
+                            {(isAdmin ? [adminUpcomingGroup] : principalNav).map((group) => {
                                 const isOpen = openGroup === group.key;
                                 return (
                                     <li
@@ -132,7 +160,7 @@ const Header = ({ role = 'admin', onLogout, homePath = '/' }) => {
                                         <button
                                             type="button"
                                             onClick={() => setOpenGroup(isOpen ? null : group.key)}
-                                            style={{ ...topLinkStyle, width: isMobile ? '100%' : 'auto', textAlign: 'center', fontFamily: 'inherit' }}
+                                            style={{ ...topLinkStyle, width: isMobile ? '100%' : 'auto', textAlign: 'center', fontFamily: 'inherit', ...(group.key === 'upcoming' ? { background: 'rgba(255,255,255,0.05)', border: '2px dashed rgba(255,255,255,0.4)' } : {}) }}
                                         >
                                             {group.label} ▾
                                         </button>
@@ -143,12 +171,15 @@ const Header = ({ role = 'admin', onLogout, homePath = '/' }) => {
                                                 style={{ position: isMobile ? 'static' : 'absolute', top: isMobile ? 'auto' : '100%', left: 0, paddingTop: isMobile ? '8px' : '6px', minWidth: isMobile ? '100%' : '220px', width: isMobile ? '100%' : 'auto', zIndex: 30 }}
                                             >
                                                 <div style={{ background: '#f8fafc', border: '1px solid #bfdbfe', borderRadius: '10px', padding: '8px', boxShadow: '0 12px 24px rgba(15, 23, 42, 0.2)' }}>
+                                                    {group.key === 'upcoming' && (
+                                                        <p style={{ margin: '2px 6px 8px', color: '#94a3b8', fontSize: '0.72rem', fontWeight: 600 }}>Reachable, but not yet finished.</p>
+                                                    )}
                                                     {group.items.map((item) => (
                                                         <Link
                                                             key={item.to}
                                                             to={item.to}
                                                             onClick={() => setOpenGroup(null)}
-                                                            style={dropdownItemStyle}
+                                                            style={group.key === 'upcoming' ? { ...dropdownItemStyle, color: '#64748b', background: '#f1f5f9' } : dropdownItemStyle}
                                                         >
                                                             {item.label}
                                                         </Link>
