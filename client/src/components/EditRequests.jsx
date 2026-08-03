@@ -99,7 +99,7 @@ const EditRequests = () => {
               <div>
                 <strong>{r.studentName}</strong> <span style={{ color: '#94a3b8', fontSize: '0.8rem' }}>({r.studentCode})</span>
                 <div style={{ fontSize: '0.8rem', color: '#64748b' }}>
-                  {r.kind === 'fields' ? 'Field change' : 'Document'} · requested by {r.requesterUsername} · {new Date(r.createdAt).toLocaleDateString('en-IN')}
+                  {r.kind === 'fields' ? 'Field change' : 'Document'} · requested by {r.requesterUsername} · {new Date(r.createdAt).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata' })}
                 </div>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>

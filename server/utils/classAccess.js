@@ -17,4 +17,11 @@ async function teacherCanAccessGrade(db, userId, grade) {
   return !!(assignment || classTeacherOf);
 }
 
-module.exports = { teacherCanAccessGrade };
+async function isParentOfStudent(db, userId, studentId) {
+  const guardian = await db('guardians').where({ user_id: userId }).first();
+  if (!guardian) return false;
+  const link = await db('student_guardians').where({ guardian_id: guardian.id, student_id: studentId }).first();
+  return !!link;
+}
+
+module.exports = { teacherCanAccessGrade, isParentOfStudent };

@@ -3,6 +3,7 @@ import { jsPDF } from 'jspdf';
 import DOMPurify from 'dompurify';
 import { api } from '../api';
 import ParentStudentProfile from './ParentStudentProfile';
+import { formatDateIST, formatDateTimeIST } from '../utils/formatDate';
 
 // currentStudent.grade is a display string ("Grade 3"); the timetable/notes
 // APIs need the bare numeric grade.
@@ -10,6 +11,7 @@ const gradeNumber = (label) => Number(String(label).replace(/\D/g, ''));
 
 const Parents = () => {
   const deepLinkNoticeId = new URLSearchParams(window.location.search).get('noticeId');
+  const deepLinkAttendanceDate = new URLSearchParams(window.location.search).get('date');
   const [activeModule, setActiveModule] = useState(
     () => new URLSearchParams(window.location.search).get('module') || 'profile'
   );
@@ -28,7 +30,13 @@ const Parents = () => {
   const [circularSearch, setCircularSearch] = useState('');
   const [isMobile, setIsMobile] = useState(() => window.innerWidth < 900);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const [currentMonth, setCurrentMonth] = useState(new Date(today.getFullYear(), today.getMonth(), 1));
+  const [currentMonth, setCurrentMonth] = useState(() => {
+    if (deepLinkAttendanceDate) {
+      const d = new Date(deepLinkAttendanceDate);
+      if (!Number.isNaN(d.getTime())) return new Date(d.getFullYear(), d.getMonth(), 1);
+    }
+    return new Date(today.getFullYear(), today.getMonth(), 1);
+  });
   const [attendanceData, setAttendanceData] = useState([]);
   const [receiptPreview, setReceiptPreview] = useState(null);
   const [attachmentPreview, setAttachmentPreview] = useState(null);
@@ -173,6 +181,18 @@ const Parents = () => {
       .then((data) => setAttendanceData(data.days || []))
       .catch(() => setAttendanceData([]));
   }, [selectedChildId, currentMonth]);
+
+  // Deep link from an attendance-marked push notification (?module=attendance
+  // &date=2026-08-04) — open that day's detail the moment its month finishes
+  // loading, instead of leaving the parent to find it on the calendar.
+  useEffect(() => {
+    if (!deepLinkAttendanceDate || !attendanceData.length) return;
+    const day = attendanceData.find((d) => d.date === deepLinkAttendanceDate);
+    // The detail modal is only meaningful for non-present days (present days
+    // have nothing to regularize/explain) — a Present notification still
+    // lands on the right month, just without forcing an empty modal open.
+    if (day && day.status !== 'present') setSelectedDateDetail(day);
+  }, [attendanceData, deepLinkAttendanceDate]);
 
   useEffect(() => {
     let isCancelled = false;
@@ -488,7 +508,7 @@ const Parents = () => {
       `Payment Date: ${instalment.paidOn || 'N/A'}`,
       `Payment Mode: ${instalment.mode || 'N/A'}`,
       `Installment Due Date: ${instalment.dueDate}`,
-      `Generated On: ${new Date().toLocaleString('en-IN')}`,
+      `Generated On: ${formatDateTimeIST(new Date())}`,
     ];
 
     lines.forEach((line) => {
@@ -913,7 +933,9 @@ const Parents = () => {
                 formData.append('ownerId', newReq.id);
                 formData.append('file', leaveForm.document);
                 const token = window.localStorage.getItem('smt-school-token');
-                fetch('/api/uploads', { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: formData }).catch(() => {});
+                fetch('/api/uploads', { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: formData })
+                  .then((res) => { if (!res.ok) pushNotification('Leave submitted, but the document failed to attach.', 'error'); })
+                  .catch(() => pushNotification('Leave submitted, but the document failed to attach.', 'error'));
               }
               setLeaveForm({ category: 'Casual', fromDate: '', toDate: '', reason: '', document: null, docName: '' });
               setLeaveFormErrors({});
@@ -921,7 +943,7 @@ const Parents = () => {
             })
             .catch(() => {
               // Fallback: optimistic local update
-              const newReq = { id: `LR-${String(leaveRequests.length + 1).padStart(3, '0')}`, category: leaveForm.category, fromDate: leaveForm.fromDate, toDate: leaveForm.toDate, reason: leaveForm.reason, status: 'Pending', submittedAt: new Date().toLocaleString('en-IN'), approvedBy: null, approvedAt: null };
+              const newReq = { id: `LR-${String(leaveRequests.length + 1).padStart(3, '0')}`, category: leaveForm.category, fromDate: leaveForm.fromDate, toDate: leaveForm.toDate, reason: leaveForm.reason, status: 'Pending', submittedAt: new Date().toISOString(), approvedBy: null, approvedAt: null };
               setLeaveRequests((prev) => [...prev, newReq]);
               setLeaveSubmitting(false);
               setShowLeaveModal(false);
@@ -955,7 +977,7 @@ const Parents = () => {
             <div style={{ marginBottom: '20px', background: '#fff', padding: isMobile ? '12px' : '18px', borderRadius: '12px', border: '1px solid #dcfce7' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', gap: '8px', flexWrap: 'wrap' }}>
                 <button type="button" onClick={() => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1))} style={{ padding: '6px 12px', background: '#22c55e', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 700 }}>← Prev</button>
-                <h4 style={{ margin: 0, color: '#166534', fontWeight: 700 }}>{currentMonth.toLocaleString('default', { month: 'long', year: 'numeric' })}</h4>
+                <h4 style={{ margin: 0, color: '#166534', fontWeight: 700 }}>{currentMonth.toLocaleString('default', { month: 'long', year: 'numeric', timeZone: 'Asia/Kolkata' })}</h4>
                 <button type="button" onClick={() => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1))} style={{ padding: '6px 12px', background: '#22c55e', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 700 }}>Next →</button>
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '2px', marginBottom: '6px' }}>
@@ -1034,7 +1056,7 @@ const Parents = () => {
                             <span style={{ padding: '2px 8px', borderRadius: '999px', background: sb.bg, color: sb.color, fontWeight: 700, fontSize: '0.72rem' }}>{req.status}</span>
                           </div>
                           <p style={{ margin: '4px 0 0', color: '#475569', fontSize: '0.82rem' }}>{req.fromDate === req.toDate ? req.fromDate : `${req.fromDate} → ${req.toDate}`} · {req.reason}</p>
-                          <p style={{ margin: '3px 0 0', color: '#94a3b8', fontSize: '0.74rem' }}>Submitted: {req.submittedAt}{req.approvedBy ? ` · Approved by: ${req.approvedBy} at ${req.approvedAt}` : ''}</p>
+                          <p style={{ margin: '3px 0 0', color: '#94a3b8', fontSize: '0.74rem' }}>Submitted: {formatDateTimeIST(req.submittedAt, { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}{req.approvedBy ? ` · Approved by: ${req.approvedBy} at ${formatDateTimeIST(req.approvedAt, { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}` : ''}</p>
                         </div>
                       </div>
                     </div>
@@ -1058,7 +1080,7 @@ const Parents = () => {
                       style={{ padding: '11px 14px', background: '#fff', borderRadius: '8px', border: `2px solid ${bg}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px', flexWrap: 'wrap', cursor: clickable ? 'pointer' : 'default', boxShadow: `0 2px 8px ${bg}18` }}
                     >
                       <div style={{ flex: 1, minWidth: '160px' }}>
-                        <strong style={{ color: '#166534', fontSize: isMobile ? '0.85rem' : '0.92rem' }}>{new Date(day.date).toLocaleDateString('en-IN', { weekday: 'short', month: 'short', day: 'numeric' })}</strong>
+                        <strong style={{ color: '#166534', fontSize: isMobile ? '0.85rem' : '0.92rem' }}>{formatDateIST(day.date, { weekday: 'short', month: 'short', day: 'numeric' })}</strong>
                         {day.reason && <p style={{ margin: '2px 0 0', color: '#666', fontSize: '0.78rem' }}>{day.reason}</p>}
                       </div>
                       <span style={{ background: bg, color: '#fff', padding: '5px 11px', borderRadius: '6px', fontWeight: 700, fontSize: '0.78rem', whiteSpace: 'nowrap' }}>{label}</span>
@@ -1139,7 +1161,7 @@ const Parents = () => {
                     <button type="button" onClick={() => setSelectedDateDetail(null)} style={{ background: 'none', border: 'none', fontSize: '1.4rem', cursor: 'pointer', color: '#64748b' }}>×</button>
                   </div>
                   <div style={{ padding: '12px 14px', borderRadius: '12px', background: '#f8fafc', border: '1px solid #e2e8f0', marginBottom: '16px' }}>
-                    <p style={{ margin: 0, fontWeight: 700, color: '#0f172a' }}>{new Date(selectedDateDetail.date).toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</p>
+                    <p style={{ margin: 0, fontWeight: 700, color: '#0f172a' }}>{formatDateIST(selectedDateDetail.date, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</p>
                     <p style={{ margin: '6px 0 0', color: '#475569', fontSize: '0.88rem' }}>{selectedDateDetail.reason || selectedDateDetail.type}</p>
                     <span style={{ display: 'inline-block', marginTop: '8px', padding: '4px 12px', borderRadius: '999px', background: getStatusColor(selectedDateDetail.status, selectedDateDetail.type), color: '#fff', fontWeight: 700, fontSize: '0.78rem' }}>{getStatusLabel(selectedDateDetail.status, selectedDateDetail.type)}</span>
                   </div>
@@ -1175,7 +1197,7 @@ const Parents = () => {
             <div style={{ background: '#fff', borderRadius: '12px', border: '1px solid #fcd34d', padding: isMobile ? '10px' : '14px', marginBottom: '14px' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', marginBottom: '10px' }}>
                 <button onClick={() => changeMonthKeepingDay(timetableMonth, setTimetableMonth, selectedTimetableDate, setSelectedTimetableDate, -1)} style={{ border: 'none', background: '#f59e0b', color: '#fff', borderRadius: '8px', padding: '6px 10px', cursor: 'pointer', fontWeight: 700 }}>←</button>
-                <h4 style={{ margin: 0, color: '#92400e', fontSize: isMobile ? '1.02rem' : '1.1rem', fontWeight: 700 }}>{timetableMonth.toLocaleString('default', { month: 'long', year: 'numeric' })}</h4>
+                <h4 style={{ margin: 0, color: '#92400e', fontSize: isMobile ? '1.02rem' : '1.1rem', fontWeight: 700 }}>{timetableMonth.toLocaleString('default', { month: 'long', year: 'numeric', timeZone: 'Asia/Kolkata' })}</h4>
                 <button onClick={() => changeMonthKeepingDay(timetableMonth, setTimetableMonth, selectedTimetableDate, setSelectedTimetableDate, 1)} style={{ border: 'none', background: '#f59e0b', color: '#fff', borderRadius: '8px', padding: '6px 10px', cursor: 'pointer', fontWeight: 700 }}>→</button>
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '6px' }}>
@@ -1195,7 +1217,7 @@ const Parents = () => {
                       transform: isSameDate(date, selectedTimetableDate) ? 'scale(1.02)' : 'scale(1)',
                     }}
                   >
-                    <div style={{ fontSize: '0.68rem', fontWeight: 700 }}>{date.toLocaleDateString('en-IN', { weekday: 'short' })}</div>
+                    <div style={{ fontSize: '0.68rem', fontWeight: 700 }}>{formatDateIST(date, { weekday: 'short' })}</div>
                     <div style={{ fontSize: '1rem', fontWeight: 800 }}>{date.getDate()}</div>
                   </button>
                 ))}
@@ -1267,7 +1289,7 @@ const Parents = () => {
               <div style={{ background: '#fff', borderRadius: '12px', border: '1px solid #c7d2fe', padding: isMobile ? '10px' : '14px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', marginBottom: '10px' }}>
                   <button onClick={() => changeMonthKeepingDay(activityMonth, setActivityMonth, selectedActivityDate, setSelectedActivityDate, -1)} style={navButtonStyle}>←</button>
-                  <h4 style={{ margin: 0, color: '#3730a3', fontSize: isMobile ? '1.02rem' : '1.1rem', fontWeight: 700 }}>{activityMonth.toLocaleString('default', { month: 'long', year: 'numeric' })}</h4>
+                  <h4 style={{ margin: 0, color: '#3730a3', fontSize: isMobile ? '1.02rem' : '1.1rem', fontWeight: 700 }}>{activityMonth.toLocaleString('default', { month: 'long', year: 'numeric', timeZone: 'Asia/Kolkata' })}</h4>
                   <button onClick={() => changeMonthKeepingDay(activityMonth, setActivityMonth, selectedActivityDate, setSelectedActivityDate, 1)} style={navButtonStyle}>→</button>
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '4px', marginBottom: '6px' }}>
@@ -1305,7 +1327,7 @@ const Parents = () => {
                 <button onClick={() => setActivityDrillLevel('month')} style={backLinkStyle}>← Back to Month</button>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', marginBottom: '10px' }}>
                   <button onClick={() => changeActivityWeek(-1)} style={navButtonStyle}>←</button>
-                  <h4 style={{ margin: 0, color: '#3730a3', fontSize: isMobile ? '1.02rem' : '1.1rem', fontWeight: 700 }}>Week of {activityWeekStrip[0].toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}</h4>
+                  <h4 style={{ margin: 0, color: '#3730a3', fontSize: isMobile ? '1.02rem' : '1.1rem', fontWeight: 700 }}>Week of {formatDateIST(activityWeekStrip[0], { day: '2-digit', month: 'short' })}</h4>
                   <button onClick={() => changeActivityWeek(1)} style={navButtonStyle}>→</button>
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '6px' }}>
@@ -1324,7 +1346,7 @@ const Parents = () => {
                         transition: 'all 180ms ease',
                       }}
                     >
-                      <div style={{ fontSize: '0.68rem', fontWeight: 700 }}>{date.toLocaleDateString('en-IN', { weekday: 'short' })}</div>
+                      <div style={{ fontSize: '0.68rem', fontWeight: 700 }}>{formatDateIST(date, { weekday: 'short' })}</div>
                       <div style={{ fontSize: '1rem', fontWeight: 800 }}>{date.getDate()}</div>
                     </button>
                   ))}
@@ -1336,7 +1358,7 @@ const Parents = () => {
               <>
                 <button onClick={() => setActivityDrillLevel('week')} style={backLinkStyle}>← Back to Week</button>
                 <div style={{ background: '#fff', borderRadius: '12px', border: '1px solid #c7d2fe', padding: isMobile ? '10px' : '14px', marginBottom: '14px' }}>
-                  <h4 style={{ margin: '0 0 10px', color: '#3730a3', fontSize: isMobile ? '1.02rem' : '1.1rem', fontWeight: 700 }}>{selectedActivityDate.toLocaleDateString('en-IN', { weekday: 'long', day: '2-digit', month: 'short', year: 'numeric' })}</h4>
+                  <h4 style={{ margin: '0 0 10px', color: '#3730a3', fontSize: isMobile ? '1.02rem' : '1.1rem', fontWeight: 700 }}>{formatDateIST(selectedActivityDate, { weekday: 'long', day: '2-digit', month: 'short', year: 'numeric' })}</h4>
                   <input
                     value={activitySearch}
                     onChange={(e) => setActivitySearch(e.target.value)}
@@ -1409,8 +1431,8 @@ const Parents = () => {
                       <p style={{ margin: '2px 0 0', color: '#9f1239', fontWeight: 600, fontSize: isMobile ? '0.72rem' : '0.78rem' }}>By {notice.issuedBy}</p>
                     )}
                     <p style={{ margin: '4px 0 10px', color: '#be123c', fontWeight: 700, fontSize: isMobile ? '0.75rem' : '0.82rem' }}>
-                      Sent: {new Date(notice.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
-                      {notice.eventDate && ` · Important: ${new Date(notice.eventDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}`}
+                      Sent: {formatDateIST(notice.date, { day: '2-digit', month: 'short', year: 'numeric' })}
+                      {notice.eventDate && ` · Important: ${formatDateIST(notice.eventDate, { day: '2-digit', month: 'short', year: 'numeric' })}`}
                     </p>
                     <button
                       onClick={() => toggleCircularAccordion(notice, cardId, index)}

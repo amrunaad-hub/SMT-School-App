@@ -114,7 +114,7 @@ const PeriodDetails = () => {
         <button type="button" onClick={() => navigate(-1)} style={{ ...backButtonStyle, background: '#0f766e', marginRight: '10px' }}>← Previous Menu</button>
         <Link to="/timetable" style={backButtonStyle}>← Back to Timetable</Link>
         <h2>Period Details</h2>
-        <h3>Grade {grade} {division.charAt(0).toUpperCase() + division.slice(1)} · {period.type} · {new Date(date).toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</h3>
+        <h3>Grade {grade} {division.charAt(0).toUpperCase() + division.slice(1)} · {period.type} · {new Date(date).toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Asia/Kolkata' })}</h3>
 
         <div style={detailStyle}>
           <div style={fieldStyle}><strong>Time:</strong> {period.time}</div>

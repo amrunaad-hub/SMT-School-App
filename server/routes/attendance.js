@@ -4,6 +4,7 @@ const db = require('../db/database');
 const auth = require('../middleware/auth');
 const authorize = require('../middleware/authorize');
 const { teacherCanAccessGrade } = require('../utils/classAccess');
+const { sendToSubscriptions } = require('../utils/webPush');
 
 // Shapes a joined attendance+student row into the same { ...attendance, student: {...} }
 // structure the old Mongoose .populate('student', ...) produced.
@@ -170,6 +171,24 @@ router.post('/bulk', auth, authorize(['admin', 'principal', 'teacher']), async (
     const now = new Date().toISOString();
     let saved = 0;
 
+    // Same "does a leave request cover this date" check the /roster and
+    // /student endpoints use, batched up front so locking a whole class
+    // doesn't fire one leave_requests query per student.
+    const studentIds = records.map((rec) => rec.studentId);
+    const coveringLeaveIds = new Set(
+      studentIds.length
+        ? (await db('leave_requests').where('from_date', '<=', date).where('to_date', '>=', date).whereIn('student_id', studentIds))
+            .map((l) => l.student_id)
+        : []
+    );
+
+    const describeStatus = (status, studentId) => {
+      if (status === 'Absent') {
+        return coveringLeaveIds.has(studentId) ? 'Absent (Leave Approved)' : 'Absent (No Leave Application)';
+      }
+      return status || 'Present';
+    };
+
     for (const rec of records) {
       const student = await db('students').where({ id: rec.studentId }).first();
       if (!student) continue;
@@ -202,14 +221,22 @@ router.post('/bulk', auth, authorize(['admin', 'principal', 'teacher']), async (
         if (link) {
           const guardian = await db('guardians').where({ id: link.guardian_id }).first();
           if (guardian && guardian.user_id) {
+            const statusLabel = describeStatus(rec.status, rec.studentId);
+            const title = `Attendance marked for ${date}`;
+            const body = `${student.first_name} ${student.last_name} was marked ${statusLabel} on ${date}.`;
             await db('notifications').insert({
               user_id: guardian.user_id,
-              title: `Attendance marked for ${date}`,
-              body: `${student.first_name} ${student.last_name} was marked ${rec.status || 'Present'} on ${date}.`,
+              title,
+              body,
               related_type: 'attendance',
               related_id: rec.studentId,
               created_at: now,
             });
+            const subs = await db('push_subscriptions').where({ user_id: guardian.user_id });
+            if (subs.length) {
+              sendToSubscriptions(db, subs, { title, body, url: `/parents?module=attendance&date=${date}` })
+                .catch((err) => console.error('[webPush] attendance notify failed:', err.message));
+            }
           }
         }
       }
@@ -343,7 +370,14 @@ router.post('/leave-requests', auth, async (req, res) => {
 // student's attendance for one calendar month, shaped for the parent portal's
 // calendar: { date, status: 'present'|'absent', type, reason }. Absences are
 // cross-referenced against leave_requests covering that date to distinguish
-// approved-leave / leave-applied (pending) / unregularized.
+// approved-leave / unregularized.
+//
+// leave_requests.status is NOT used for this: per the /leave-requests POST
+// above, a leave request "takes effect immediately (no approval gate)" and
+// nothing in this app ever transitions it off 'Pending' — so gating on that
+// status previously left every leave-covered absence permanently reading
+// "pending approval" even after a teacher had marked/locked the actual
+// attendance row, which is the real signal that the absence is settled.
 router.get('/student/:studentId', auth, async (req, res) => {
   try {
     const { studentId } = req.params;
@@ -378,11 +412,8 @@ router.get('/student/:studentId', auth, async (req, res) => {
     const days = attendanceRows.map((row) => {
       if (row.status === 'Absent') {
         const leave = findLeave(row.date);
-        if (leave && leave.status === 'Approved') {
+        if (leave) {
           return { date: row.date, status: 'absent', type: 'approved-leave', reason: leave.reason };
-        }
-        if (leave && leave.status === 'Pending') {
-          return { date: row.date, status: 'absent', type: 'leave-applied', reason: leave.reason };
         }
         return { date: row.date, status: 'absent', type: 'unregularized', reason: row.reason || 'Absent' };
       }

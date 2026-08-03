@@ -384,7 +384,7 @@ const HR = () => {
                 <span><strong>Qualification:</strong> {person.qualification}</span>
                 <span><strong>Prior Exp:</strong> {person.experienceYearsPrior} yrs</span>
                 <span><strong>Current School:</strong> {person.experienceYearsCurrentSchool} yrs</span>
-                <span><strong>Joining:</strong> {person.joiningDate ? new Date(person.joiningDate).toLocaleDateString('en-IN') : '—'}</span>
+                <span><strong>Joining:</strong> {person.joiningDate ? new Date(person.joiningDate).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata' }) : '—'}</span>
                 <span><strong>Phone:</strong> {person.phone}</span>
                 <span><strong>Email:</strong> {person.email}</span>
                 <span><strong>Classes Total:</strong> {person.classesTakenTotal}</span>

@@ -20,7 +20,7 @@ const TIME_SLOTS = [
 ];
 
 const formatDateLabel = (date) => {
-  return date.toLocaleDateString('en-IN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+  return date.toLocaleDateString('en-IN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', timeZone: 'Asia/Kolkata' });
 };
 
 const getAcademicYearLabel = (date) => {
@@ -35,7 +35,7 @@ const getSaturdayOccurrence = (date) => Math.floor((date.getDate() - 1) / 7) + 1
 
 const getOperationalDayStatus = (date) => {
   const day = date.getDay();
-  const monthName = date.toLocaleDateString('en-IN', { month: 'long' });
+  const monthName = date.toLocaleDateString('en-IN', { month: 'long', timeZone: 'Asia/Kolkata' });
   if (day === 0) {
     return { isWorkingDay: false, label: 'Sunday Off', detail: `All Sundays are marked as non-working days. ${formatDateLabel(date)} is a holiday.` };
   }
@@ -196,7 +196,7 @@ const Timetable = () => {
             <div style={{ position: 'absolute', top: '100%', left: '50%', transform: 'translateX(-50%)', marginTop: '8px', zIndex: 20, background: '#fff', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '12px', boxShadow: '0 12px 30px rgba(15,23,42,0.18)', width: '260px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
                 <button type="button" onClick={() => setCalendarMonth(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() - 1, 1))} style={{ border: 'none', background: '#f1f5f9', borderRadius: '6px', padding: '4px 8px', cursor: 'pointer' }}>←</button>
-                <strong style={{ fontSize: '0.85rem' }}>{calendarMonth.toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })}</strong>
+                <strong style={{ fontSize: '0.85rem' }}>{calendarMonth.toLocaleDateString('en-IN', { month: 'long', year: 'numeric', timeZone: 'Asia/Kolkata' })}</strong>
                 <button type="button" onClick={() => setCalendarMonth(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + 1, 1))} style={{ border: 'none', background: '#f1f5f9', borderRadius: '6px', padding: '4px 8px', cursor: 'pointer' }}>→</button>
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '4px', fontSize: '0.72rem' }}>

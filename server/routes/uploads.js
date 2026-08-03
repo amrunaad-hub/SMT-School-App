@@ -5,6 +5,7 @@ const auth = require('../middleware/auth');
 const authorize = require('../middleware/authorize');
 const { upload, publicUrlFor } = require('../utils/upload');
 const { serializeRow } = require('../utils/serialize');
+const { isParentOfStudent } = require('../utils/classAccess');
 
 const OWNER_TYPES = ['student', 'admission', 'period_note', 'leave_request'];
 const DOC_TYPES = ['Birth Certificate', 'Aadhar', 'Transfer Certificate', 'Photo', 'Medical Certificate', 'Other'];
@@ -24,11 +25,19 @@ router.post('/', auth, authorize(['admin', 'teacher', 'principal', 'parent']), (
       const fileUrl = publicUrlFor(req.file.path);
       const { ownerType, ownerId, docType } = req.body;
 
-      // Parents may only upload a bare file (no owner attachment) — they must
-      // go through POST /api/students/:id/edit-requests to actually attach it,
-      // so an upload alone can never bypass the approval queue.
+      // Parents may attach a document directly only to their own child's leave
+      // request (evidence for a leave application, no approval workflow
+      // needed there) — every other owner type (student/admission/period_note)
+      // requires going through POST /api/students/:id/edit-requests instead,
+      // so an upload alone can never bypass that approval queue.
       if (req.user.role === 'parent' && (ownerType || ownerId)) {
-        return res.status(403).json({ message: 'Parents cannot attach documents directly; submit an edit request instead.' });
+        if (ownerType !== 'leave_request' || !ownerId) {
+          return res.status(403).json({ message: 'Parents cannot attach documents directly; submit an edit request instead.' });
+        }
+        const leaveRequest = await db('leave_requests').where({ id: Number(ownerId) }).first();
+        if (!leaveRequest || !(await isParentOfStudent(db, req.user.id, leaveRequest.student_id))) {
+          return res.status(403).json({ message: 'Not your child\'s leave request.' });
+        }
       }
 
       if (!ownerType && !ownerId) {

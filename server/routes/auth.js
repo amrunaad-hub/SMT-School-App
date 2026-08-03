@@ -185,12 +185,25 @@ router.get('/me', auth, async (req, res) => {
             return res.status(404).json({ message: 'User not found.' });
         }
 
+        // Resolve a human display name for the header/nav ("who's logged in
+        // on this device") — falls back to the username for admin and any
+        // account not yet linked to a staff/guardian row.
+        let displayName = user.username;
+        if (user.role === 'teacher' || user.role === 'principal') {
+            const staff = await db('staff').where({ user_id: user.id }).first();
+            if (staff) displayName = staff.display_name;
+        } else if (user.role === 'parent') {
+            const guardian = await db('guardians').where({ user_id: user.id }).first();
+            if (guardian) displayName = guardian.full_name;
+        }
+
         return res.json({
             user: {
                 id: user.id,
                 username: user.username,
                 role: user.role,
                 email: decryptText(user.email_encrypted),
+                displayName,
             },
         });
     } catch (err) {

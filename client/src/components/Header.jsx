@@ -1,11 +1,20 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import schoolLogo from '../assets/logo-source.png';
+import { api } from '../api';
 
 const Header = ({ role = 'admin', onLogout, homePath = '/' }) => {
     const [isMobile, setIsMobile] = useState(() => window.innerWidth < 900);
     const [openGroup, setOpenGroup] = useState(null);
+    const [displayName, setDisplayName] = useState('');
     const closeTimer = useRef(null);
+
+    // "Who's logged in on this device" — shown persistently in the header so
+    // it's obvious at a glance on a shared device, without digging into a
+    // profile page.
+    useEffect(() => {
+        api.get('/api/auth/me').then((data) => setDisplayName(data.user?.displayName || '')).catch(() => {});
+    }, [role]);
 
     const openDropdown = (key) => {
         if (closeTimer.current) clearTimeout(closeTimer.current);
@@ -36,6 +45,8 @@ const Header = ({ role = 'admin', onLogout, homePath = '/' }) => {
         { to: '/timetable', label: '⏰ Timetable' },
         { to: '/communication', label: '💬 Communication' },
         { to: '/edit-requests', label: '✏️ Edit Requests' },
+        { to: '/teachers', label: '👩‍🏫 Teachers Portal' },
+        { to: '/parents', label: '👨‍👩‍👧 Parents Portal' },
     ];
 
     const adminUpcomingGroup = {
@@ -49,8 +60,6 @@ const Header = ({ role = 'admin', onLogout, homePath = '/' }) => {
             { to: '/exams', label: '📊 Exams' },
             { to: '/transport', label: '🚌 Transport' },
             { to: '/inventory', label: '📦 Inventory' },
-            { to: '/teachers', label: '👩‍🏫 Teachers Portal' },
-            { to: '/parents', label: '👨‍👩‍👧 Parents Portal' },
         ],
     };
 
@@ -196,6 +205,11 @@ const Header = ({ role = 'admin', onLogout, homePath = '/' }) => {
                             <Link style={{ ...topLinkStyle, width: '100%', textAlign: 'center', background: 'rgba(16,185,129,0.25)', border: '2px solid rgba(16,185,129,0.55)' }} to={role === 'teacher' ? '/teachers' : '/parents'}>
                                 {role === 'teacher' ? '👩‍🏫 Teachers Portal' : '👨‍👩‍👧 Parents Portal'}
                             </Link>
+                        </li>
+                    )}
+                    {displayName && (
+                        <li style={{ ...mobileNavItemStyle, display: 'flex', alignItems: 'center', color: '#dbeafe', fontSize: '0.82rem', fontWeight: 600, whiteSpace: 'nowrap', justifyContent: isMobile ? 'center' : 'flex-start' }}>
+                            👤 {displayName}
                         </li>
                     )}
                     <li style={mobileNavItemStyle}>

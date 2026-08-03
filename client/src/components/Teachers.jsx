@@ -252,7 +252,7 @@ const DatePicker = ({ selectedDate, onSelect, onClose }) => {
     <div style={{ position: 'absolute', top: '46px', right: 0, zIndex: 20, background: '#fff', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '12px', boxShadow: '0 12px 30px rgba(15,23,42,0.18)', width: '260px' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
         <button type="button" onClick={() => setMonth(new Date(month.getFullYear(), month.getMonth() - 1, 1))} style={{ border: 'none', background: '#f1f5f9', borderRadius: '6px', padding: '4px 8px', cursor: 'pointer' }}>←</button>
-        <strong style={{ fontSize: '0.85rem' }}>{month.toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })}</strong>
+        <strong style={{ fontSize: '0.85rem' }}>{month.toLocaleDateString('en-IN', { month: 'long', year: 'numeric', timeZone: 'Asia/Kolkata' })}</strong>
         <button type="button" onClick={() => setMonth(new Date(month.getFullYear(), month.getMonth() + 1, 1))} style={{ border: 'none', background: '#f1f5f9', borderRadius: '6px', padding: '4px 8px', cursor: 'pointer' }}>→</button>
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '4px', fontSize: '0.72rem' }}>
@@ -378,7 +378,7 @@ const Teachers = () => {
     <div>
       <div style={{ marginBottom: '16px', padding: '12px 16px', borderRadius: '12px', background: isWorkingDay ? '#f0fdf4' : '#fffbeb', border: `1px solid ${isWorkingDay ? '#bbf7d0' : '#fde68a'}` }}>
         <strong style={{ color: isWorkingDay ? '#166534' : '#92400e' }}>{isWorkingDay ? '✅ Working Day' : '⚠ Holiday / Off Day'}</strong>
-        <span style={{ marginLeft: '10px', color: isWorkingDay ? '#166534' : '#92400e', fontSize: '0.88rem' }}>{DAY_LABELS[selectedDate.getDay()]}, {selectedDate.toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })}</span>
+        <span style={{ marginLeft: '10px', color: isWorkingDay ? '#166534' : '#92400e', fontSize: '0.88rem' }}>{DAY_LABELS[selectedDate.getDay()]}, {selectedDate.toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Asia/Kolkata' })}</span>
       </div>
 
       {!isWorkingDay ? (
