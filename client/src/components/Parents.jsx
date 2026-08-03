@@ -81,7 +81,15 @@ const Parents = () => {
     navigator.serviceWorker.ready
       .then((reg) => reg.pushManager.getSubscription())
       .then((sub) => {
-        if (!sub) { setPushStatus('off'); return; }
+        if (!sub) {
+          setPushStatus('off');
+          // Enabled by default: auto-subscribe on load instead of waiting for
+          // a manual click, unless the parent has already explicitly denied
+          // the browser permission (in which case re-prompting is pointless
+          // and some browsers block it outright).
+          if (Notification.permission !== 'denied') enablePushNotifications();
+          return;
+        }
         api.post('/api/push/subscribe', sub.toJSON()).catch(() => {});
         setPushStatus('on');
       })

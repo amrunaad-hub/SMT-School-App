@@ -291,6 +291,72 @@ const Teachers = () => {
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [dayAttendance, setDayAttendance] = useState([]);
+  // 'unsupported' | 'off' | 'on' | 'busy' — push notification opt-in state.
+  const [pushStatus, setPushStatus] = useState(
+    ('serviceWorker' in navigator && 'PushManager' in window) ? 'off' : 'unsupported'
+  );
+
+  const urlBase64ToUint8Array = (base64String) => {
+    const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+    const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+    const rawData = window.atob(base64);
+    return Uint8Array.from([...rawData].map((c) => c.charCodeAt(0)));
+  };
+
+  const enablePushNotifications = async () => {
+    setPushStatus('busy');
+    try {
+      const permission = await Notification.requestPermission();
+      if (permission !== 'granted') { setPushStatus('off'); return; }
+
+      const { publicKey } = await api.get('/api/push/vapid-public-key');
+      const registration = await navigator.serviceWorker.ready;
+      const subscription = await registration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(publicKey),
+      });
+
+      await api.post('/api/push/subscribe', subscription.toJSON());
+      setPushStatus('on');
+    } catch {
+      setPushStatus('off');
+    }
+  };
+
+  const disablePushNotifications = async () => {
+    setPushStatus('busy');
+    try {
+      const registration = await navigator.serviceWorker.ready;
+      const subscription = await registration.pushManager.getSubscription();
+      if (subscription) {
+        await api.delete('/api/push/subscribe', { endpoint: subscription.endpoint });
+        await subscription.unsubscribe();
+      }
+      setPushStatus('off');
+    } catch {
+      setPushStatus('on');
+    }
+  };
+
+  // Same re-association-on-load as the parent portal: a push subscription is
+  // per-device, not per-login, so on a shared device this re-binds it to
+  // whoever is actually logged in now. Enabled by default — auto-subscribes
+  // instead of waiting for a manual click, unless already explicitly denied.
+  useEffect(() => {
+    if (pushStatus === 'unsupported') return;
+    navigator.serviceWorker.ready
+      .then((reg) => reg.pushManager.getSubscription())
+      .then((sub) => {
+        if (!sub) {
+          setPushStatus('off');
+          if (Notification.permission !== 'denied') enablePushNotifications();
+          return;
+        }
+        api.post('/api/push/subscribe', sub.toJSON()).catch(() => {});
+        setPushStatus('on');
+      })
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     api.get('/api/auth/me/staff-profile')
@@ -513,6 +579,16 @@ const Teachers = () => {
             <p style={{ margin: '6px 0 0', color: '#334155', fontSize: '0.9rem' }}>
               Welcome, <strong>{teacher.name}</strong> · {teacher.isClassTeacher ? 'Class Teacher, ' : ''}Grade {teacher.classGrade} {teacher.classDivisionLabel} · {classStudents.length} students
             </p>
+            {pushStatus !== 'unsupported' && (
+              <button
+                type="button"
+                onClick={pushStatus === 'on' ? disablePushNotifications : enablePushNotifications}
+                disabled={pushStatus === 'busy'}
+                style={{ marginTop: '8px', border: '1px solid #93c5fd', background: pushStatus === 'on' ? '#dbeafe' : '#fff', color: '#1e3a8a', borderRadius: '999px', padding: '3px 10px', fontSize: '0.72rem', fontWeight: 700, cursor: pushStatus === 'busy' ? 'default' : 'pointer', opacity: pushStatus === 'busy' ? 0.7 : 1 }}
+              >
+                {pushStatus === 'on' ? '🔔 Notifications On' : pushStatus === 'busy' ? 'Working…' : '🔕 Enable Notifications'}
+              </button>
+            )}
           </div>
           <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: '6px' }}>
             <button type="button" onClick={() => navigateDay(-1)} style={{ border: '1px solid #bfdbfe', background: '#fff', borderRadius: '8px', padding: '6px 10px', cursor: 'pointer' }}>←</button>
