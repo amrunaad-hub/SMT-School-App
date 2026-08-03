@@ -134,15 +134,17 @@ const Parents = () => {
   }, []);
 
   // Deep link from a push notification (?module=circular&noticeId=123) —
-  // auto-expand the specific notice once it's loaded, instead of just
-  // landing on the tab and leaving the parent to hunt for it.
+  // scroll to the specific notice, like landing on a row in an email inbox.
+  // Deliberately left collapsed: the "Opened" count on the admin side is
+  // only meant to increment when a parent actually taps to open a notice
+  // (toggleCircularAccordion's read POST below), so auto-expanding here
+  // would silently under-count reads for anything opened via a notification.
   useEffect(() => {
     if (!deepLinkNoticeId || !apiNotices.length) return;
     const notice = apiNotices.find((n) => String(n._id) === deepLinkNoticeId);
     if (!notice) return;
-    const date = notice.publishedAt ? new Date(notice.publishedAt).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10);
-    const cardId = `circular-${date}-${notice.title}`;
-    setExpandedCards((prev) => ({ ...prev, [cardId]: true }));
+    const cardId = `circular-${notice._id}`;
+    document.getElementById(cardId)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
   }, [apiNotices, deepLinkNoticeId]);
 
   // In-app notifications (e.g. "attendance locked for today") — no email/push
@@ -1391,15 +1393,17 @@ const Parents = () => {
               style={{ width: '100%', minHeight: '40px', border: '1px solid #fda4af', borderRadius: '999px', padding: '0 14px', fontSize: isMobile ? '0.85rem' : '0.9rem', outline: 'none', marginBottom: '12px' }}
             />
             {filteredCircularNotices.length ? filteredCircularNotices.map((notice, index) => {
-              const cardId = `circular-${notice.date}-${notice.title}`;
+              const cardId = `circular-${notice.id ?? index}`;
               const isOpen = isAccordionOpen(cardId, index);
+              const isDeepLinked = deepLinkNoticeId && String(notice.id) === deepLinkNoticeId;
 
               return (
-                <div key={cardId} style={{ marginBottom: '10px', background: '#fff', borderRadius: '12px', border: '1px solid #fecdd3', overflow: 'hidden' }}>
+                <div id={cardId} key={cardId} style={{ marginBottom: '10px', background: '#fff', borderRadius: '12px', border: isDeepLinked ? '2px solid #f43f5e' : '1px solid #fecdd3', boxShadow: isDeepLinked ? '0 0 0 4px rgba(244,63,94,0.12)' : 'none', overflow: 'hidden' }}>
                   <div style={{ padding: isMobile ? '12px' : '14px' }}>
                     <p style={{ margin: 0, color: '#9f1239', fontWeight: 800, fontSize: isMobile ? '0.95rem' : '1rem' }}>
                       {notice.title}
                       {notice.isArchived && <span style={{ marginLeft: '8px', padding: '2px 8px', borderRadius: '999px', background: '#f1f5f9', color: '#94a3b8', fontSize: '0.7rem', fontWeight: 700, verticalAlign: 'middle' }}>Archived</span>}
+                      {isDeepLinked && <span style={{ marginLeft: '8px', padding: '2px 8px', borderRadius: '999px', background: '#f43f5e', color: '#fff', fontSize: '0.7rem', fontWeight: 700, verticalAlign: 'middle' }}>📬 From your notification</span>}
                     </p>
                     {notice.issuedBy && (
                       <p style={{ margin: '2px 0 0', color: '#9f1239', fontWeight: 600, fontSize: isMobile ? '0.72rem' : '0.78rem' }}>By {notice.issuedBy}</p>
