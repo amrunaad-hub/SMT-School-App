@@ -277,6 +277,21 @@ const Communication = () => {
   useEffect(() => {
     api.get('/api/auth/me').then((data) => setCurrentUserId(data.user?.id)).catch(() => {});
   }, []);
+
+  // A class teacher's own grade-division, so the audience picker can default
+  // to it when composing a new notice instead of starting empty every time.
+  // Only set for an actual class teacher (currentClassTeacherOf), not just
+  // any grade/division they happen to teach a subject in.
+  const [myClassAssignment, setMyClassAssignment] = useState(null);
+  useEffect(() => {
+    if (role !== 'teacher') return;
+    api.get('/api/auth/me/staff-profile')
+      .then((data) => {
+        const cls = (data.staffProfile?.currentClassTeacherOf || [])[0];
+        if (cls) setMyClassAssignment({ grade: cls.grade, division: cls.division });
+      })
+      .catch(() => {});
+  }, [role]);
   // Teachers can only edit/deactivate/delete notices they created themselves;
   // admin/principal can touch anything (mirrors the server-side check).
   const canModify = (notice) => isAdminOrPrincipal || notice.createdByUserId === currentUserId;
@@ -460,7 +475,20 @@ const Communication = () => {
           {canManage && (
             <button
               type="button"
-              onClick={() => { if (showForm) { closeForm(); } else { setSaveError(null); setShowForm(true); } }}
+              onClick={() => {
+                if (showForm) {
+                  closeForm();
+                } else {
+                  setSaveError(null);
+                  if (myClassAssignment) {
+                    setForm((f) => ({
+                      ...f,
+                      targetAudience: { ...EMPTY_AUDIENCE, grades: [myClassAssignment.grade], divisions: [myClassAssignment.division] },
+                    }));
+                  }
+                  setShowForm(true);
+                }
+              }}
               style={{ padding: '10px 18px', borderRadius: '8px', border: 'none', background: showForm ? '#64748b' : '#1e40af', color: '#fff', fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer' }}
             >
               {showForm ? '✕ Cancel' : '+ New Notice'}
