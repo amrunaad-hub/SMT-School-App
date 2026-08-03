@@ -499,12 +499,16 @@ const Teachers = () => {
   );
 
   const renderAttendanceRecords = () => {
+    const isLocked = dayAttendance[0]?.isLocked;
+
     if (dayAttendance.length === 0) {
       return (
         <div style={{ ...cardBase, textAlign: 'center', color: '#64748b', padding: '32px' }}>
           <div style={{ fontSize: '2rem', marginBottom: '10px' }}>📋</div>
           <p style={{ margin: 0, fontWeight: 600 }}>No attendance submitted yet for {dateStr}.</p>
-          <p style={{ margin: '6px 0 0', fontSize: '0.86rem' }}>Use the Timetable tab to record first-period attendance.</p>
+          <button type="button" onClick={openAttendance} style={{ marginTop: '14px', padding: '10px 18px', borderRadius: '10px', border: 'none', background: 'linear-gradient(135deg, #1e3a8a 0%, #1d4ed8 100%)', color: '#fff', fontWeight: 800, cursor: 'pointer', fontSize: '0.88rem' }}>
+            📋 Record Attendance
+          </button>
         </div>
       );
     }
@@ -523,8 +527,12 @@ const Teachers = () => {
             </div>
           ))}
         </div>
-        {dayAttendance[0]?.isLocked && (
+        {isLocked ? (
           <p style={{ color: '#64748b', fontSize: '0.82rem', marginBottom: '10px' }}>🔒 Locked — parents have been notified.</p>
+        ) : (
+          <button type="button" onClick={openAttendance} style={{ marginBottom: '14px', padding: '9px 16px', borderRadius: '10px', border: 'none', background: 'linear-gradient(135deg, #1e3a8a 0%, #1d4ed8 100%)', color: '#fff', fontWeight: 800, cursor: 'pointer', fontSize: '0.85rem' }}>
+            📋 Edit / Lock Attendance
+          </button>
         )}
         {[['Absent Students', grouped.absent, '#dc2626', '#fee2e2'], ['Late Arrivals', grouped.late, '#d97706', '#fef3c7']].map(([title, list, color, bg]) => list.length > 0 && (
           <div key={title} style={{ ...cardBase, marginBottom: '12px' }}>
