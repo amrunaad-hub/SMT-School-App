@@ -857,8 +857,8 @@ const Parents = () => {
   // listed) — feeds the admin-facing Reached/Opened comparison on the
   // Communication screen. Guarded on notice.id since the static fallback
   // circulars (shown only if the API has none) aren't real notices.
-  const toggleCircularAccordion = (notice, cardId, index) => {
-    const wasOpen = isAccordionOpen(cardId, index);
+  const toggleCircularAccordion = (notice, cardId) => {
+    const wasOpen = !!expandedCards[cardId];
     if (!wasOpen && notice.id) {
       api.post(`/api/notices/${notice.id}/read`).catch(() => {});
     }
@@ -1416,7 +1416,11 @@ const Parents = () => {
             />
             {filteredCircularNotices.length ? filteredCircularNotices.map((notice, index) => {
               const cardId = `circular-${notice.id ?? index}`;
-              const isOpen = isAccordionOpen(cardId, index);
+              // Deliberately not isAccordionOpen's shared "first item open by
+              // default" convenience — every notice starts collapsed so the
+              // read/opened count (toggleCircularAccordion's read POST) only
+              // ever fires on an actual tap, never just from being newest.
+              const isOpen = !!expandedCards[cardId];
               const isDeepLinked = deepLinkNoticeId && String(notice.id) === deepLinkNoticeId;
 
               return (
@@ -1435,7 +1439,7 @@ const Parents = () => {
                       {notice.eventDate && ` · Important: ${formatDateIST(notice.eventDate, { day: '2-digit', month: 'short', year: 'numeric' })}`}
                     </p>
                     <button
-                      onClick={() => toggleCircularAccordion(notice, cardId, index)}
+                      onClick={() => toggleCircularAccordion(notice, cardId)}
                       style={{ border: '1px solid #fb7185', background: isOpen ? '#fff1f2' : '#9f1239', color: isOpen ? '#9f1239' : '#fff', borderRadius: '999px', padding: '7px 16px', fontWeight: 700, fontSize: isMobile ? '0.8rem' : '0.85rem', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
                     >
                       {isOpen ? '▲ Close' : '▼ Open Notice'}
