@@ -13,6 +13,7 @@ const PeriodDetails = () => {
   const [notFound, setNotFound] = useState(false);
   const [note, setNote] = useState({ classwork: '', homework: '', specialInstructions: '' });
   const [noteId, setNoteId] = useState(null);
+  const [openCount, setOpenCount] = useState(0);
   const [attachments, setAttachments] = useState([]);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState('');
@@ -46,10 +47,12 @@ const PeriodDetails = () => {
           });
           setNoteId(existingNote.id);
           setAttachments(existingNote.attachments || []);
+          setOpenCount(existingNote.openCount || 0);
         } else {
           setNote({ classwork: '', homework: '', specialInstructions: '' });
           setNoteId(null);
           setAttachments([]);
+          setOpenCount(0);
         }
         setLoading(false);
       })
@@ -125,7 +128,14 @@ const PeriodDetails = () => {
 
         {period.type === 'Period' && (
           <div style={{ marginTop: '20px' }}>
-            <h3>Classwork, Homework &amp; Notes</h3>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+              <h3 style={{ margin: 0 }}>Classwork, Homework &amp; Notes</h3>
+              {canEdit && noteId && (
+                <span style={{ padding: '3px 10px', borderRadius: '999px', background: '#eef2ff', color: '#4338ca', fontSize: '0.78rem', fontWeight: 700 }}>
+                  👁 Opened by {openCount} parent{openCount === 1 ? '' : 's'}
+                </span>
+              )}
+            </div>
             {saveError && <p style={{ color: '#dc2626', fontSize: '0.85rem' }}>{saveError}</p>}
             <div style={detailStyle}>
               <div style={{ ...fieldStyle, gridColumn: '1 / -1' }}>

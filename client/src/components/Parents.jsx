@@ -194,6 +194,36 @@ const Parents = () => {
     if (day && day.status !== 'present') setSelectedDateDetail(day);
   }, [attendanceData, deepLinkAttendanceDate]);
 
+  // Full student record (beyond the curated linkedStudents display fields)
+  // just to power the Student Profile card's "incomplete" badge.
+  const [studentProfileData, setStudentProfileData] = useState(null);
+  useEffect(() => {
+    if (!selectedChildId) return;
+    api.get(`/api/students/${selectedChildId}`)
+      .then(setStudentProfileData)
+      .catch(() => setStudentProfileData(null));
+  }, [selectedChildId]);
+
+  // Recent teaching-update notes (classwork/homework), Communication-style —
+  // fetched independently of the month/week/day drill-down below so the
+  // Quick Access badge and preview list both work without navigating there.
+  const [periodNoteUpdates, setPeriodNoteUpdates] = useState([]);
+  useEffect(() => {
+    if (!selectedChildId) return;
+    api.get('/api/period-notes/mine', { studentId: selectedChildId })
+      .then((data) => setPeriodNoteUpdates(data.notes || []))
+      .catch(() => setPeriodNoteUpdates([]));
+  }, [selectedChildId]);
+
+  const openPeriodNoteUpdate = (note, cardId) => {
+    const wasOpen = !!expandedCards[cardId];
+    if (!wasOpen) {
+      api.post(`/api/period-notes/${note.id}/read`).catch(() => {});
+      setPeriodNoteUpdates((prev) => prev.map((n) => (n.id === note.id ? { ...n, isRead: true } : n)));
+    }
+    toggleAccordion(cardId);
+  };
+
   useEffect(() => {
     let isCancelled = false;
 
@@ -883,6 +913,23 @@ const Parents = () => {
     { key: 'contact', label: 'Important Contacts', icon: '📞' },
   ];
 
+  // Small "you haven't seen this yet" counts shown as a badge on each Quick
+  // Access card. Profile completeness is judged against a small, deliberately
+  // non-exhaustive set of commonly-missed fields — not every optional column.
+  const PROFILE_COMPLETENESS_FIELDS = ['dob', 'address', 'bloodGroup', 'medicalNotes', 'photoUrl'];
+  const profileIncompleteCount = studentProfileData
+    ? PROFILE_COMPLETENESS_FIELDS.filter((f) => !studentProfileData[f]).length + ((studentProfileData.guardians || []).length === 0 ? 1 : 0)
+    : 0;
+  const attendancePendingRegularizationCount = attendanceData.filter((d) => d.type === 'unregularized').length;
+  const circularUnreadCount = mergedCircularNotices.filter((n) => !n.isArchived && !n.isRead).length;
+
+  const moduleBadgeCounts = {
+    profile: profileIncompleteCount,
+    attendance: attendancePendingRegularizationCount,
+    circular: circularUnreadCount,
+    activities: periodNoteUpdates.filter((n) => !n.isRead).length,
+  };
+
   const upcomingModules = [
     { key: 'fees', label: 'Fees', icon: '💳' },
     { key: 'events', label: 'Events', icon: '🎉' },
@@ -1285,6 +1332,42 @@ const Parents = () => {
           <div style={{ padding: isMobile ? '16px' : '24px', borderRadius: '16px', background: 'linear-gradient(135deg, #e0e7ff 0%, #f0f4ff 100%)', border: '2px solid #6366f1', boxShadow: '0 4px 16px rgba(99, 102, 241, 0.1)' }}>
             <h3 style={{ color: '#3730a3', fontSize: isMobile ? '1.2rem' : '1.4rem', fontWeight: '700', marginBottom: '16px' }}>📚 Teaching Updates</h3>
 
+            {periodNoteUpdates.length > 0 && (
+              <div style={{ background: '#fff', borderRadius: '12px', border: '1px solid #c7d2fe', padding: isMobile ? '10px' : '14px', marginBottom: '16px' }}>
+                <h4 style={{ margin: '0 0 10px', color: '#3730a3', fontSize: isMobile ? '0.95rem' : '1.02rem', fontWeight: 700 }}>Recent Updates</h4>
+                {periodNoteUpdates.map((note) => {
+                  const cardId = `periodnote-${note.id}`;
+                  const isOpen = !!expandedCards[cardId];
+                  return (
+                    <div key={cardId} style={{ marginBottom: '8px', background: isOpen ? '#fff' : '#f5f6ff', borderRadius: '10px', border: `1px solid ${note.isRead ? '#e0e7ff' : '#818cf8'}`, overflow: 'hidden' }}>
+                      <div style={{ padding: isMobile ? '10px' : '12px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                          <p style={{ margin: 0, color: '#3730a3', fontWeight: 800, fontSize: isMobile ? '0.85rem' : '0.9rem' }}>
+                            {formatDateIST(note.date, { day: '2-digit', month: 'short' })} · Period {note.periodIndex}{note.subject ? ` · ${note.subject}` : ''}
+                          </p>
+                          {!note.isRead && <span style={{ padding: '1px 8px', borderRadius: '999px', background: '#818cf8', color: '#fff', fontSize: '0.65rem', fontWeight: 700 }}>NEW</span>}
+                        </div>
+                        <p style={{ margin: '3px 0 8px', color: '#4338ca', fontSize: '0.78rem', fontWeight: 600 }}>By {note.senderName}</p>
+                        <button
+                          onClick={() => openPeriodNoteUpdate(note, cardId)}
+                          style={{ border: '1px solid #6366f1', background: isOpen ? '#eef2ff' : '#4338ca', color: isOpen ? '#4338ca' : '#fff', borderRadius: '999px', padding: '6px 14px', fontWeight: 700, fontSize: '0.8rem', cursor: 'pointer' }}
+                        >
+                          {isOpen ? '▲ Close' : '▼ Open Update'}
+                        </button>
+                      </div>
+                      {isOpen && (
+                        <div style={{ padding: isMobile ? '0 10px 10px' : '0 12px 12px', borderTop: '1px solid #eef2ff', fontSize: '0.85rem', color: '#374151' }}>
+                          {note.classwork && <p style={{ margin: '8px 0 0' }}><strong>Classwork:</strong> {note.classwork}</p>}
+                          {note.homework && <p style={{ margin: '8px 0 0' }}><strong>Homework:</strong> {note.homework}</p>}
+                          {note.specialInstructions && <p style={{ margin: '8px 0 0' }}><strong>Instructions:</strong> {note.specialInstructions}</p>}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
             {activityDrillLevel === 'month' && (
               <div style={{ background: '#fff', borderRadius: '12px', border: '1px solid #c7d2fe', padding: isMobile ? '10px' : '14px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', marginBottom: '10px' }}>
@@ -1648,29 +1731,38 @@ const Parents = () => {
           <span style={{ fontSize: isMobile ? '0.75rem' : '0.82rem', color: '#be123c', fontWeight: 600 }}>Linked Students: {linkedStudents.length}</span>
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(4, 1fr)' : 'repeat(8, minmax(95px, 1fr))', gap: '8px' }}>
-          {workingModules.map((module) => (
-            <button
-              key={module.key}
-              onClick={() => setActiveModule(module.key)}
-              style={{
-                border: `1px solid ${activeModule === module.key ? '#fb7185' : '#fecdd3'}`,
-                background: activeModule === module.key ? '#ffe4e6' : '#fff',
-                borderRadius: '12px',
-                padding: isMobile ? '8px 6px' : '10px 8px',
-                minHeight: isMobile ? '72px' : '82px',
-                cursor: 'pointer',
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '4px',
-                color: '#881337',
-              }}
-            >
-              <span style={{ fontSize: isMobile ? '1.05rem' : '1.2rem' }}>{module.icon}</span>
-              <span style={{ fontSize: isMobile ? '0.66rem' : '0.78rem', fontWeight: 700, textAlign: 'center', lineHeight: 1.2 }}>{module.label}</span>
-            </button>
-          ))}
+          {workingModules.map((module) => {
+            const badgeCount = moduleBadgeCounts[module.key] || 0;
+            return (
+              <button
+                key={module.key}
+                onClick={() => setActiveModule(module.key)}
+                style={{
+                  position: 'relative',
+                  border: `1px solid ${activeModule === module.key ? '#fb7185' : '#fecdd3'}`,
+                  background: activeModule === module.key ? '#ffe4e6' : '#fff',
+                  borderRadius: '12px',
+                  padding: isMobile ? '8px 6px' : '10px 8px',
+                  minHeight: isMobile ? '72px' : '82px',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '4px',
+                  color: '#881337',
+                }}
+              >
+                {badgeCount > 0 && (
+                  <span style={{ position: 'absolute', top: '-6px', right: '-6px', minWidth: '20px', height: '20px', padding: '0 5px', borderRadius: '999px', background: '#e11d48', color: '#fff', fontSize: '0.68rem', fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 6px rgba(225,29,72,0.5)' }}>
+                    {badgeCount > 99 ? '99+' : badgeCount}
+                  </span>
+                )}
+                <span style={{ fontSize: isMobile ? '1.05rem' : '1.2rem' }}>{module.icon}</span>
+                <span style={{ fontSize: isMobile ? '0.66rem' : '0.78rem', fontWeight: 700, textAlign: 'center', lineHeight: 1.2 }}>{module.label}</span>
+              </button>
+            );
+          })}
         </div>
 
         <h4 style={{ margin: '14px 0 8px', color: '#9ca3af', fontSize: '0.72rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>🚧 Upcoming Features</h4>
