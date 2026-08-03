@@ -29,7 +29,8 @@ const Parents = () => {
   const [circularSearch, setCircularSearch] = useState('');
   const [isMobile, setIsMobile] = useState(() => window.innerWidth < 900);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const [currentMonth, setCurrentMonth] = useState(new Date(2026, 3, 1));
+  const [currentMonth, setCurrentMonth] = useState(new Date(today.getFullYear(), today.getMonth(), 1));
+  const [attendanceData, setAttendanceData] = useState([]);
   const [receiptPreview, setReceiptPreview] = useState(null);
   const [attachmentPreview, setAttachmentPreview] = useState(null);
   const [attachmentMap, setAttachmentMap] = useState({});
@@ -167,6 +168,14 @@ const Parents = () => {
       })
       .catch(() => {});
   }, [selectedChildId]);
+
+  // Load real attendance records for the calendar's currently displayed month.
+  useEffect(() => {
+    if (!selectedChildId) return;
+    api.get(`/api/attendance/student/${selectedChildId}`, { year: currentMonth.getFullYear(), month: currentMonth.getMonth() + 1 })
+      .then((data) => setAttendanceData(data.days || []))
+      .catch(() => setAttendanceData([]));
+  }, [selectedChildId, currentMonth]);
 
   useEffect(() => {
     let isCancelled = false;
@@ -367,29 +376,10 @@ const Parents = () => {
     photo: 'https://api.dicebear.com/7.x/adventurer/svg?seed=Rajesh-Kulkarni',
   };
 
-  // Extended attendance data. Types: regular, holiday, approved-leave, unregularized, leave-applied
-  const fullAttendanceData = useMemo(() => [
-    { date: '2026-04-01', status: 'present', type: 'regular' },
-    { date: '2026-04-02', status: 'present', type: 'regular' },
-    { date: '2026-04-03', status: 'absent', type: 'approved-leave', reason: 'Medical leave — Approved' },
-    { date: '2026-04-04', status: 'present', type: 'regular' },
-    { date: '2026-04-05', status: 'holiday', type: 'holiday', reason: 'Maharashtra Day' },
-    { date: '2026-04-06', status: 'absent', type: 'unregularized', reason: 'Fever — Regularization Pending' },
-    { date: '2026-04-07', status: 'present', type: 'regular' },
-    { date: '2026-04-08', status: 'present', type: 'regular' },
-    { date: '2026-04-09', status: 'absent', type: 'approved-leave', reason: 'Family function — Approved' },
-    { date: '2026-04-10', status: 'holiday', type: 'holiday', reason: 'Good Friday' },
-    { date: '2026-04-11', status: 'present', type: 'regular' },
-    { date: '2026-04-12', status: 'present', type: 'regular' },
-    { date: '2026-04-13', status: 'present', type: 'regular' },
-    { date: '2026-04-14', status: 'present', type: 'regular' },
-    { date: '2026-04-15', status: 'absent', type: 'leave-applied', reason: 'Doctor appointment — Application Submitted' },
-  ], []);
-
-  // Get last 10 days of attendance
+  // Get last 10 days of attendance within the currently loaded month
   const last10DaysAttendance = useMemo(() => {
-    return fullAttendanceData.slice(-10);
-  }, [fullAttendanceData]);
+    return attendanceData.slice(-10);
+  }, [attendanceData]);
 
   const adminNotes = useMemo(() => [
     { id: 1, author: 'Ms. Smita Naik', role: 'Principal', text: 'Repeated absenteeism observed. Please ensure regular attendance to avoid impact on academics and term completion.', timestamp: '14 Apr 2026, 10:30 AM', priority: 'high' },
@@ -684,7 +674,7 @@ const Parents = () => {
 
   const getAttendanceForDate = (date) => {
     const dateStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
-    return fullAttendanceData.find(a => a.date === dateStr);
+    return attendanceData.find(a => a.date === dateStr);
   };
 
   const formatDateKey = (date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;

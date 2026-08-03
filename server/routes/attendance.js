@@ -339,4 +339,61 @@ router.post('/leave-requests', auth, async (req, res) => {
   }
 });
 
+// GET /api/attendance/student/:studentId?year=&month= (month is 1-12) — a
+// student's attendance for one calendar month, shaped for the parent portal's
+// calendar: { date, status: 'present'|'absent', type, reason }. Absences are
+// cross-referenced against leave_requests covering that date to distinguish
+// approved-leave / leave-applied (pending) / unregularized.
+router.get('/student/:studentId', auth, async (req, res) => {
+  try {
+    const { studentId } = req.params;
+    const year = Number(req.query.year);
+    const month = Number(req.query.month);
+    if (!year || !month || month < 1 || month > 12) {
+      return res.status(400).json({ message: 'year and month (1-12) query parameters are required.' });
+    }
+
+    const student = await db('students').where({ id: studentId }).first();
+    if (!student) return res.status(404).json({ message: 'Student not found.' });
+
+    if (req.user.role === 'parent' && !(await isParentOfStudent(req.user.id, studentId))) {
+      return res.status(403).json({ message: 'Not your child.' });
+    }
+    if (req.user.role === 'teacher' && !(await teacherCanAccessGrade(db, req.user.id, student.grade))) {
+      return res.status(403).json({ message: 'You are not assigned to this grade.' });
+    }
+
+    const monthStr = String(month).padStart(2, '0');
+    const fromDate = `${year}-${monthStr}-01`;
+    const lastDay = new Date(year, month, 0).getDate();
+    const toDate = `${year}-${monthStr}-${String(lastDay).padStart(2, '0')}`;
+
+    const [attendanceRows, leaveRows] = await Promise.all([
+      db('attendance').where({ student_id: studentId }).whereBetween('date', [fromDate, toDate]).orderBy('date'),
+      db('leave_requests').where({ student_id: studentId }).where('from_date', '<=', toDate).where('to_date', '>=', fromDate),
+    ]);
+
+    const findLeave = (date) => leaveRows.find((l) => l.from_date <= date && l.to_date >= date);
+
+    const days = attendanceRows.map((row) => {
+      if (row.status === 'Absent') {
+        const leave = findLeave(row.date);
+        if (leave && leave.status === 'Approved') {
+          return { date: row.date, status: 'absent', type: 'approved-leave', reason: leave.reason };
+        }
+        if (leave && leave.status === 'Pending') {
+          return { date: row.date, status: 'absent', type: 'leave-applied', reason: leave.reason };
+        }
+        return { date: row.date, status: 'absent', type: 'unregularized', reason: row.reason || 'Absent' };
+      }
+      return { date: row.date, status: 'present', type: 'regular', reason: row.reason || null };
+    });
+
+    return res.json({ days });
+  } catch (err) {
+    console.error('GET /api/attendance/student/:studentId error:', err.message);
+    return res.status(500).json({ message: 'Server error' });
+  }
+});
+
 module.exports = router;

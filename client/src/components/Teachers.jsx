@@ -366,6 +366,11 @@ const Teachers = () => {
     { key: 'timetable', label: "⏰ Day's Timetable" },
     { key: 'attendance', label: '✅ Attendance Records' },
     { key: 'links', label: '🔗 Quick Links' },
+    { key: 'upcoming', label: '🚧 Upcoming Features' },
+  ];
+
+  const UPCOMING_LINKS = [
+    { title: 'Exams', desc: 'Assessment schedules and marks.', color: '#b45309' },
   ];
 
   const cardBase = { background: '#fff', border: '1px solid #e2e8f0', borderRadius: '14px', padding: '16px', boxShadow: '0 4px 12px rgba(15,23,42,0.06)' };
@@ -476,13 +481,26 @@ const Teachers = () => {
       {[
         { title: 'Full Timetable', desc: 'View consolidated school timetable.', to: '/timetable', color: '#1d4ed8' },
         { title: 'Attendance Module', desc: 'School-wide attendance analytics.', to: '/attendance', color: '#059669' },
-        { title: 'Exams', desc: 'Assessment schedules and marks.', to: '/exams', color: '#b45309' },
         { title: 'Communication', desc: 'Send class circulars.', to: '/communication', color: '#7c3aed' },
       ].map((item) => (
         <a key={item.title} href={item.to} style={{ textDecoration: 'none', color: '#0f172a', ...cardBase, borderLeft: `5px solid ${item.color}` }}>
           <h3 style={{ margin: 0, fontSize: '1rem' }}>{item.title}</h3>
           <p style={{ margin: '8px 0 0', fontSize: '0.88rem', color: '#475569' }}>{item.desc}</p>
         </a>
+      ))}
+    </div>
+  );
+
+  const renderUpcoming = () => (
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px' }}>
+      {UPCOMING_LINKS.map((item) => (
+        <div key={item.title} style={{ ...cardBase, borderLeft: `5px solid ${item.color}`, opacity: 0.7, cursor: 'not-allowed' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <h3 style={{ margin: 0, fontSize: '1rem' }}>{item.title}</h3>
+            <span style={{ padding: '2px 8px', borderRadius: '999px', background: '#fef3c7', color: '#92400e', fontSize: '0.7rem', fontWeight: 700 }}>Coming soon</span>
+          </div>
+          <p style={{ margin: '8px 0 0', fontSize: '0.88rem', color: '#475569' }}>{item.desc}</p>
+        </div>
       ))}
     </div>
   );
@@ -524,6 +542,7 @@ const Teachers = () => {
       {activeModule === 'timetable' && renderTimetable()}
       {activeModule === 'attendance' && renderAttendanceRecords()}
       {activeModule === 'links' && renderLinks()}
+      {activeModule === 'upcoming' && renderUpcoming()}
 
       {showAttendanceModal && (
         <AttendanceModal
