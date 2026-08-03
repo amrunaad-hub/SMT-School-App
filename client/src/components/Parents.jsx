@@ -13,7 +13,6 @@ const Parents = () => {
   const [activeModule, setActiveModule] = useState(
     () => new URLSearchParams(window.location.search).get('module') || 'profile'
   );
-  const [selectedStudent, setSelectedStudent] = useState(null);
   const [selectedChildId, setSelectedChildId] = useState(null);
   const today = new Date();
   const [selectedActivityDate, setSelectedActivityDate] = useState(today);
@@ -61,10 +60,6 @@ const Parents = () => {
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
   }, []);
-
-  useEffect(() => {
-    setSelectedStudent(null);
-  }, [selectedChildId]);
 
   // A push subscription lives at the browser/device level (tied to the
   // service worker's origin), not to whichever account happens to be
@@ -365,17 +360,6 @@ const Parents = () => {
       .catch(() => setTimetableEntries([]));
   }, [currentStudent, selectedTimetableDate]);
 
-  const parentProfile = {
-    name: 'Mr. Rajesh Kulkarni',
-    relation: 'Father',
-    phone: '+91 98765 43211',
-    email: 'rajesh.kulkarni@email.com',
-    occupation: 'Software Engineer',
-    company: 'Tech Solutions Pvt Ltd, Thane',
-    address: 'Flat 203, Rose Garden Apartments, Thane West, Maharashtra - 400601',
-    photo: 'https://api.dicebear.com/7.x/adventurer/svg?seed=Rajesh-Kulkarni',
-  };
-
   // Get last 10 days of attendance within the currently loaded month
   const last10DaysAttendance = useMemo(() => {
     return attendanceData.slice(-10);
@@ -639,11 +623,44 @@ const Parents = () => {
 
   const getStatusLabel = (status, type) => {
     if (status === 'present') return '✓ Present';
-    if (status === 'holiday') return '● Holiday';
+    if (status === 'holiday') return '● Public Holiday';
     if (type === 'approved-leave') return '✓ Approved Leave';
     if (type === 'leave-applied') return '⏳ Leave Applied';
     if (type === 'unregularized') return '⚠ Unregularized';
     return '✕ Absent';
+  };
+
+  // 2nd/4th Saturdays and all Sundays are non-working days school-wide.
+  const isNonWorkingDay = (date) => {
+    const day = date.getDay();
+    if (day === 0) return true;
+    if (day === 6) {
+      const occurrence = Math.floor((date.getDate() - 1) / 7) + 1;
+      return occurrence === 2 || occurrence === 4;
+    }
+    return false;
+  };
+
+  // Calendar cell color: future/unmarked days stay blank (nothing to show
+  // yet), weekly-offs and public holidays get their own colors regardless of
+  // attendance data, and only past working days are colored by attendance.
+  const getDayColor = (date, att) => {
+    if (att && att.status === 'holiday') return '#14b8a6';
+    if (isNonWorkingDay(date)) return '#a78bfa';
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const cellDate = new Date(date); cellDate.setHours(0, 0, 0, 0);
+    if (cellDate > today || !att) return '#ffffff';
+    if (att.status === 'present') return '#10b981';
+    if (att.type === 'unregularized') return '#ef4444';
+    if (att.type === 'approved-leave' || att.type === 'leave-applied') return '#f97316';
+    return '#ffffff';
+  };
+
+  const getDayLabel = (date, att) => {
+    if (att && att.status === 'holiday') return getStatusLabel(att.status, att.type);
+    if (isNonWorkingDay(date)) return '● Non-working Day';
+    if (!att) return '';
+    return getStatusLabel(att.status, att.type);
   };
 
   // Calendar generation function
@@ -833,23 +850,23 @@ const Parents = () => {
     return expandedCards[cardId];
   };
 
-  const portalModules = [
+  // Parent's own profile lives inside Student Profile's "Guardians" tab
+  // (ParentStudentProfile.jsx) with real, editable data — no separate tile.
+  const workingModules = [
     { key: 'profile', label: 'Student Profile', icon: '👤' },
-    { key: 'parent-profile', label: 'Parent Profile', icon: '👨‍👩‍👧' },
     { key: 'attendance', label: 'Attendance', icon: '📅' },
     { key: 'timetable', label: 'Timetable', icon: '⏰' },
     { key: 'activities', label: 'Teaching Updates', icon: '📚' },
     { key: 'circular', label: 'Communication', icon: '📢' },
+    { key: 'contact', label: 'Important Contacts', icon: '📞' },
+  ];
+
+  const upcomingModules = [
     { key: 'fees', label: 'Fees', icon: '💳' },
     { key: 'events', label: 'Events', icon: '🎉' },
     { key: 'gallery', label: 'Photo Gallery', icon: '🖼️' },
     { key: 'report', label: 'Report Card', icon: '📑' },
-    { key: 'contact', label: 'Contact Us', icon: '📞' },
   ];
-
-  const primaryQuickModules = isMobile
-    ? portalModules.filter((module) => ['profile', 'parent-profile', 'attendance', 'timetable', 'activities', 'circular', 'fees'].includes(module.key))
-    : portalModules;
 
   const renderModule = () => {
     switch (activeModule) {
@@ -861,30 +878,6 @@ const Parents = () => {
               <p style={{ color: '#0369a1' }}>This demo login isn't linked to a real student record, so the full profile can't be shown. Log in as a real parent account to see it.</p>
             </div>
           );
-      case 'parent-profile':
-        return (
-          <div style={{ padding: isMobile ? '16px' : '24px', borderRadius: '16px', background: 'linear-gradient(135deg, #f3f4f6 0%, #f9fafb 100%)', border: '2px solid #6b7280' }}>
-            <h3 style={{ color: '#374151', fontSize: isMobile ? '1.2rem' : '1.4rem', fontWeight: '700', marginBottom: '16px' }}>👨‍💼 Parent Profile</h3>
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: isMobile ? 'center' : 'flex-start', gap: '16px' }}>
-              <img src={parentProfile.photo} alt="Parent" onClick={() => setSelectedStudent(parentProfile)} style={{ cursor: 'pointer', borderRadius: '12px', width: isMobile ? '100px' : '120px', height: isMobile ? '100px' : '120px', border: '4px solid #6b7280', boxShadow: '0 4px 12px rgba(107, 114, 128, 0.2)' }} />
-              <div style={{ width: '100%', textAlign: isMobile ? 'center' : 'left' }}>
-                <p style={{ fontSize: isMobile ? '0.95rem' : '1.1rem', marginBottom: '8px' }}><strong>👨 Name:</strong> {parentProfile.name}</p>
-                <p style={{ fontSize: isMobile ? '0.9rem' : '1rem', marginBottom: '8px' }}><strong>🔗 Relation:</strong> {parentProfile.relation}</p>
-              </div>
-            </div>
-            {selectedStudent && (
-              <div style={{ marginTop: '20px', padding: isMobile ? '14px' : '20px', background: '#fff', borderRadius: '12px', border: '1px solid #e5e7eb' }}>
-                <h4 style={{ color: '#374151', fontWeight: '600', fontSize: isMobile ? '1.05rem' : '1.1rem' }}>📋 Detailed Profile</h4>
-                <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(2, 1fr)', gap: isMobile ? '8px' : '12px' }}>
-                  <p style={{ fontSize: isMobile ? '0.85rem' : '0.95rem' }}><strong>☎️ Phone:</strong> {selectedStudent.phone}</p>
-                  <p style={{ fontSize: isMobile ? '0.85rem' : '0.95rem' }}><strong>📧 Email:</strong> {selectedStudent.email}</p>
-                  <p style={{ fontSize: isMobile ? '0.85rem' : '0.95rem' }}><strong>💼 Occupation:</strong> {selectedStudent.occupation}</p>
-                  <p style={{ fontSize: isMobile ? '0.85rem' : '0.95rem' }}><strong>🏢 Company:</strong> {selectedStudent.company}</p>
-                </div>
-              </div>
-            )}
-          </div>
-        );
       case 'attendance': {
         const priorityBadge = { high: { bg: '#fee2e2', color: '#dc2626', label: 'High' }, medium: { bg: '#fef3c7', color: '#d97706', label: 'Medium' }, low: { bg: '#f0fdf4', color: '#16a34a', label: 'Low' } };
         const statusBadge = { Pending: { bg: '#fef3c7', color: '#d97706' }, Approved: { bg: '#dcfce7', color: '#166534' }, Rejected: { bg: '#fee2e2', color: '#dc2626' }, Regularized: { bg: '#dbeafe', color: '#1d4ed8' } };
@@ -969,15 +962,16 @@ const Parents = () => {
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '2px' }}>
                 {calendarDays.map((date, index) => {
                   const att = date ? getAttendanceForDate(date) : null;
-                  const bg = !date ? '#f3f4f6' : att ? getStatusColor(att.status, att.type) : '#fafafa';
+                  const bg = !date ? '#f3f4f6' : getDayColor(date, att);
+                  const isBlank = bg === '#ffffff';
                   const isToday = date && new Date().toDateString() === date.toDateString();
                   const clickable = date && att && att.status !== 'present';
                   return (
                     <div
                       key={index}
                       onClick={() => { if (clickable) setSelectedDateDetail(att); }}
-                      title={att ? `${getStatusLabel(att.status, att.type)} — ${att.reason || att.type}` : ''}
-                      style={{ backgroundColor: bg, padding: isMobile ? '5px 2px' : '9px 3px', border: isToday ? '3px solid #22c55e' : '1px solid #dcfce7', borderRadius: '4px', textAlign: 'center', color: date ? '#fff' : '#d1d5db', minHeight: isMobile ? '30px' : '42px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: date ? 700 : 400, cursor: clickable ? 'pointer' : 'default', fontSize: isMobile ? '0.78rem' : '0.88rem', transition: 'opacity 150ms' }}
+                      title={date ? getDayLabel(date, att) : ''}
+                      style={{ backgroundColor: bg, padding: isMobile ? '5px 2px' : '9px 3px', border: isToday ? '3px solid #22c55e' : isBlank ? '1px solid #e2e8f0' : '1px solid #dcfce7', borderRadius: '4px', textAlign: 'center', color: !date ? '#d1d5db' : isBlank ? '#334155' : '#fff', minHeight: isMobile ? '30px' : '42px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: date ? 700 : 400, cursor: clickable ? 'pointer' : 'default', fontSize: isMobile ? '0.78rem' : '0.88rem', transition: 'opacity 150ms' }}
                     >
                       {date ? date.getDate() : ''}
                     </div>
@@ -990,8 +984,8 @@ const Parents = () => {
             <div style={{ background: '#fff', padding: '12px 16px', borderRadius: '12px', border: '1px solid #dcfce7', marginBottom: '16px' }}>
               <h4 style={{ color: '#166534', fontWeight: 700, marginBottom: '8px', margin: '0 0 8px' }}>Legend</h4>
               <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                {[['#10b981', '✓ Present'], ['#f59e0b', '✓ Approved Leave'], ['#3b82f6', '⏳ Leave Applied'], ['#ef4444', '⚠ Unregularized'], ['#6b7280', '● Holiday']].map(([color, label]) => (
-                  <span key={label} style={{ background: color, color: '#fff', padding: '3px 9px', borderRadius: '6px', fontSize: '0.76rem', fontWeight: 700 }}>{label}</span>
+                {[['#10b981', '✓ Present', '#fff'], ['#f97316', '✕ Absent (leave)', '#fff'], ['#ef4444', '⚠ Unregularized', '#fff'], ['#a78bfa', '● Non-working Day', '#fff'], ['#14b8a6', '★ Public Holiday', '#fff'], ['#ffffff', '○ Not Marked / Upcoming', '#334155']].map(([color, label, text]) => (
+                  <span key={label} style={{ background: color, color: text, border: color === '#ffffff' ? '1px solid #cbd5e1' : 'none', padding: '3px 9px', borderRadius: '6px', fontSize: '0.76rem', fontWeight: 700 }}>{label}</span>
                 ))}
               </div>
               <p style={{ margin: '8px 0 0', color: '#64748b', fontSize: '0.76rem' }}>Tap any non-present date to see details or apply regularization.</p>
@@ -1538,7 +1532,7 @@ const Parents = () => {
       case 'contact':
         return (
           <div style={{ padding: isMobile ? '16px' : '24px', borderRadius: '16px', background: 'linear-gradient(135deg, #f3f4f6 0%, #f9fafb 100%)', border: '2px solid #6b7280' }}>
-            <h3 style={{ color: '#374151', fontSize: isMobile ? '1.2rem' : '1.4rem', fontWeight: '700', marginBottom: '16px' }}>📞 Contact Us</h3>
+            <h3 style={{ color: '#374151', fontSize: isMobile ? '1.2rem' : '1.4rem', fontWeight: '700', marginBottom: '16px' }}>📞 Important Contacts</h3>
             {contacts.map(contact => (
               <div key={contact.role} style={{ marginBottom: '12px', padding: isMobile ? '12px' : '14px', background: '#fff', borderRadius: '8px', border: '1px solid #e5e7eb', boxShadow: '0 2px 6px rgba(107, 114, 128, 0.1)', minHeight: isMobile ? '44px' : 'auto' }}>
                 <p style={{ margin: '0 0 6px', fontSize: isMobile ? '0.9rem' : '0.95rem' }}><strong style={{ color: '#374151' }}>👤 {contact.role}:</strong> {contact.name}</p>
@@ -1624,7 +1618,7 @@ const Parents = () => {
           <span style={{ fontSize: isMobile ? '0.75rem' : '0.82rem', color: '#be123c', fontWeight: 600 }}>Linked Students: {linkedStudents.length}</span>
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(4, 1fr)' : 'repeat(8, minmax(95px, 1fr))', gap: '8px' }}>
-          {primaryQuickModules.map((module) => (
+          {workingModules.map((module) => (
             <button
               key={module.key}
               onClick={() => setActiveModule(module.key)}
@@ -1641,6 +1635,34 @@ const Parents = () => {
                 justifyContent: 'center',
                 gap: '4px',
                 color: '#881337',
+              }}
+            >
+              <span style={{ fontSize: isMobile ? '1.05rem' : '1.2rem' }}>{module.icon}</span>
+              <span style={{ fontSize: isMobile ? '0.66rem' : '0.78rem', fontWeight: 700, textAlign: 'center', lineHeight: 1.2 }}>{module.label}</span>
+            </button>
+          ))}
+        </div>
+
+        <h4 style={{ margin: '14px 0 8px', color: '#9ca3af', fontSize: '0.72rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>🚧 Upcoming Features</h4>
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(4, 1fr)' : 'repeat(8, minmax(95px, 1fr))', gap: '8px' }}>
+          {upcomingModules.map((module) => (
+            <button
+              key={module.key}
+              onClick={() => setActiveModule(module.key)}
+              style={{
+                border: `1px dashed ${activeModule === module.key ? '#94a3b8' : '#e2e8f0'}`,
+                background: activeModule === module.key ? '#f1f5f9' : '#fafafa',
+                borderRadius: '12px',
+                padding: isMobile ? '8px 6px' : '10px 8px',
+                minHeight: isMobile ? '72px' : '82px',
+                cursor: 'pointer',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '4px',
+                color: '#94a3b8',
+                opacity: 0.85,
               }}
             >
               <span style={{ fontSize: isMobile ? '1.05rem' : '1.2rem' }}>{module.icon}</span>
@@ -1705,7 +1727,7 @@ const Parents = () => {
             >
               <div style={{ width: '52px', height: '5px', borderRadius: '8px', background: '#e5e7eb', margin: '0 auto 12px' }} />
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px' }}>
-                {portalModules.map((module) => (
+                {workingModules.map((module) => (
                   <button
                     key={module.key}
                     onClick={() => {
