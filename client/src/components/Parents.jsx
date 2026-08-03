@@ -1676,16 +1676,15 @@ const Parents = () => {
         <h4 style={{ margin: '14px 0 8px', color: '#9ca3af', fontSize: '0.72rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>🚧 Upcoming Features</h4>
         <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(4, 1fr)' : 'repeat(8, minmax(95px, 1fr))', gap: '8px' }}>
           {upcomingModules.map((module) => (
-            <button
+            <div
               key={module.key}
-              onClick={() => setActiveModule(module.key)}
               style={{
-                border: `1px dashed ${activeModule === module.key ? '#94a3b8' : '#e2e8f0'}`,
-                background: activeModule === module.key ? '#f1f5f9' : '#fafafa',
+                border: '1px dashed #e2e8f0',
+                background: '#fafafa',
                 borderRadius: '12px',
                 padding: isMobile ? '8px 6px' : '10px 8px',
                 minHeight: isMobile ? '72px' : '82px',
-                cursor: 'pointer',
+                cursor: 'not-allowed',
                 display: 'flex',
                 flexDirection: 'column',
                 alignItems: 'center',
@@ -1697,7 +1696,7 @@ const Parents = () => {
             >
               <span style={{ fontSize: isMobile ? '1.05rem' : '1.2rem' }}>{module.icon}</span>
               <span style={{ fontSize: isMobile ? '0.66rem' : '0.78rem', fontWeight: 700, textAlign: 'center', lineHeight: 1.2 }}>{module.label}</span>
-            </button>
+            </div>
           ))}
         </div>
       </section>

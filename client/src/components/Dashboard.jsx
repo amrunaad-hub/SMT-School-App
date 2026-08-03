@@ -99,10 +99,10 @@ const Dashboard = () => {
         {filteredUpcoming.length > 0 && (
           <div style={{ marginTop: '32px' }}>
             <h3 style={{ color: '#475569', fontSize: '1.1rem', fontWeight: '700', marginBottom: '4px' }}>🚧 Upcoming Features</h3>
-            <p style={{ color: '#94a3b8', fontSize: '0.88rem', marginBottom: '14px' }}>Reachable, but not yet finished — expect rough edges.</p>
+            <p style={{ color: '#94a3b8', fontSize: '0.88rem', marginBottom: '14px' }}>Not yet finished — disabled for now.</p>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '14px' }}>
               {filteredUpcoming.map((module) => (
-                <Link key={module.path} to={module.path} style={upcomingCardStyle}>
+                <div key={module.path} style={{ ...upcomingCardStyle, cursor: 'not-allowed' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                     <span style={{ fontSize: '1.6rem' }}>{module.icon}</span>
                     <div>
@@ -113,7 +113,7 @@ const Dashboard = () => {
                       <p style={{ margin: '4px 0 0', color: '#94a3b8', fontSize: '0.82rem' }}>{module.description}</p>
                     </div>
                   </div>
-                </Link>
+                </div>
               ))}
             </div>
           </div>

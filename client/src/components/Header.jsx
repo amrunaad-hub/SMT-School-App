@@ -181,17 +181,26 @@ const Header = ({ role = 'admin', onLogout, homePath = '/' }) => {
                                             >
                                                 <div style={{ background: '#f8fafc', border: '1px solid #bfdbfe', borderRadius: '10px', padding: '8px', boxShadow: '0 12px 24px rgba(15, 23, 42, 0.2)' }}>
                                                     {group.key === 'upcoming' && (
-                                                        <p style={{ margin: '2px 6px 8px', color: '#94a3b8', fontSize: '0.72rem', fontWeight: 600 }}>Reachable, but not yet finished.</p>
+                                                        <p style={{ margin: '2px 6px 8px', color: '#94a3b8', fontSize: '0.72rem', fontWeight: 600 }}>Not yet finished — disabled for now.</p>
                                                     )}
                                                     {group.items.map((item) => (
-                                                        <Link
-                                                            key={item.to}
-                                                            to={item.to}
-                                                            onClick={() => setOpenGroup(null)}
-                                                            style={group.key === 'upcoming' ? { ...dropdownItemStyle, color: '#64748b', background: '#f1f5f9' } : dropdownItemStyle}
-                                                        >
-                                                            {item.label}
-                                                        </Link>
+                                                        group.key === 'upcoming' ? (
+                                                            <span
+                                                                key={item.to}
+                                                                style={{ ...dropdownItemStyle, color: '#94a3b8', background: '#f1f5f9', cursor: 'not-allowed' }}
+                                                            >
+                                                                {item.label}
+                                                            </span>
+                                                        ) : (
+                                                            <Link
+                                                                key={item.to}
+                                                                to={item.to}
+                                                                onClick={() => setOpenGroup(null)}
+                                                                style={dropdownItemStyle}
+                                                            >
+                                                                {item.label}
+                                                            </Link>
+                                                        )
                                                     ))}
                                                 </div>
                                             </div>
