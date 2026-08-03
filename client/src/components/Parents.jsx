@@ -223,13 +223,15 @@ const Parents = () => {
       .catch(() => setPeriodNoteUpdates([]));
   }, [selectedChildId]);
 
-  const openPeriodNoteUpdate = (note, cardId) => {
-    const wasOpen = !!expandedCards[cardId];
-    if (!wasOpen) {
+  // isOpen is the caller's effective state (accounts for the isRead
+  // fallback) — see toggleCircularAccordion below for why toggling off that,
+  // rather than the raw stored expandedCards value, matters.
+  const openPeriodNoteUpdate = (note, cardId, isOpen) => {
+    if (!isOpen) {
       api.post(`/api/period-notes/${note.id}/read`).catch(() => {});
       setPeriodNoteUpdates((prev) => prev.map((n) => (n.id === note.id ? { ...n, isRead: true } : n)));
     }
-    toggleAccordion(cardId);
+    setExpandedCards((previous) => ({ ...previous, [cardId]: !isOpen }));
   };
 
   useEffect(() => {
@@ -916,12 +918,17 @@ const Parents = () => {
   // listed) — feeds the admin-facing Reached/Opened comparison on the
   // Communication screen. Guarded on notice.id since the static fallback
   // circulars (shown only if the API has none) aren't real notices.
-  const toggleCircularAccordion = (notice, cardId) => {
-    const wasOpen = !!expandedCards[cardId];
-    if (!wasOpen && notice.id) {
+  // isOpen is the caller's already-computed *effective* state (which, unlike
+  // a raw expandedCards[cardId] lookup, accounts for the isRead fallback for
+  // cards never toggled this session) — toggling off that rather than
+  // blindly flipping the raw stored value, which would no-op when the two
+  // disagreed (e.g. clicking Close on an already-read, isRead-defaulted-open
+  // card wouldn't actually close it).
+  const toggleCircularAccordion = (notice, cardId, isOpen) => {
+    if (!isOpen && notice.id) {
       api.post(`/api/notices/${notice.id}/read`).catch(() => {});
     }
-    toggleAccordion(cardId);
+    setExpandedCards((previous) => ({ ...previous, [cardId]: !isOpen }));
   };
 
   const isAccordionOpen = (cardId, index) => {
@@ -1366,7 +1373,12 @@ const Parents = () => {
                 <h4 style={{ margin: '0 0 10px', color: '#3730a3', fontSize: isMobile ? '0.95rem' : '1.02rem', fontWeight: 700 }}>Recent Updates</h4>
                 {periodNoteUpdates.map((note) => {
                   const cardId = `periodnote-${note.id}`;
-                  const isOpen = !!expandedCards[cardId];
+                  // Once actually read (this session or a previous one), stay
+                  // expanded on future loads — expandedCards is local UI state
+                  // that resets on refresh, but isRead is persisted server-side.
+                  // Only genuinely-unread notes default to collapsed, so the
+                  // first open is still the one that fires the read POST.
+                  const isOpen = expandedCards[cardId] !== undefined ? expandedCards[cardId] : note.isRead;
                   return (
                     <div key={cardId} style={{ marginBottom: '8px', background: isOpen ? '#fff' : '#f5f6ff', borderRadius: '10px', border: `1px solid ${note.isRead ? '#e0e7ff' : '#818cf8'}`, overflow: 'hidden' }}>
                       <div style={{ padding: isMobile ? '10px' : '12px' }}>
@@ -1378,7 +1390,7 @@ const Parents = () => {
                         </div>
                         <p style={{ margin: '3px 0 8px', color: '#4338ca', fontSize: '0.78rem', fontWeight: 600 }}>By {note.senderName}</p>
                         <button
-                          onClick={() => openPeriodNoteUpdate(note, cardId)}
+                          onClick={() => openPeriodNoteUpdate(note, cardId, isOpen)}
                           style={{ border: '1px solid #6366f1', background: isOpen ? '#eef2ff' : '#4338ca', color: isOpen ? '#4338ca' : '#fff', borderRadius: '999px', padding: '6px 14px', fontWeight: 700, fontSize: '0.8rem', cursor: 'pointer' }}
                         >
                           {isOpen ? '▲ Close' : '▼ Open Update'}
@@ -1529,10 +1541,13 @@ const Parents = () => {
             {filteredCircularNotices.length ? filteredCircularNotices.map((notice, index) => {
               const cardId = `circular-${notice.id ?? index}`;
               // Deliberately not isAccordionOpen's shared "first item open by
-              // default" convenience — every notice starts collapsed so the
-              // read/opened count (toggleCircularAccordion's read POST) only
-              // ever fires on an actual tap, never just from being newest.
-              const isOpen = !!expandedCards[cardId];
+              // default" convenience — a genuinely unread notice starts
+              // collapsed so the read/opened count (toggleCircularAccordion's
+              // read POST) only ever fires on an actual tap, never just from
+              // being newest. Once actually read, it stays expanded across
+              // refreshes too — expandedCards is local UI state that resets
+              // on reload, but isRead is persisted server-side.
+              const isOpen = expandedCards[cardId] !== undefined ? expandedCards[cardId] : notice.isRead;
               const isDeepLinked = deepLinkNoticeId && String(notice.id) === deepLinkNoticeId;
 
               return (
@@ -1551,7 +1566,7 @@ const Parents = () => {
                       {notice.eventDate && ` · Important: ${formatDateIST(notice.eventDate, { day: '2-digit', month: 'short', year: 'numeric' })}`}
                     </p>
                     <button
-                      onClick={() => toggleCircularAccordion(notice, cardId)}
+                      onClick={() => toggleCircularAccordion(notice, cardId, isOpen)}
                       style={{ border: '1px solid #fb7185', background: isOpen ? '#fff1f2' : '#9f1239', color: isOpen ? '#9f1239' : '#fff', borderRadius: '999px', padding: '7px 16px', fontWeight: 700, fontSize: isMobile ? '0.8rem' : '0.85rem', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
                     >
                       {isOpen ? '▲ Close' : '▼ Open Notice'}
