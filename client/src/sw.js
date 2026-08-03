@@ -35,8 +35,16 @@ self.addEventListener('notificationclick', (event) => {
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(async (clientList) => {
       const existing = clientList[0];
       if (existing) {
-        if ('navigate' in existing) await existing.navigate(url);
-        return existing.focus();
+        try {
+          if ('navigate' in existing) await existing.navigate(url);
+          return existing.focus();
+        } catch {
+          // WindowClient.navigate() can throw in some browsers (notably iOS
+          // Safari's standalone home-screen PWA mode) — previously that
+          // exception was unhandled, so the tap did nothing at all instead
+          // of falling back to opening the URL directly.
+          return self.clients.openWindow(url);
+        }
       }
       return self.clients.openWindow(url);
     })
