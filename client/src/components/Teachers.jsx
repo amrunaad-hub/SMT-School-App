@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../api';
 import { formatDateKey, isSameDate, generateCalendarDays, buildWeekStrip, jsDayToApiDay } from '../utils/calendarHelpers';
+import { formatDateDMY } from '../utils/formatDate';
 
 // Fallback identity shown until the real logged-in teacher's profile resolves
 // (or permanently, for the shared demo `teacher` login / any account not yet
@@ -220,7 +221,7 @@ const AttendanceModal = ({ date, grade, division, divisionOptions, onDivisionCha
               </span>
             </div>
             <p style={{ margin: '0 0 8px', fontSize: '0.85rem', color: '#334155' }}>
-              <strong>Dates:</strong> {viewLeaveFor.leaveRequest.fromDate === viewLeaveFor.leaveRequest.toDate ? viewLeaveFor.leaveRequest.fromDate : `${viewLeaveFor.leaveRequest.fromDate} → ${viewLeaveFor.leaveRequest.toDate}`}
+              <strong>Dates:</strong> {viewLeaveFor.leaveRequest.fromDate === viewLeaveFor.leaveRequest.toDate ? formatDateDMY(viewLeaveFor.leaveRequest.fromDate) : `${formatDateDMY(viewLeaveFor.leaveRequest.fromDate)} → ${formatDateDMY(viewLeaveFor.leaveRequest.toDate)}`}
             </p>
             <p style={{ margin: '0 0 12px', fontSize: '0.85rem', color: '#334155' }}>
               <strong>Reason:</strong> {viewLeaveFor.leaveRequest.reason}
@@ -436,6 +437,7 @@ const Teachers = () => {
 
   const UPCOMING_LINKS = [
     { title: 'Exams', desc: 'Assessment schedules and marks.', color: '#b45309' },
+    { title: 'Attendance Module', desc: 'School-wide attendance analytics.', color: '#059669' },
   ];
 
   const cardBase = { background: '#fff', border: '1px solid #e2e8f0', borderRadius: '14px', padding: '16px', boxShadow: '0 4px 12px rgba(15,23,42,0.06)' };
@@ -444,7 +446,7 @@ const Teachers = () => {
     <div>
       <div style={{ marginBottom: '16px', padding: '12px 16px', borderRadius: '12px', background: isWorkingDay ? '#f0fdf4' : '#fffbeb', border: `1px solid ${isWorkingDay ? '#bbf7d0' : '#fde68a'}` }}>
         <strong style={{ color: isWorkingDay ? '#166534' : '#92400e' }}>{isWorkingDay ? '✅ Working Day' : '⚠ Holiday / Off Day'}</strong>
-        <span style={{ marginLeft: '10px', color: isWorkingDay ? '#166534' : '#92400e', fontSize: '0.88rem' }}>{DAY_LABELS[selectedDate.getDay()]}, {selectedDate.toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Asia/Kolkata' })}</span>
+        <span style={{ marginLeft: '10px', color: isWorkingDay ? '#166534' : '#92400e', fontSize: '0.88rem' }}>{formatDateDMY(selectedDate, { withWeekday: true })}</span>
       </div>
 
       {!isWorkingDay ? (
@@ -545,7 +547,6 @@ const Teachers = () => {
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px' }}>
       {[
         { title: 'Full Timetable', desc: 'View consolidated school timetable.', to: '/timetable', color: '#1d4ed8' },
-        { title: 'Attendance Module', desc: 'School-wide attendance analytics.', to: '/attendance', color: '#059669' },
         { title: 'Communication', desc: 'Send class circulars.', to: '/communication', color: '#7c3aed' },
       ].map((item) => (
         <a key={item.title} href={item.to} style={{ textDecoration: 'none', color: '#0f172a', ...cardBase, borderLeft: `5px solid ${item.color}` }}>
@@ -593,7 +594,7 @@ const Teachers = () => {
           <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: '6px' }}>
             <button type="button" onClick={() => navigateDay(-1)} style={{ border: '1px solid #bfdbfe', background: '#fff', borderRadius: '8px', padding: '6px 10px', cursor: 'pointer' }}>←</button>
             <button type="button" onClick={() => setShowDatePicker((v) => !v)} style={{ padding: '8px 14px', borderRadius: '12px', border: 'none', background: '#dbeafe', color: '#1e3a8a', fontWeight: 700, fontSize: '0.88rem', cursor: 'pointer' }}>
-              📅 {selectedDate.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+              📅 {formatDateDMY(selectedDate)}
             </button>
             <button type="button" onClick={() => navigateDay(1)} style={{ border: '1px solid #bfdbfe', background: '#fff', borderRadius: '8px', padding: '6px 10px', cursor: 'pointer' }}>→</button>
             {showDatePicker && <DatePicker selectedDate={selectedDate} onSelect={setSelectedDate} onClose={() => setShowDatePicker(false)} />}

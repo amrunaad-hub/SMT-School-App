@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../api';
 import { formatDateKey, isSameDate, generateCalendarDays } from '../utils/calendarHelpers';
+import { formatDateDMY } from '../utils/formatDate';
 
 const SUBJECTS_G1_G4 = [
   'Library', 'Maths', 'EVS', 'English', 'Hindi', 'Marathi', 'Yoga', 'Gym', 'Cyber / Computer',
@@ -19,9 +20,7 @@ const TIME_SLOTS = [
   '4:45-5:15', '5:15-5:30',
 ];
 
-const formatDateLabel = (date) => {
-  return date.toLocaleDateString('en-IN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', timeZone: 'Asia/Kolkata' });
-};
+const formatDateLabel = (date) => formatDateDMY(date, { withWeekday: true });
 
 const getAcademicYearLabel = (date) => {
   const year = date.getFullYear();

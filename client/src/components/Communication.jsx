@@ -6,6 +6,7 @@ import DOMPurify from 'dompurify';
 import 'react-quill-new/dist/quill.snow.css';
 import 'quill-table-better/dist/quill-table-better.css';
 import { api } from '../api';
+import { formatDateDMY } from '../utils/formatDate';
 
 // react-quill-new bundles Quill 2.x directly (unlike the old react-quill,
 // which was stuck on Quill 1.3.7) — quill-table-better is the Quill-2.x-native
@@ -345,10 +346,7 @@ const Communication = () => {
     return { activeNotices: active, archivedNotices: archived };
   }, [notices, todayStr]);
 
-  const formatDate = (dateStr) => {
-    if (!dateStr) return '-';
-    return new Date(dateStr).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'Asia/Kolkata' });
-  };
+  const formatDate = (dateStr) => (dateStr ? formatDateDMY(dateStr) : '-');
 
   const closeForm = () => {
     setForm(EMPTY_FORM);

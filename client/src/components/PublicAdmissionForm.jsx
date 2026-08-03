@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { formatDateDMY } from '../utils/formatDate';
 
 const GRADES = Array.from({ length: 10 }, (_, i) => i + 1);
 const DRAFT_STORAGE_KEY = 'smt-school-admission-draft-token';
@@ -530,7 +531,7 @@ const PublicAdmissionForm = () => {
           <div>
             <h3 style={{ marginTop: 0 }}>Review</h3>
             <div style={{ display: 'grid', gap: '6px', fontSize: '0.9rem', color: '#334155' }}>
-              <p><strong>Child:</strong> {form.childName} {form.dob ? `(DOB ${form.dob})` : ''} {form.gender ? `· ${form.gender}` : ''}</p>
+              <p><strong>Child:</strong> {form.childName} {form.dob ? `(DOB ${formatDateDMY(form.dob)})` : ''} {form.gender ? `· ${form.gender}` : ''}</p>
               <p><strong>Applying for:</strong> Grade {form.applyingForGrade || '—'} · {form.enquiryType}</p>
               <p><strong>Guardians:</strong> {form.guardiansDraft.filter((g) => g.fullName).length} added{(() => {
                 const primary = form.guardiansDraft.find((g) => g.isPrimary);

@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { api } from '../api';
+import { formatDateDMY } from '../utils/formatDate';
 
 const STATUS_BADGE = { Pending: { bg: '#fef3c7', color: '#92400e' }, Approved: { bg: '#dcfce7', color: '#166534' }, Rejected: { bg: '#fee2e2', color: '#991b1b' } };
 const FIELD_LABELS = {
@@ -99,7 +100,7 @@ const EditRequests = () => {
               <div>
                 <strong>{r.studentName}</strong> <span style={{ color: '#94a3b8', fontSize: '0.8rem' }}>({r.studentCode})</span>
                 <div style={{ fontSize: '0.8rem', color: '#64748b' }}>
-                  {r.kind === 'fields' ? 'Field change' : 'Document'} · requested by {r.requesterUsername} · {new Date(r.createdAt).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata' })}
+                  {r.kind === 'fields' ? 'Field change' : 'Document'} · requested by {r.requesterUsername} · {formatDateDMY(r.createdAt)}
                 </div>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -122,13 +123,17 @@ const EditRequests = () => {
                 <div style={{ ...rowStyle, fontWeight: 700, color: '#475569' }}>
                   <div>Field</div><div>Current</div><div>Proposed</div>
                 </div>
-                {Object.entries(activeRequest.changes || {}).map(([key, value]) => (
-                  <div key={key} style={rowStyle}>
-                    <div>{FIELD_LABELS[key] || key}</div>
-                    <div style={{ color: '#94a3b8' }}>{currentStudent ? (currentStudent[key] || '—') : 'Loading…'}</div>
-                    <div style={{ fontWeight: 600 }}>{value || '—'}</div>
-                  </div>
-                ))}
+                {Object.entries(activeRequest.changes || {}).map(([key, value]) => {
+                  const isDateField = key === 'dob' || key.endsWith('Date');
+                  const currentVal = currentStudent ? currentStudent[key] : null;
+                  return (
+                    <div key={key} style={rowStyle}>
+                      <div>{FIELD_LABELS[key] || key}</div>
+                      <div style={{ color: '#94a3b8' }}>{currentStudent ? ((isDateField ? formatDateDMY(currentVal) : currentVal) || '—') : 'Loading…'}</div>
+                      <div style={{ fontWeight: 600 }}>{(isDateField ? formatDateDMY(value) : value) || '—'}</div>
+                    </div>
+                  );
+                })}
               </div>
             ) : (
               <div>

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { api } from '../api';
 import { INDIAN_STATES, districtsForState } from '../utils/indiaStatesDistricts';
+import { formatDateDMY } from '../utils/formatDate';
 
 const DOC_TYPES = ['Birth Certificate', 'Aadhar', 'Transfer Certificate', 'Photo', 'Medical Certificate', 'Other'];
 
@@ -292,7 +293,7 @@ const ParentStudentProfile = ({ studentId, isMobile }) => {
           <div style={detailStyle}>
             {FIELDS_FOR_TAB[activeTab].map((f) => (
               <div key={f.key} style={fieldStyle}>
-                <strong>{f.label}{f.locked && <span style={lockBadge}>🔒</span>}:</strong> {student[f.key] || '—'}
+                <strong>{f.label}{f.locked && <span style={lockBadge}>🔒</span>}:</strong> {(f.type === 'date' ? formatDateDMY(student[f.key]) : student[f.key]) || '—'}
               </div>
             ))}
           </div>

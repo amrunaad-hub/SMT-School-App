@@ -3,7 +3,7 @@ import { jsPDF } from 'jspdf';
 import DOMPurify from 'dompurify';
 import { api } from '../api';
 import ParentStudentProfile from './ParentStudentProfile';
-import { formatDateIST, formatDateTimeIST } from '../utils/formatDate';
+import { formatDateIST, formatDateTimeIST, formatDateDMY, formatDateTimeDMY } from '../utils/formatDate';
 
 // currentStudent.grade is a display string ("Grade 3"); the timetable/notes
 // APIs need the bare numeric grade.
@@ -449,8 +449,8 @@ const Parents = () => {
   }, [attendanceData]);
 
   const adminNotes = useMemo(() => [
-    { id: 1, author: 'Ms. Smita Naik', role: 'Principal', text: 'Repeated absenteeism observed. Please ensure regular attendance to avoid impact on academics and term completion.', timestamp: '14 Apr 2026, 10:30 AM', priority: 'high' },
-    { id: 2, author: 'Ms. Rekha Iyer', role: 'Class Teacher', text: 'Please visit school and meet the class teacher to discuss recent absence pattern. Next PTM is 20 April.', timestamp: '10 Apr 2026, 02:15 PM', priority: 'medium' },
+    { id: 1, author: 'Ms. Smita Naik', role: 'Principal', text: 'Repeated absenteeism observed. Please ensure regular attendance to avoid impact on academics and term completion.', timestamp: '14-APR-2026, 10:30 AM', priority: 'high' },
+    { id: 2, author: 'Ms. Rekha Iyer', role: 'Class Teacher', text: 'Please visit school and meet the class teacher to discuss recent absence pattern. Next PTM is 20 April.', timestamp: '10-APR-2026, 02:15 PM', priority: 'medium' },
   ], []);
 
   const pushNotification = (message, type = 'success') => {
@@ -566,10 +566,10 @@ const Parents = () => {
       `Grade / Division: ${student.grade} ${student.division}`,
       `Roll No: ${student.rollNo}`,
       `Amount Paid: ${formatCurrency(instalment.amount)}`,
-      `Payment Date: ${instalment.paidOn || 'N/A'}`,
+      `Payment Date: ${instalment.paidOn ? formatDateDMY(instalment.paidOn) : 'N/A'}`,
       `Payment Mode: ${instalment.mode || 'N/A'}`,
-      `Installment Due Date: ${instalment.dueDate}`,
-      `Generated On: ${formatDateTimeIST(new Date())}`,
+      `Installment Due Date: ${formatDateDMY(instalment.dueDate)}`,
+      `Generated On: ${formatDateTimeDMY(new Date())}`,
     ];
 
     lines.forEach((line) => {
@@ -1138,8 +1138,8 @@ const Parents = () => {
                             {req.category && <span style={{ padding: '2px 8px', borderRadius: '999px', background: '#f1f5f9', color: '#475569', fontWeight: 700, fontSize: '0.72rem' }}>{req.category}</span>}
                             <span style={{ padding: '2px 8px', borderRadius: '999px', background: sb.bg, color: sb.color, fontWeight: 700, fontSize: '0.72rem' }}>{req.status}</span>
                           </div>
-                          <p style={{ margin: '4px 0 0', color: '#475569', fontSize: '0.82rem' }}>{req.fromDate === req.toDate ? req.fromDate : `${req.fromDate} → ${req.toDate}`} · {req.reason}</p>
-                          <p style={{ margin: '3px 0 0', color: '#94a3b8', fontSize: '0.74rem' }}>Submitted: {formatDateTimeIST(req.submittedAt, { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}{req.approvedBy ? ` · Approved by: ${req.approvedBy} at ${formatDateTimeIST(req.approvedAt, { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}` : ''}</p>
+                          <p style={{ margin: '4px 0 0', color: '#475569', fontSize: '0.82rem' }}>{req.fromDate === req.toDate ? formatDateDMY(req.fromDate) : `${formatDateDMY(req.fromDate)} → ${formatDateDMY(req.toDate)}`} · {req.reason}</p>
+                          <p style={{ margin: '3px 0 0', color: '#94a3b8', fontSize: '0.74rem' }}>Submitted: {formatDateTimeDMY(req.submittedAt)}{req.approvedBy ? ` · Approved by: ${req.approvedBy} at ${formatDateTimeDMY(req.approvedAt)}` : ''}</p>
                         </div>
                       </div>
                     </div>
@@ -1163,7 +1163,7 @@ const Parents = () => {
                       style={{ padding: '11px 14px', background: '#fff', borderRadius: '8px', border: `2px solid ${bg}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px', flexWrap: 'wrap', cursor: clickable ? 'pointer' : 'default', boxShadow: `0 2px 8px ${bg}18` }}
                     >
                       <div style={{ flex: 1, minWidth: '160px' }}>
-                        <strong style={{ color: '#166534', fontSize: isMobile ? '0.85rem' : '0.92rem' }}>{formatDateIST(day.date, { weekday: 'short', month: 'short', day: 'numeric' })}</strong>
+                        <strong style={{ color: '#166534', fontSize: isMobile ? '0.85rem' : '0.92rem' }}>{formatDateDMY(day.date)}</strong>
                         {day.reason && <p style={{ margin: '2px 0 0', color: '#666', fontSize: '0.78rem' }}>{day.reason}</p>}
                       </div>
                       <span style={{ background: bg, color: '#fff', padding: '5px 11px', borderRadius: '6px', fontWeight: 700, fontSize: '0.78rem', whiteSpace: 'nowrap' }}>{label}</span>
@@ -1244,7 +1244,7 @@ const Parents = () => {
                     <button type="button" onClick={() => setSelectedDateDetail(null)} style={{ background: 'none', border: 'none', fontSize: '1.4rem', cursor: 'pointer', color: '#64748b' }}>×</button>
                   </div>
                   <div style={{ padding: '12px 14px', borderRadius: '12px', background: '#f8fafc', border: '1px solid #e2e8f0', marginBottom: '16px' }}>
-                    <p style={{ margin: 0, fontWeight: 700, color: '#0f172a' }}>{formatDateIST(selectedDateDetail.date, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</p>
+                    <p style={{ margin: 0, fontWeight: 700, color: '#0f172a' }}>{formatDateDMY(selectedDateDetail.date, { withWeekday: true })}</p>
                     <p style={{ margin: '6px 0 0', color: '#475569', fontSize: '0.88rem' }}>{selectedDateDetail.reason || selectedDateDetail.type}</p>
                     <span style={{ display: 'inline-block', marginTop: '8px', padding: '4px 12px', borderRadius: '999px', background: getStatusColor(selectedDateDetail.status, selectedDateDetail.type), color: '#fff', fontWeight: 700, fontSize: '0.78rem' }}>{getStatusLabel(selectedDateDetail.status, selectedDateDetail.type)}</span>
                   </div>
@@ -1384,7 +1384,7 @@ const Parents = () => {
                       <div style={{ padding: isMobile ? '10px' : '12px' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
                           <p style={{ margin: 0, color: '#3730a3', fontWeight: 800, fontSize: isMobile ? '0.85rem' : '0.9rem' }}>
-                            {formatDateIST(note.date, { day: '2-digit', month: 'short' })} · Period {note.periodIndex}{note.subject ? ` · ${note.subject}` : ''}
+                            {formatDateDMY(note.date)} · Period {note.periodIndex}{note.subject ? ` · ${note.subject}` : ''}
                           </p>
                           {!note.isRead && <span style={{ padding: '1px 8px', borderRadius: '999px', background: '#818cf8', color: '#fff', fontSize: '0.65rem', fontWeight: 700 }}>NEW</span>}
                         </div>
@@ -1451,7 +1451,7 @@ const Parents = () => {
                 <button onClick={() => setActivityDrillLevel('month')} style={backLinkStyle}>← Back to Month</button>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', marginBottom: '10px' }}>
                   <button onClick={() => changeActivityWeek(-1)} style={navButtonStyle}>←</button>
-                  <h4 style={{ margin: 0, color: '#3730a3', fontSize: isMobile ? '1.02rem' : '1.1rem', fontWeight: 700 }}>Week of {formatDateIST(activityWeekStrip[0], { day: '2-digit', month: 'short' })}</h4>
+                  <h4 style={{ margin: 0, color: '#3730a3', fontSize: isMobile ? '1.02rem' : '1.1rem', fontWeight: 700 }}>Week of {formatDateDMY(activityWeekStrip[0])}</h4>
                   <button onClick={() => changeActivityWeek(1)} style={navButtonStyle}>→</button>
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '6px' }}>
@@ -1482,7 +1482,7 @@ const Parents = () => {
               <>
                 <button onClick={() => setActivityDrillLevel('week')} style={backLinkStyle}>← Back to Week</button>
                 <div style={{ background: '#fff', borderRadius: '12px', border: '1px solid #c7d2fe', padding: isMobile ? '10px' : '14px', marginBottom: '14px' }}>
-                  <h4 style={{ margin: '0 0 10px', color: '#3730a3', fontSize: isMobile ? '1.02rem' : '1.1rem', fontWeight: 700 }}>{formatDateIST(selectedActivityDate, { weekday: 'long', day: '2-digit', month: 'short', year: 'numeric' })}</h4>
+                  <h4 style={{ margin: '0 0 10px', color: '#3730a3', fontSize: isMobile ? '1.02rem' : '1.1rem', fontWeight: 700 }}>{formatDateDMY(selectedActivityDate, { withWeekday: true })}</h4>
                   <input
                     value={activitySearch}
                     onChange={(e) => setActivitySearch(e.target.value)}
@@ -1562,8 +1562,8 @@ const Parents = () => {
                       <p style={{ margin: '2px 0 0', color: '#9f1239', fontWeight: 600, fontSize: isMobile ? '0.72rem' : '0.78rem' }}>By {notice.issuedBy}</p>
                     )}
                     <p style={{ margin: '4px 0 10px', color: '#be123c', fontWeight: 700, fontSize: isMobile ? '0.75rem' : '0.82rem' }}>
-                      Sent: {formatDateIST(notice.date, { day: '2-digit', month: 'short', year: 'numeric' })}
-                      {notice.eventDate && ` · Important: ${formatDateIST(notice.eventDate, { day: '2-digit', month: 'short', year: 'numeric' })}`}
+                      Sent: {formatDateDMY(notice.date)}
+                      {notice.eventDate && ` · Important: ${formatDateDMY(notice.eventDate)}`}
                     </p>
                     <button
                       onClick={() => toggleCircularAccordion(notice, cardId, isOpen)}
@@ -1619,8 +1619,8 @@ const Parents = () => {
             {currentFeeDetails.instalments.map((inst, index) => (
               <div key={index} style={{ background: '#fff', padding: isMobile ? '10px' : '12px', borderRadius: '8px', marginBottom: '8px', border: `2px solid ${inst.status === 'paid' ? '#dcfce7' : '#fef3c7'}`, minHeight: isMobile ? '44px' : 'auto', display: 'flex', flexDirection: isMobile ? 'column' : 'row', justifyContent: 'space-between', alignItems: isMobile ? 'flex-start' : 'center', gap: '8px' }}>
                 <div>
-                  <p style={{ margin: 0, fontSize: isMobile ? '0.85rem' : '0.95rem' }}><strong>{inst.dueDate}:</strong> {formatCurrency(inst.amount)}</p>
-                  {inst.status === 'paid' && <p style={{ margin: '4px 0 0', fontSize: isMobile ? '0.75rem' : '0.82rem', color: '#166534' }}>Paid on {inst.paidOn} via {inst.mode}</p>}
+                  <p style={{ margin: 0, fontSize: isMobile ? '0.85rem' : '0.95rem' }}><strong>{formatDateDMY(inst.dueDate)}:</strong> {formatCurrency(inst.amount)}</p>
+                  {inst.status === 'paid' && <p style={{ margin: '4px 0 0', fontSize: isMobile ? '0.75rem' : '0.82rem', color: '#166534' }}>Paid on {formatDateDMY(inst.paidOn)} via {inst.mode}</p>}
                 </div>
                 <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
                   <span style={{ background: inst.status === 'paid' ? '#10b981' : '#f59e0b', color: '#fff', padding: isMobile ? '4px 8px' : '6px 12px', borderRadius: '4px', fontWeight: '600', fontSize: isMobile ? '0.75rem' : '0.85rem', whiteSpace: 'nowrap' }}>{inst.status.toUpperCase()}</span>
@@ -1969,7 +1969,7 @@ const Parents = () => {
                 {receiptPreview.entries.map((entry, index) => (
                   <div key={`${entry.student.id}-${entry.instalment.id}-${index}`} style={{ padding: '10px 12px', borderBottom: index === receiptPreview.entries.length - 1 ? 'none' : '1px solid #f1f5f9' }}>
                     <p style={{ margin: 0, fontWeight: 700, color: '#1f2937', fontSize: isMobile ? '0.82rem' : '0.9rem' }}>{entry.student.name} ({entry.student.rollNo})</p>
-                    <p style={{ margin: '4px 0 0', color: '#475569', fontSize: isMobile ? '0.78rem' : '0.84rem' }}>{entry.instalment.id} • {formatCurrency(entry.instalment.amount)} • Paid on {entry.instalment.paidOn}</p>
+                    <p style={{ margin: '4px 0 0', color: '#475569', fontSize: isMobile ? '0.78rem' : '0.84rem' }}>{entry.instalment.id} • {formatCurrency(entry.instalment.amount)} • Paid on {formatDateDMY(entry.instalment.paidOn)}</p>
                   </div>
                 ))}
               </div>

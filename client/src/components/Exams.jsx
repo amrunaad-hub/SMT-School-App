@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { api } from '../api';
+import { formatDateDMY } from '../utils/formatDate';
 
 const STATUS_COLORS = {
   Scheduled: { bg: '#dbeafe', color: '#1e3a8a' },
@@ -46,12 +47,7 @@ const Exams = () => {
     color: 'inherit',
   };
 
-  const formatDate = (dateStr) => {
-    if (!dateStr) return '-';
-    return new Date(dateStr).toLocaleDateString('en-IN', {
-      day: '2-digit', month: 'short', year: 'numeric', timeZone: 'Asia/Kolkata',
-    });
-  };
+  const formatDate = (dateStr) => (dateStr ? formatDateDMY(dateStr) : '-');
 
   return (
     <main style={{ padding: '24px', maxWidth: '1220px', margin: '0 auto' }}>

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { api } from '../api';
+import { formatDateTimeDMY } from '../utils/formatDate';
 
 const floors = [1, 2, 3, 4, 5, 6];
 
@@ -29,7 +30,7 @@ const PhotoUploadSlot = ({ label, photoData, onUpload }) => {
     const file = e.target.files[0];
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = (ev) => onUpload({ dataUrl: ev.target.result, timestamp: new Date().toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true, timeZone: 'Asia/Kolkata' }) });
+    reader.onload = (ev) => onUpload({ dataUrl: ev.target.result, timestamp: formatDateTimeDMY(new Date()) });
     reader.readAsDataURL(file);
   };
 

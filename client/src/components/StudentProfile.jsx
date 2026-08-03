@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api } from '../api';
 import { INDIAN_STATES, districtsForState } from '../utils/indiaStatesDistricts';
+import { formatDateDMY } from '../utils/formatDate';
 
 const RELATIONS = ['Father', 'Mother', 'Guardian', 'Other'];
 const DOC_TYPES = ['Birth Certificate', 'Aadhar', 'Transfer Certificate', 'Photo', 'Medical Certificate', 'Other'];
@@ -238,7 +239,7 @@ const StudentProfile = () => {
               <div style={fieldStyle}><strong>Roll Number:</strong> {student.rollNo}</div>
               <div style={fieldStyle}><strong>Grade:</strong> Grade {student.grade} {student.division.charAt(0).toUpperCase() + student.division.slice(1)}</div>
               <div style={fieldStyle}><strong>Gender:</strong> {student.gender || '—'}</div>
-              <div style={fieldStyle}><strong>Date of Birth:</strong> {student.dob ? new Date(student.dob).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata' }) : '—'}</div>
+              <div style={fieldStyle}><strong>Date of Birth:</strong> {formatDateDMY(student.dob) || '—'}</div>
               <div style={fieldStyle}><strong>Admission Year:</strong> {student.admissionYear || '—'}</div>
               <div style={fieldStyle}><strong>Status:</strong> {student.status}</div>
               <div style={fieldStyle}><strong>RTE:</strong> {student.isRte ? 'Yes' : 'No'}</div>
@@ -265,7 +266,7 @@ const StudentProfile = () => {
                 <div style={fieldStyle}><strong>GR No / Saral No:</strong> {student.grNo || '—'} / {student.studentSaralNo || '—'}</div>
                 <div style={fieldStyle}><strong>PEN / APAAR ID:</strong> {student.penNo || '—'} / {student.apaarId || '—'}</div>
                 <div style={fieldStyle}><strong>Aadhar No:</strong> {student.aadharNumber || '—'}</div>
-                <div style={fieldStyle}><strong>Admission Date:</strong> {student.admissionDate ? new Date(student.admissionDate).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata' }) : '—'}</div>
+                <div style={fieldStyle}><strong>Admission Date:</strong> {formatDateDMY(student.admissionDate) || '—'}</div>
               </div>
             </div>
 
@@ -289,8 +290,8 @@ const StudentProfile = () => {
                 <div style={fieldStyle}><strong>Medium:</strong> {student.previousSchoolMedium || '—'}</div>
                 <div style={fieldStyle}><strong>Pass Year / Seat No:</strong> {student.previousSchoolPassYear || '—'} / {student.previousSchoolSeatNumber || '—'}</div>
                 <div style={fieldStyle}><strong>% Marks:</strong> {student.previousSchoolPercentage || '—'}</div>
-                <div style={fieldStyle}><strong>LC Number / Date:</strong> {student.previousSchoolLcNumber || '—'} / {student.previousSchoolLcDate ? new Date(student.previousSchoolLcDate).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata' }) : '—'}</div>
-                <div style={fieldStyle}><strong>Leave Date:</strong> {student.previousSchoolLeaveDate ? new Date(student.previousSchoolLeaveDate).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata' }) : '—'}</div>
+                <div style={fieldStyle}><strong>LC Number / Date:</strong> {student.previousSchoolLcNumber || '—'} / {formatDateDMY(student.previousSchoolLcDate) || '—'}</div>
+                <div style={fieldStyle}><strong>Leave Date:</strong> {formatDateDMY(student.previousSchoolLeaveDate) || '—'}</div>
                 <div style={fieldStyle}><strong>Reason for Leaving:</strong> {student.previousSchoolReasonLeave || '—'}</div>
                 <div style={fieldStyle}><strong>Remarks:</strong> {student.previousSchoolRemarks || '—'}</div>
                 <div style={fieldStyle}>
