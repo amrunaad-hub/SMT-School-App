@@ -45,8 +45,6 @@ const Header = ({ role = 'admin', onLogout, homePath = '/' }) => {
         { to: '/timetable', label: '⏰ Timetable' },
         { to: '/communication', label: '💬 Communication' },
         { to: '/edit-requests', label: '✏️ Edit Requests' },
-        { to: '/teachers', label: '👩‍🏫 Teachers Portal' },
-        { to: '/parents', label: '👨‍👩‍👧 Parents Portal' },
     ];
 
     const adminUpcomingGroup = {
@@ -146,7 +144,7 @@ const Header = ({ role = 'admin', onLogout, homePath = '/' }) => {
                 </div>
             </Link>
             <nav style={{ width: isMobile ? '100%' : 'auto', overflow: 'visible' }}>
-                <ul style={{ display: 'flex', gap: '10px', listStyle: 'none', margin: 0, padding: 0, flexWrap: isMobile ? 'wrap' : 'nowrap', overflow: 'visible', scrollbarWidth: 'thin' }}>
+                <ul style={{ display: 'flex', gap: '10px', listStyle: 'none', margin: 0, padding: 0, flexWrap: 'wrap', overflow: 'visible', scrollbarWidth: 'thin' }}>
                     {(isAdmin || isPrincipal) ? (
                         <>
                             <li style={mobileNavItemStyle}>
