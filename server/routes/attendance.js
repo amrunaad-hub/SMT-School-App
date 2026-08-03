@@ -81,7 +81,39 @@ router.get('/', auth, async (req, res) => {
       { column: 'attendance.grade' }, { column: 'attendance.division' }, { column: 'attendance.roll_no' },
     ]);
 
-    return res.json(rows.map(shapeRecord));
+    // Any regularization/leave request a parent has filed covering this date,
+    // for the students on this list — so a teacher reviewing an already-
+    // locked day's records can see a parent's response, not just her own
+    // original mark/reason. Same join the roster endpoint below already does
+    // pre-lock; this is the equivalent for the post-lock records view.
+    const studentIds = rows.map((r) => r.student_id);
+    const leaveByStudent = new Map();
+    let leaveDocsByLeaveId = {};
+    if (studentIds.length) {
+      const leaveRows = await db('leave_requests')
+        .where('from_date', '<=', date).where('to_date', '>=', date)
+        .whereIn('student_id', studentIds)
+        .orderBy('created_at', 'desc');
+      leaveRows.forEach((l) => { if (!leaveByStudent.has(l.student_id)) leaveByStudent.set(l.student_id, l); });
+
+      const leaveIds = leaveRows.map((l) => l.id);
+      if (leaveIds.length) {
+        const docs = await db('documents').where({ owner_type: 'leave_request' }).whereIn('owner_id', leaveIds);
+        docs.forEach((d) => {
+          if (!leaveDocsByLeaveId[d.owner_id]) leaveDocsByLeaveId[d.owner_id] = [];
+          leaveDocsByLeaveId[d.owner_id].push({ id: d.id, docType: d.doc_type, fileUrl: d.file_url, originalFilename: d.original_filename });
+        });
+      }
+    }
+
+    return res.json(rows.map((row) => {
+      const shaped = shapeRecord(row);
+      const leave = leaveByStudent.get(row.student_id);
+      shaped.leaveRequest = leave
+        ? { id: leave.id, type: leave.type, category: leave.category, fromDate: leave.from_date, toDate: leave.to_date, reason: leave.reason, status: leave.status, submittedAt: leave.created_at, documents: leaveDocsByLeaveId[leave.id] || [] }
+        : null;
+      return shaped;
+    }));
   } catch (err) {
     console.error('GET /api/attendance error:', err.message);
     return res.status(500).json({ message: 'Server error' });

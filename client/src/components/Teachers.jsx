@@ -539,9 +539,18 @@ const Teachers = () => {
             <h4 style={{ margin: '0 0 10px', color }}>{title} ({list.length})</h4>
             <div style={{ display: 'grid', gap: '6px' }}>
               {list.map((e) => (
-                <div key={e.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', borderRadius: '8px', background: bg }}>
+                <div key={e.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', borderRadius: '8px', background: bg, flexWrap: 'wrap', gap: '6px' }}>
                   <span style={{ fontWeight: 700, color: '#0f172a', fontSize: '0.88rem' }}>{e.student.firstName} {e.student.lastName}</span>
                   <span style={{ color: '#64748b', fontSize: '0.8rem' }}>Roll {e.rollNo}{e.reason ? ` · ${e.reason}` : ''}</span>
+                  {e.leaveRequest && (
+                    <button
+                      type="button"
+                      onClick={() => setViewLeaveFor({ firstName: e.student.firstName, lastName: e.student.lastName, leaveRequest: e.leaveRequest })}
+                      style={{ marginLeft: 'auto', fontSize: '0.7rem', color: '#1d4ed8', fontWeight: 700, background: 'none', border: 'none', textDecoration: 'underline', cursor: 'pointer', padding: 0 }}
+                    >
+                      📩 Parent's regularization response
+                    </button>
+                  )}
                 </div>
               ))}
             </div>

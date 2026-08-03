@@ -43,7 +43,7 @@ const Parents = () => {
   const [attachmentMap, setAttachmentMap] = useState({});
   const [expandedCards, setExpandedCards] = useState({});
   const [showLeaveModal, setShowLeaveModal] = useState(false);
-  const [leaveForm, setLeaveForm] = useState({ category: 'Casual', fromDate: '', toDate: '', reason: '', document: null, docName: '' });
+  const [leaveForm, setLeaveForm] = useState({ category: 'Casual', fromDate: '', toDate: '', reason: '', teacherNote: '', document: null, docName: '' });
   const [leaveFormErrors, setLeaveFormErrors] = useState({});
   const [leaveSubmitting, setLeaveSubmitting] = useState(false);
   const [selectedDateDetail, setSelectedDateDetail] = useState(null);
@@ -1020,7 +1020,7 @@ const Parents = () => {
                   .then((res) => { if (!res.ok) pushNotification('Leave submitted, but the document failed to attach.', 'error'); })
                   .catch(() => pushNotification('Leave submitted, but the document failed to attach.', 'error'));
               }
-              setLeaveForm({ category: 'Casual', fromDate: '', toDate: '', reason: '', document: null, docName: '' });
+              setLeaveForm({ category: 'Casual', fromDate: '', toDate: '', reason: '', teacherNote: '', document: null, docName: '' });
               setLeaveFormErrors({});
               pushNotification(successMsg);
             })
@@ -1030,7 +1030,7 @@ const Parents = () => {
               setLeaveRequests((prev) => [...prev, newReq]);
               setLeaveSubmitting(false);
               setShowLeaveModal(false);
-              setLeaveForm({ category: 'Casual', fromDate: '', toDate: '', reason: '', document: null, docName: '' });
+              setLeaveForm({ category: 'Casual', fromDate: '', toDate: '', reason: '', teacherNote: '', document: null, docName: '' });
               setLeaveFormErrors({});
               pushNotification(successMsg);
             });
@@ -1047,7 +1047,7 @@ const Parents = () => {
                 type="button"
                 onClick={() => {
                   const todayStr = new Date().toISOString().slice(0, 10);
-                  setLeaveForm((f) => ({ ...f, fromDate: todayStr, toDate: todayStr }));
+                  setLeaveForm((f) => ({ ...f, fromDate: todayStr, toDate: todayStr, teacherNote: '' }));
                   setShowLeaveModal(true);
                 }}
                 style={{ padding: '9px 18px', borderRadius: '10px', border: 'none', background: '#16a34a', color: '#fff', fontWeight: 800, cursor: 'pointer', fontSize: '0.88rem', boxShadow: '0 3px 10px rgba(22,163,74,0.3)' }}
@@ -1214,8 +1214,15 @@ const Parents = () => {
                     </div>
                   </div>
 
+                  {leaveForm.teacherNote && (
+                    <div style={{ marginBottom: '14px', padding: '10px 12px', borderRadius: '9px', background: '#f8fafc', border: '1px solid #e2e8f0' }}>
+                      <p style={{ margin: 0, fontWeight: 700, color: '#334155', fontSize: '0.78rem' }}>Teacher's note (for reference only)</p>
+                      <p style={{ margin: '4px 0 0', color: '#475569', fontSize: '0.86rem' }}>{leaveForm.teacherNote}</p>
+                    </div>
+                  )}
+
                   <div style={{ marginBottom: '14px' }}>
-                    <label style={{ display: 'block', fontWeight: 700, color: '#334155', marginBottom: '5px', fontSize: '0.88rem' }}>Reason / Justification <span style={{ color: '#dc2626' }}>*</span></label>
+                    <label style={{ display: 'block', fontWeight: 700, color: '#334155', marginBottom: '5px', fontSize: '0.88rem' }}>Your Reason / Justification <span style={{ color: '#dc2626' }}>*</span></label>
                     <textarea rows={3} value={leaveForm.reason} onChange={(e) => { setLeaveForm((f) => ({ ...f, reason: e.target.value })); setLeaveFormErrors((err) => ({ ...err, reason: '' })); }} placeholder="Describe reason in detail..." style={{ ...fieldStyle, resize: 'vertical', borderColor: leaveFormErrors.reason ? '#dc2626' : '#cbd5e1' }} />
                     {leaveFormErrors.reason && <p style={errStyle}>{leaveFormErrors.reason}</p>}
                   </div>
@@ -1252,7 +1259,11 @@ const Parents = () => {
                     <button
                       type="button"
                       onClick={() => {
-                        setLeaveForm((f) => ({ ...f, fromDate: selectedDateDetail.date, toDate: selectedDateDetail.date, reason: selectedDateDetail.reason || '' }));
+                        // The teacher's own note is shown as read-only context in the
+                        // form (teacherNote), never pre-filled into the editable Reason
+                        // field — that's the parent's own regularization response, not
+                        // a place to silently inherit/overwrite the teacher's text.
+                        setLeaveForm((f) => ({ ...f, fromDate: selectedDateDetail.date, toDate: selectedDateDetail.date, reason: '', teacherNote: selectedDateDetail.reason || '' }));
                         setSelectedDateDetail(null);
                         setShowLeaveModal(true);
                       }}
