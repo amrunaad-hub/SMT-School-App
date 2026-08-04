@@ -85,6 +85,9 @@ const AudiencePicker = ({ audience, onChange, inputStyle, labelStyle }) => {
   const [teacherSearch, setTeacherSearch] = useState('');
   const [teacherResults, setTeacherResults] = useState([]);
   const [selectedTeachers, setSelectedTeachers] = useState([]);
+  const [teacherBrowseMode, setTeacherBrowseMode] = useState(true);
+  const [teacherGrade, setTeacherGrade] = useState(3);
+  const [teacherDivision, setTeacherDivision] = useState('alpha');
   const [studentGrade, setStudentGrade] = useState(3);
   const [studentDivision, setStudentDivision] = useState('alpha');
   const [studentSearch, setStudentSearch] = useState('');
@@ -94,10 +97,20 @@ const AudiencePicker = ({ audience, onChange, inputStyle, labelStyle }) => {
 
   useEffect(() => {
     if (audience.allTeachers) return;
-    api.get('/api/staff', { category: 'Teaching', search: teacherSearch })
+    api.get('/api/staff', { category: 'Teaching', search: teacherBrowseMode ? '' : teacherSearch })
       .then((data) => setTeacherResults(data.staff || []))
       .catch(() => setTeacherResults([]));
-  }, [audience.allTeachers, teacherSearch]);
+  }, [audience.allTeachers, teacherSearch, teacherBrowseMode]);
+
+  // In "browse by class" mode, only teachers actually assigned to (or the
+  // class teacher of) the selected grade+division — mirrors the Specific
+  // Students picker below instead of the old name-search-only flow.
+  const visibleTeacherResults = teacherBrowseMode
+    ? teacherResults.filter((t) => (
+      (t.classAssignments || []).some((c) => c.grade === teacherGrade && c.division === teacherDivision)
+      || (t.currentClassTeacherOf || []).some((c) => c.grade === teacherGrade && c.division === teacherDivision)
+    ))
+    : teacherResults;
 
   useEffect(() => {
     api.get('/api/students', { grade: studentGrade, division: studentDivision, search: studentSearch, limit: 40 })
@@ -195,15 +208,30 @@ const AudiencePicker = ({ audience, onChange, inputStyle, labelStyle }) => {
         </label>
         {!audience.allTeachers && (
           <div>
-            <input style={{ ...inputStyle, width: '260px', marginBottom: '8px' }} placeholder="Search teacher name..." value={teacherSearch} onChange={(e) => setTeacherSearch(e.target.value)} />
-            {teacherSearch.trim() && (
+            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '8px' }}>
+              <button type="button" onClick={() => setTeacherBrowseMode(true)} style={{ ...pillStyle(teacherBrowseMode, false), border: 'none' }}>By Grade &amp; Division</button>
+              <button type="button" onClick={() => setTeacherBrowseMode(false)} style={{ ...pillStyle(!teacherBrowseMode, false), border: 'none' }}>By Name</button>
+            </div>
+            {teacherBrowseMode ? (
+              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '8px' }}>
+                <select style={{ ...inputStyle, width: 'auto' }} value={teacherGrade} onChange={(e) => setTeacherGrade(Number(e.target.value))}>
+                  {GRADES.map((g) => <option key={g} value={g}>Grade {g}</option>)}
+                </select>
+                <select style={{ ...inputStyle, width: 'auto' }} value={teacherDivision} onChange={(e) => setTeacherDivision(e.target.value)}>
+                  {DIVISIONS.map((d) => <option key={d} value={d}>{d}</option>)}
+                </select>
+              </div>
+            ) : (
+              <input style={{ ...inputStyle, width: '260px', marginBottom: '8px' }} placeholder="Search teacher name..." value={teacherSearch} onChange={(e) => setTeacherSearch(e.target.value)} />
+            )}
+            {(teacherBrowseMode || teacherSearch.trim()) && (
               <div style={{ maxHeight: '140px', overflowY: 'auto', border: '1px solid #e2e8f0', borderRadius: '8px', marginBottom: '8px' }}>
-                {teacherResults.map((t) => (
+                {visibleTeacherResults.map((t) => (
                   <div key={t.id} onClick={() => addTeacher(t)} style={{ padding: '6px 10px', cursor: 'pointer', fontSize: '0.82rem', borderBottom: '1px solid #f1f5f9', background: audience.teacherIds.includes(t.id) ? '#eff6ff' : '#fff' }}>
-                    {t.displayName}
+                    {t.displayName}{(t.currentClassTeacherOf || []).some((c) => c.grade === teacherGrade && c.division === teacherDivision) && teacherBrowseMode ? ' (Class Teacher)' : ''}
                   </div>
                 ))}
-                {teacherResults.length === 0 && <div style={{ padding: '10px', color: '#94a3b8', fontSize: '0.8rem' }}>No teachers found.</div>}
+                {visibleTeacherResults.length === 0 && <div style={{ padding: '10px', color: '#94a3b8', fontSize: '0.8rem' }}>{teacherBrowseMode ? 'No teachers assigned to this grade/division.' : 'No teachers found.'}</div>}
               </div>
             )}
             <div>
