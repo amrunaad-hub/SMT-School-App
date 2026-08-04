@@ -5,12 +5,28 @@
 // there's no separate "commit" step that can be forgotten (the earlier
 // mode-based funnel had exactly that failure: a grade+division selection
 // that was never added to the array silently published to nobody).
+//
+// gradeSelections: [{ grade, allDivisions, divisions }] is the current shape
+// (2026-08-04+), letting each grade carry its own independent division set.
+// Older notices carry the flat grades[]/divisions[]/allDivisions shape
+// (one shared division set applied as a cross-product across every selected
+// grade) — matchesGradeDivision() below falls back to that shape when
+// gradeSelections is empty, so already-published notices keep reaching the
+// same parents they always did.
 const AUDIENCE_DEFAULT = {
-  allGrades: false, grades: [],
-  allDivisions: false, divisions: [],
+  allGrades: false, gradeSelections: [],
+  grades: [], allDivisions: false, divisions: [], // legacy shape, read-only fallback
   allTeachers: false, teacherIds: [],
   studentIds: [],
 };
+
+function matchesGradeDivision(audience, grade, division) {
+  if (audience.allGrades) return true;
+  if (audience.gradeSelections.length > 0) {
+    return audience.gradeSelections.some((gs) => gs.grade === grade && (gs.allDivisions || gs.divisions.includes(division)));
+  }
+  return audience.grades.includes(grade) && (audience.allDivisions || audience.divisions.includes(division));
+}
 
 function normalizeAudience(targetAudience) {
   // Old funnel-shaped rows (mode: all|role|grade|house|gradeDivision|students)
@@ -51,8 +67,7 @@ async function noticeAppliesToUser(db, notice, user) {
     const children = await resolveChildren(db, user.id);
     if (children.length === 0) return false;
     return children.some((c) => {
-      const byGradeDivision = (audience.allGrades || audience.grades.includes(c.grade))
-        && (audience.allDivisions || audience.divisions.includes(c.division));
+      const byGradeDivision = matchesGradeDivision(audience, c.grade, c.division);
       const byStudentId = audience.studentIds.includes(c.id);
       return byGradeDivision || byStudentId;
     });
@@ -66,7 +81,7 @@ async function noticeAppliesToUser(db, notice, user) {
 // O(users) per notice) — cheap enough to show eagerly in the admin list.
 async function resolveReachCount(db, targetAudience) {
   const audience = normalizeAudience(targetAudience);
-  const gradeDivisionActive = audience.allGrades || audience.grades.length > 0;
+  const gradeDivisionActive = audience.allGrades || audience.gradeSelections.length > 0 || audience.grades.length > 0;
   const hasStudentIds = audience.studentIds.length > 0;
 
   let parentCount = 0;
@@ -76,9 +91,18 @@ async function resolveReachCount(db, targetAudience) {
       .join('guardians', 'guardians.id', 'student_guardians.guardian_id')
       .whereNotNull('guardians.user_id')
       .where((qb) => {
-        if (gradeDivisionActive) {
+        if (audience.allGrades) {
+          qb.orWhere((gb) => gb.whereRaw('1 = 1'));
+        } else if (audience.gradeSelections.length > 0) {
+          audience.gradeSelections.forEach((gs) => {
+            qb.orWhere((gb) => {
+              gb.where('students.grade', gs.grade);
+              if (!gs.allDivisions) gb.whereIn('students.division', gs.divisions);
+            });
+          });
+        } else if (audience.grades.length > 0) {
           qb.orWhere((gb) => {
-            if (!audience.allGrades) gb.whereIn('students.grade', audience.grades);
+            gb.whereIn('students.grade', audience.grades);
             if (!audience.allDivisions) gb.whereIn('students.division', audience.divisions);
           });
         }

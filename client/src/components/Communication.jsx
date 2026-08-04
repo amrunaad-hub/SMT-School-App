@@ -50,10 +50,35 @@ const GRADES = Array.from({ length: 10 }, (_, i) => i + 1);
 const DIVISIONS = ['alpha', 'beta', 'gamma'];
 
 const EMPTY_AUDIENCE = {
-  allGrades: false, grades: [],
-  allDivisions: false, divisions: [],
+  allGrades: false,
+  // gradeSelections: [{ grade, allDivisions, divisions }] — replaces the old
+  // flat grades[]/divisions[]/allDivisions, which applied one shared division
+  // set across every selected grade (a cross-product) and couldn't express
+  // "Grade 3 Alpha+Beta, Grade 4 all divisions" in a single notice. Old
+  // notices still carry the flat shape; server-side matching falls back to
+  // it when gradeSelections is empty (see server/utils/noticeAudience.js).
+  gradeSelections: [],
   allTeachers: false, teacherIds: [],
   studentIds: [],
+};
+
+// Converts an existing notice's audience (possibly the old flat
+// grades[]/divisions[]/allDivisions shape) into gradeSelections, so editing
+// an older notice doesn't silently blow away its grade/division targeting.
+const migrateAudienceForEdit = (audience) => {
+  const a = { ...EMPTY_AUDIENCE, ...(audience || {}) };
+  if (a.gradeSelections && a.gradeSelections.length > 0) return a;
+  if (!a.allGrades && Array.isArray(a.grades) && a.grades.length > 0) {
+    return {
+      ...a,
+      gradeSelections: a.grades.map((grade) => ({
+        grade,
+        allDivisions: !!a.allDivisions,
+        divisions: a.allDivisions ? [] : (a.divisions || []).slice(),
+      })),
+    };
+  }
+  return a;
 };
 const EMPTY_FORM = {
   title: '', body: '', category: 'General', priority: 'Normal',
@@ -88,6 +113,12 @@ const AudiencePicker = ({ audience, onChange, inputStyle, labelStyle }) => {
   const [teacherBrowseMode, setTeacherBrowseMode] = useState(true);
   const [teacherGrade, setTeacherGrade] = useState(3);
   const [teacherDivision, setTeacherDivision] = useState('alpha');
+  const [showIndividualTeacherPicker, setShowIndividualTeacherPicker] = useState(false);
+  // Full unfiltered roster (with classAssignments/currentClassTeacherOf),
+  // fetched once — powers the bulk preset buttons below, independent of the
+  // search/browse-driven teacherResults used by the individual picker.
+  const [allTeachersFull, setAllTeachersFull] = useState([]);
+  const [presetGrade, setPresetGrade] = useState(3);
   const [studentGrade, setStudentGrade] = useState(3);
   const [studentDivision, setStudentDivision] = useState('alpha');
   const [studentSearch, setStudentSearch] = useState('');
@@ -96,11 +127,17 @@ const AudiencePicker = ({ audience, onChange, inputStyle, labelStyle }) => {
   const [showStudentPicker, setShowStudentPicker] = useState(audience.studentIds.length > 0);
 
   useEffect(() => {
-    if (audience.allTeachers) return;
+    api.get('/api/staff', { category: 'Teaching' })
+      .then((data) => setAllTeachersFull(data.staff || []))
+      .catch(() => setAllTeachersFull([]));
+  }, []);
+
+  useEffect(() => {
+    if (audience.allTeachers || !showIndividualTeacherPicker) return;
     api.get('/api/staff', { category: 'Teaching', search: teacherBrowseMode ? '' : teacherSearch })
       .then((data) => setTeacherResults(data.staff || []))
       .catch(() => setTeacherResults([]));
-  }, [audience.allTeachers, teacherSearch, teacherBrowseMode]);
+  }, [audience.allTeachers, teacherSearch, teacherBrowseMode, showIndividualTeacherPicker]);
 
   // In "browse by class" mode, only teachers actually assigned to (or the
   // class teacher of) the selected grade+division — mirrors the Specific
@@ -118,36 +155,53 @@ const AudiencePicker = ({ audience, onChange, inputStyle, labelStyle }) => {
       .catch(() => setStudentResults([]));
   }, [studentGrade, studentDivision, studentSearch]);
 
-  const maybeDefaultDivisions = (next) => {
-    const gradeFacetActive = next.allGrades || next.grades.length > 0;
-    if (gradeFacetActive && !next.allDivisions && next.divisions.length === 0) {
-      return { ...next, allDivisions: true };
-    }
-    return next;
-  };
-
   const toggleAllGrades = () => {
     const allGrades = !audience.allGrades;
-    onChange(maybeDefaultDivisions({ ...audience, allGrades, grades: allGrades ? [] : audience.grades }));
+    onChange({ ...audience, allGrades, gradeSelections: allGrades ? [] : audience.gradeSelections });
   };
+  // Selecting a grade defaults it to "all divisions" immediately — no
+  // separate commit step to forget (the earlier funnel had exactly that
+  // failure: a selection never added to the array silently published to
+  // nobody). Narrowing to specific divisions is an explicit extra step.
   const toggleGrade = (g) => {
     if (audience.allGrades) return;
-    const grades = audience.grades.includes(g) ? audience.grades.filter((x) => x !== g) : [...audience.grades, g];
-    onChange(maybeDefaultDivisions({ ...audience, grades }));
+    const exists = audience.gradeSelections.some((gs) => gs.grade === g);
+    const gradeSelections = exists
+      ? audience.gradeSelections.filter((gs) => gs.grade !== g)
+      : [...audience.gradeSelections, { grade: g, allDivisions: true, divisions: [] }];
+    onChange({ ...audience, gradeSelections });
   };
-  const toggleAllDivisions = () => {
-    const allDivisions = !audience.allDivisions;
-    onChange({ ...audience, allDivisions, divisions: allDivisions ? [] : audience.divisions });
+  const toggleGradeAllDivisions = (g) => {
+    onChange({
+      ...audience,
+      gradeSelections: audience.gradeSelections.map((gs) => (
+        gs.grade === g ? { ...gs, allDivisions: !gs.allDivisions, divisions: [] } : gs
+      )),
+    });
   };
-  const toggleDivision = (d) => {
-    if (audience.allDivisions) return;
-    const divisions = audience.divisions.includes(d) ? audience.divisions.filter((x) => x !== d) : [...audience.divisions, d];
-    onChange({ ...audience, divisions });
+  const toggleGradeDivision = (g, d) => {
+    onChange({
+      ...audience,
+      gradeSelections: audience.gradeSelections.map((gs) => {
+        if (gs.grade !== g) return gs;
+        const divisions = gs.divisions.includes(d) ? gs.divisions.filter((x) => x !== d) : [...gs.divisions, d];
+        return { ...gs, divisions };
+      }),
+    });
   };
   const toggleAllTeachers = () => {
     const allTeachers = !audience.allTeachers;
     onChange({ ...audience, allTeachers, teacherIds: allTeachers ? [] : audience.teacherIds });
   };
+  const bulkAddTeachers = (matched) => {
+    const newOnes = matched.filter((t) => !audience.teacherIds.includes(t.id));
+    if (newOnes.length === 0) return;
+    onChange({ ...audience, teacherIds: [...audience.teacherIds, ...newOnes.map((t) => t.id)] });
+    setSelectedTeachers((prev) => [...prev, ...newOnes.map((t) => ({ id: t.id, name: t.displayName }))]);
+  };
+  const addAllClassTeachers = () => bulkAddTeachers(allTeachersFull.filter((t) => (t.currentClassTeacherOf || []).length > 0));
+  const addClassTeachersOfGrade = (g) => bulkAddTeachers(allTeachersFull.filter((t) => (t.currentClassTeacherOf || []).some((c) => c.grade === g)));
+  const addAllTeachersOfGrade = (g) => bulkAddTeachers(allTeachersFull.filter((t) => (t.classAssignments || []).some((c) => c.grade === g) || (t.currentClassTeacherOf || []).some((c) => c.grade === g)));
   const addTeacher = (staffMember) => {
     if (audience.teacherIds.includes(staffMember.id)) return;
     onChange({ ...audience, teacherIds: [...audience.teacherIds, staffMember.id] });
@@ -170,78 +224,104 @@ const AudiencePicker = ({ audience, onChange, inputStyle, labelStyle }) => {
   const chipStyle = { display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '4px 10px', borderRadius: '999px', background: '#dbeafe', color: '#1e3a8a', fontSize: '0.78rem', fontWeight: 600, marginRight: '6px', marginBottom: '6px' };
   const pillStyle = (active, disabled) => ({ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '0.82rem', color: disabled ? '#94a3b8' : '#334155', background: active ? '#dbeafe' : '#f1f5f9', padding: '6px 10px', borderRadius: '999px', cursor: disabled ? 'default' : 'pointer', opacity: disabled ? 0.6 : 1 });
   const sectionTitleStyle = { display: 'block', fontSize: '0.8rem', fontWeight: 700, color: '#1e293b', marginBottom: '8px', marginTop: '4px' };
-
-  const gradeFacetActive = audience.allGrades || audience.grades.length > 0;
+  const sectionCardStyle = { border: '1px solid #e2e8f0', borderRadius: '10px', padding: '12px 14px', marginBottom: '12px', background: '#fbfcfe' };
+  const presetButtonStyle = { fontSize: '0.8rem', color: '#1e3a8a', background: '#eef2ff', border: '1px solid #c7d2fe', borderRadius: '8px', padding: '6px 10px', cursor: 'pointer', fontWeight: 600 };
 
   return (
     <div>
       <label style={labelStyle}>Audience — select any combination; the notice reaches the union of all selections below</label>
 
-      <span style={sectionTitleStyle}>Grades &amp; Divisions</span>
-      <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '8px' }}>
-        <label style={pillStyle(audience.allGrades, false)}>
-          <input type="checkbox" checked={audience.allGrades} onChange={toggleAllGrades} /> All Grades
-        </label>
-        {GRADES.map((g) => (
-          <label key={g} style={pillStyle(audience.allGrades || audience.grades.includes(g), audience.allGrades)}>
-            <input type="checkbox" checked={audience.allGrades || audience.grades.includes(g)} disabled={audience.allGrades} onChange={() => toggleGrade(g)} /> Grade {g}
+      <div style={sectionCardStyle}>
+        <span style={sectionTitleStyle}>Parents — Grades &amp; Divisions</span>
+        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: audience.allGrades ? 0 : '10px' }}>
+          <label style={pillStyle(audience.allGrades, false)}>
+            <input type="checkbox" checked={audience.allGrades} onChange={toggleAllGrades} /> All Grades
           </label>
-        ))}
-      </div>
-      {gradeFacetActive && (
-        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '16px' }}>
-          <label style={pillStyle(audience.allDivisions, false)}>
-            <input type="checkbox" checked={audience.allDivisions} onChange={toggleAllDivisions} /> All Divisions
-          </label>
-          {DIVISIONS.map((d) => (
-            <label key={d} style={pillStyle(audience.allDivisions || audience.divisions.includes(d), audience.allDivisions)}>
-              <input type="checkbox" checked={audience.allDivisions || audience.divisions.includes(d)} disabled={audience.allDivisions} onChange={() => toggleDivision(d)} /> {d}
+          {!audience.allGrades && GRADES.map((g) => (
+            <label key={g} style={pillStyle(audience.gradeSelections.some((gs) => gs.grade === g), false)}>
+              <input type="checkbox" checked={audience.gradeSelections.some((gs) => gs.grade === g)} onChange={() => toggleGrade(g)} /> Grade {g}
             </label>
           ))}
         </div>
-      )}
+        {!audience.allGrades && audience.gradeSelections.length > 0 && (
+          <div style={{ display: 'grid', gap: '6px' }}>
+            {audience.gradeSelections.slice().sort((x, y) => x.grade - y.grade).map((gs) => (
+              <div key={gs.grade} style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', padding: '6px 10px', background: '#f1f5f9', borderRadius: '8px' }}>
+                <strong style={{ fontSize: '0.8rem', color: '#334155' }}>Grade {gs.grade}:</strong>
+                <label style={pillStyle(gs.allDivisions, false)}>
+                  <input type="checkbox" checked={gs.allDivisions} onChange={() => toggleGradeAllDivisions(gs.grade)} /> All Divisions
+                </label>
+                {!gs.allDivisions && DIVISIONS.map((d) => (
+                  <label key={d} style={pillStyle(gs.divisions.includes(d), false)}>
+                    <input type="checkbox" checked={gs.divisions.includes(d)} onChange={() => toggleGradeDivision(gs.grade, d)} /> {d}
+                  </label>
+                ))}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
 
-      <span style={sectionTitleStyle}>Teachers</span>
-      <div style={{ marginBottom: '16px' }}>
-        <label style={{ ...pillStyle(audience.allTeachers, false), marginBottom: '8px' }}>
+      <div style={sectionCardStyle}>
+        <span style={sectionTitleStyle}>Teachers</span>
+        <label style={{ ...pillStyle(audience.allTeachers, false), marginBottom: audience.allTeachers ? 0 : '10px' }}>
           <input type="checkbox" checked={audience.allTeachers} onChange={toggleAllTeachers} /> All Teachers
         </label>
         {!audience.allTeachers && (
           <div>
-            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '8px' }}>
-              <button type="button" onClick={() => setTeacherBrowseMode(true)} style={{ ...pillStyle(teacherBrowseMode, false), border: 'none' }}>By Grade &amp; Division</button>
-              <button type="button" onClick={() => setTeacherBrowseMode(false)} style={{ ...pillStyle(!teacherBrowseMode, false), border: 'none' }}>By Name</button>
+            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center', marginBottom: '10px' }}>
+              <button type="button" onClick={addAllClassTeachers} style={presetButtonStyle}>+ All Class Teachers</button>
+              <select style={{ ...inputStyle, width: 'auto' }} value={presetGrade} onChange={(e) => setPresetGrade(Number(e.target.value))}>
+                {GRADES.map((g) => <option key={g} value={g}>Grade {g}</option>)}
+              </select>
+              <button type="button" onClick={() => addClassTeachersOfGrade(presetGrade)} style={presetButtonStyle}>+ Class Teacher(s) of Grade</button>
+              <button type="button" onClick={() => addAllTeachersOfGrade(presetGrade)} style={presetButtonStyle}>+ All Teachers of Grade (any division)</button>
             </div>
-            {teacherBrowseMode ? (
-              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '8px' }}>
-                <select style={{ ...inputStyle, width: 'auto' }} value={teacherGrade} onChange={(e) => setTeacherGrade(Number(e.target.value))}>
-                  {GRADES.map((g) => <option key={g} value={g}>Grade {g}</option>)}
-                </select>
-                <select style={{ ...inputStyle, width: 'auto' }} value={teacherDivision} onChange={(e) => setTeacherDivision(e.target.value)}>
-                  {DIVISIONS.map((d) => <option key={d} value={d}>{d}</option>)}
-                </select>
-              </div>
-            ) : (
-              <input style={{ ...inputStyle, width: '260px', marginBottom: '8px' }} placeholder="Search teacher name..." value={teacherSearch} onChange={(e) => setTeacherSearch(e.target.value)} />
-            )}
-            {(teacherBrowseMode || teacherSearch.trim()) && (
-              <div style={{ maxHeight: '140px', overflowY: 'auto', border: '1px solid #e2e8f0', borderRadius: '8px', marginBottom: '8px' }}>
-                {visibleTeacherResults.map((t) => (
-                  <div key={t.id} onClick={() => addTeacher(t)} style={{ padding: '6px 10px', cursor: 'pointer', fontSize: '0.82rem', borderBottom: '1px solid #f1f5f9', background: audience.teacherIds.includes(t.id) ? '#eff6ff' : '#fff' }}>
-                    {t.displayName}{(t.currentClassTeacherOf || []).some((c) => c.grade === teacherGrade && c.division === teacherDivision) && teacherBrowseMode ? ' (Class Teacher)' : ''}
-                  </div>
+
+            {selectedTeachers.length > 0 && (
+              <div style={{ marginBottom: '8px' }}>
+                {selectedTeachers.map((t) => (
+                  <span key={t.id} style={chipStyle}>
+                    {t.name}
+                    <button type="button" onClick={() => removeTeacher(t.id)} style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#1e3a8a', fontWeight: 800 }}>×</button>
+                  </span>
                 ))}
-                {visibleTeacherResults.length === 0 && <div style={{ padding: '10px', color: '#94a3b8', fontSize: '0.8rem' }}>{teacherBrowseMode ? 'No teachers assigned to this grade/division.' : 'No teachers found.'}</div>}
               </div>
             )}
-            <div>
-              {selectedTeachers.map((t) => (
-                <span key={t.id} style={chipStyle}>
-                  {t.name}
-                  <button type="button" onClick={() => removeTeacher(t.id)} style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#1e3a8a', fontWeight: 800 }}>×</button>
-                </span>
-              ))}
-            </div>
+
+            <button type="button" onClick={() => setShowIndividualTeacherPicker((v) => !v)} style={{ border: 'none', background: 'none', color: '#4338ca', fontSize: '0.78rem', fontWeight: 700, cursor: 'pointer', padding: 0 }}>
+              {showIndividualTeacherPicker ? '▲ Hide individual picker' : '▼ Add individual teachers'}
+            </button>
+            {showIndividualTeacherPicker && (
+              <div style={{ marginTop: '8px' }}>
+                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '8px' }}>
+                  <button type="button" onClick={() => setTeacherBrowseMode(true)} style={{ ...pillStyle(teacherBrowseMode, false), border: 'none' }}>By Grade &amp; Division</button>
+                  <button type="button" onClick={() => setTeacherBrowseMode(false)} style={{ ...pillStyle(!teacherBrowseMode, false), border: 'none' }}>By Name</button>
+                </div>
+                {teacherBrowseMode ? (
+                  <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '8px' }}>
+                    <select style={{ ...inputStyle, width: 'auto' }} value={teacherGrade} onChange={(e) => setTeacherGrade(Number(e.target.value))}>
+                      {GRADES.map((g) => <option key={g} value={g}>Grade {g}</option>)}
+                    </select>
+                    <select style={{ ...inputStyle, width: 'auto' }} value={teacherDivision} onChange={(e) => setTeacherDivision(e.target.value)}>
+                      {DIVISIONS.map((d) => <option key={d} value={d}>{d}</option>)}
+                    </select>
+                  </div>
+                ) : (
+                  <input style={{ ...inputStyle, width: '260px', marginBottom: '8px' }} placeholder="Search teacher name..." value={teacherSearch} onChange={(e) => setTeacherSearch(e.target.value)} />
+                )}
+                {(teacherBrowseMode || teacherSearch.trim()) && (
+                  <div style={{ maxHeight: '140px', overflowY: 'auto', border: '1px solid #e2e8f0', borderRadius: '8px' }}>
+                    {visibleTeacherResults.map((t) => (
+                      <div key={t.id} onClick={() => addTeacher(t)} style={{ padding: '6px 10px', cursor: 'pointer', fontSize: '0.82rem', borderBottom: '1px solid #f1f5f9', background: audience.teacherIds.includes(t.id) ? '#eff6ff' : '#fff' }}>
+                        {t.displayName}{(t.currentClassTeacherOf || []).some((c) => c.grade === teacherGrade && c.division === teacherDivision) && teacherBrowseMode ? ' (Class Teacher)' : ''}
+                      </div>
+                    ))}
+                    {visibleTeacherResults.length === 0 && <div style={{ padding: '10px', color: '#94a3b8', fontSize: '0.8rem' }}>{teacherBrowseMode ? 'No teachers assigned to this grade/division.' : 'No teachers found.'}</div>}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -418,7 +498,7 @@ const Communication = () => {
       priority: notice.priority,
       eventDate: notice.eventDate ? notice.eventDate.slice(0, 10) : '',
       expiresAt: notice.expiresAt ? notice.expiresAt.slice(0, 10) : '',
-      targetAudience: { ...EMPTY_AUDIENCE, ...(notice.targetAudience || {}) },
+      targetAudience: migrateAudienceForEdit(notice.targetAudience),
     });
     setExpiresAtTouched(true);
     setEditingId(notice._id);
@@ -437,7 +517,13 @@ const Communication = () => {
     formData.append('file', file);
     const token = window.localStorage.getItem('smt-school-token');
     const res = await fetch('/api/uploads', { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: formData });
-    if (!res.ok) throw new Error(`Failed to attach "${file.name}".`);
+    if (!res.ok) {
+      // Surface the server's actual reason (unsupported type, too large, etc.)
+      // instead of a generic message — a silent-looking failure is usually a
+      // rejection the user never got to see.
+      const reason = await res.json().then((d) => d.message).catch(() => null);
+      throw new Error(reason ? `"${file.name}": ${reason}` : `Failed to attach "${file.name}".`);
+    }
   };
 
   // Dropping an image (e.g. a pasted screenshot saved as a file) directly
@@ -497,7 +583,7 @@ const Communication = () => {
       return;
     }
     const a = form.targetAudience;
-    const hasGradeDivision = a.allGrades || a.grades.length > 0;
+    const hasGradeDivision = a.allGrades || a.gradeSelections.length > 0;
     const hasTeachers = a.allTeachers || a.teacherIds.length > 0;
     const hasStudents = a.studentIds.length > 0;
     if (!hasGradeDivision && !hasTeachers && !hasStudents) {
@@ -556,12 +642,14 @@ const Communication = () => {
   const labelStyle = { display: 'block', fontSize: '0.78rem', fontWeight: 700, color: '#475569', marginBottom: '4px' };
 
   const audienceSummary = (audience) => {
-    const a = { ...EMPTY_AUDIENCE, ...(audience || {}) };
+    const a = migrateAudienceForEdit(audience);
     const chips = [];
-    if (a.allGrades || a.grades.length > 0) {
-      const gradeLabel = a.allGrades ? 'All Grades' : `Grade ${a.grades.slice().sort((x, y) => x - y).join(',')}`;
-      const divLabel = a.allDivisions ? 'All divisions' : a.divisions.join(',');
-      chips.push(`${gradeLabel} · ${divLabel}`);
+    if (a.allGrades) {
+      chips.push('All Grades · All divisions');
+    } else if (a.gradeSelections.length > 0) {
+      a.gradeSelections.slice().sort((x, y) => x.grade - y.grade).forEach((gs) => {
+        chips.push(`Grade ${gs.grade} · ${gs.allDivisions ? 'All divisions' : gs.divisions.join(',')}`);
+      });
     }
     if (a.allTeachers) chips.push('All Teachers');
     else if (a.teacherIds.length > 0) chips.push(`${a.teacherIds.length} teacher(s)`);
@@ -593,7 +681,7 @@ const Communication = () => {
                   if (myClassAssignment) {
                     setForm((f) => ({
                       ...f,
-                      targetAudience: { ...EMPTY_AUDIENCE, grades: [myClassAssignment.grade], divisions: [myClassAssignment.division] },
+                      targetAudience: { ...EMPTY_AUDIENCE, gradeSelections: [{ grade: myClassAssignment.grade, allDivisions: false, divisions: [myClassAssignment.division] }] },
                     }));
                   }
                   setShowForm(true);
@@ -657,7 +745,7 @@ const Communication = () => {
                   ))}
                   {pendingDocuments.map((file, idx) => (
                     <div key={`${file.name}-${idx}`} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 10px', borderRadius: '6px', background: '#eff6ff', border: '1px solid #bfdbfe', fontSize: '0.8rem' }}>
-                      <span style={{ color: '#1e3a8a' }}>{file.name} <em style={{ color: '#64748b', fontStyle: 'normal' }}>(new)</em></span>
+                      <span style={{ color: '#1e3a8a' }}>{file.name} <em style={{ color: '#64748b', fontStyle: 'normal' }}>({(file.size / 1024).toFixed(0)} KB, new)</em></span>
                       <button type="button" onClick={() => setPendingDocuments((prev) => prev.filter((_, i) => i !== idx))} style={{ border: 'none', background: 'none', color: '#991b1b', cursor: 'pointer', fontWeight: 700, fontSize: '0.78rem' }}>Remove</button>
                     </div>
                   ))}
