@@ -1425,6 +1425,15 @@ const Parents = () => {
                           {note.classwork && <p style={{ margin: '8px 0 0' }}><strong>Classwork:</strong> {note.classwork}</p>}
                           {note.homework && <p style={{ margin: '8px 0 0' }}><strong>Homework:</strong> {note.homework}</p>}
                           {note.specialInstructions && <p style={{ margin: '8px 0 0' }}><strong>Instructions:</strong> {note.specialInstructions}</p>}
+                          {note.attachments && note.attachments.length > 0 && (
+                            <div style={{ marginTop: '8px', display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                              {note.attachments.map((a) => (
+                                <a key={a.id} href={a.fileUrl} target="_blank" rel="noreferrer" style={{ padding: '5px 10px', borderRadius: '8px', border: '1px solid #c7d2fe', background: '#eef2ff', color: '#4338ca', fontSize: '0.8rem', textDecoration: 'none', fontWeight: 600 }}>
+                                  📎 {a.originalFilename || a.docType}
+                                </a>
+                              ))}
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>

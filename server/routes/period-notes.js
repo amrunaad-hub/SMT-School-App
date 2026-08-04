@@ -61,13 +61,17 @@ router.get('/mine', auth, async (req, res) => {
     const notes = serializeRows(rows);
     if (!notes.length) return res.json({ notes: [] });
 
-    const [readRows, creatorRows] = await Promise.all([
-      db('period_note_reads').where({ user_id: req.user.id }).whereIn('period_note_id', notes.map((n) => n.id)),
+    const noteIds = notes.map((n) => n.id);
+    const [readRows, creatorRows, documents] = await Promise.all([
+      db('period_note_reads').where({ user_id: req.user.id }).whereIn('period_note_id', noteIds),
       db('staff').whereIn('user_id', [...new Set(notes.map((n) => n.createdBy).filter(Boolean))]),
+      db('documents').where({ owner_type: 'period_note' }).whereIn('owner_id', noteIds),
     ]);
     const readIds = new Set(readRows.map((r) => r.period_note_id));
     const nameByUserId = {};
     creatorRows.forEach((s) => { nameByUserId[s.user_id] = s.display_name; });
+    const docsByNote = {};
+    documents.forEach((d) => { (docsByNote[d.owner_id] ||= []).push(serializeRow(d)); });
 
     // Resolve each note's subject from the matching weekly timetable slot —
     // cached per (division, day-of-week) since notes span at most 30 days.
@@ -98,6 +102,7 @@ router.get('/mine', auth, async (req, res) => {
       homework: n.homework,
       specialInstructions: n.specialInstructions,
       isRead: readIds.has(n.id),
+      attachments: docsByNote[n.id] || [],
     })));
 
     return res.json({ notes: shaped });
