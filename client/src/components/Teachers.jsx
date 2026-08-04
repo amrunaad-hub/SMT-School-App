@@ -5,17 +5,23 @@ import { formatDateKey, isSameDate, generateCalendarDays, buildWeekStrip, jsDayT
 import { formatDateDMY } from '../utils/formatDate';
 import AttendanceModal from './AttendanceModal';
 
-// Fallback identity shown until the real logged-in teacher's profile resolves
-// (or permanently, for the shared demo `teacher` login / any account not yet
-// linked to a staff record via GET /api/auth/me/staff-profile).
-const DEMO_TEACHER = {
-  name: 'Ms. Anuja Kulkarni',
-  code: 'TCH001',
-  classGrade: 3,
-  classDivision: 'alpha',
-  classDivisionLabel: 'Alpha',
-  subjects: ['English', 'Library'],
-  isClassTeacher: true,
+// Honest placeholder while the real logged-in teacher's profile is loading —
+// deliberately not a real-looking name/class, unlike the old DEMO_TEACHER
+// fallback this replaced. That fallback silently stayed in place forever for
+// any account with no linked staff record (admin, the shared demo
+// `teacher`/`teacher` login), and its classGrade/classDivision were real
+// values (3/alpha) — so the page went on to fetch and display the actual
+// Grade 3 Alpha class's real students/timetable/attendance, mislabeled as
+// the viewer's own class. See `profileStatus` below for the real fix: no
+// class data is fetched or shown until a real staff profile resolves.
+const EMPTY_TEACHER = {
+  name: 'Loading…',
+  code: '',
+  classGrade: null,
+  classDivision: null,
+  classDivisionLabel: '',
+  subjects: [],
+  isClassTeacher: false,
 };
 
 const DAY_LABELS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -75,7 +81,11 @@ const Teachers = () => {
   const [classStudents, setClassStudents] = useState([]);
   const [dayPeriods, setDayPeriods] = useState([]);
   const [periodNotes, setPeriodNotes] = useState([]);
-  const [teacher, setTeacher] = useState(DEMO_TEACHER);
+  const [teacher, setTeacher] = useState(EMPTY_TEACHER);
+  // 'loading' | 'linked' | 'unlinked' — gates whether any class data (roster,
+  // timetable, attendance) gets fetched/rendered at all. 'unlinked' means
+  // this login has no staff record (admin, the shared demo teacher login).
+  const [profileStatus, setProfileStatus] = useState('loading');
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [dayAttendance, setDayAttendance] = useState([]);
@@ -150,10 +160,9 @@ const Teachers = () => {
     api.get('/api/auth/me/staff-profile')
       .then((data) => {
         const profile = data.staffProfile;
-        if (!profile) return;
-        const classTeacherEntry = (profile.currentClassTeacherOf || [])[0];
-        const cls = classTeacherEntry || (profile.classAssignments || [])[0];
-        if (!cls) return;
+        const classTeacherEntry = profile && (profile.currentClassTeacherOf || [])[0];
+        const cls = classTeacherEntry || (profile && (profile.classAssignments || [])[0]);
+        if (!profile || !cls) { setProfileStatus('unlinked'); return; }
         setTeacher({
           name: profile.displayName,
           code: profile.staffCode,
@@ -163,8 +172,9 @@ const Teachers = () => {
           subjects: profile.assignedSubjects || [],
           isClassTeacher: !!classTeacherEntry,
         });
+        setProfileStatus('linked');
       })
-      .catch(() => {});
+      .catch(() => setProfileStatus('unlinked'));
   }, []);
 
   const dateStr = useMemo(() => formatDateKey(selectedDate), [selectedDate]);
@@ -173,33 +183,40 @@ const Teachers = () => {
 
   const divisionOptions = teacher.isClassTeacher ? DIVISIONS : [teacher.classDivision];
 
+  // Every fetch below is gated on profileStatus === 'linked' — without a real
+  // staff profile there's no legitimate grade/division to query, and querying
+  // anyway (as the old DEMO_TEACHER fallback did) means an unlinked account
+  // silently sees another real class's real data.
   useEffect(() => {
+    if (profileStatus !== 'linked') { setClassStudents([]); return; }
     api.get('/api/students', { grade: teacher.classGrade, division: teacher.classDivision, limit: 40 })
       .then((data) => {
         setClassStudents((data.students || []).map((s) => ({ id: s._id, name: `${s.firstName} ${s.lastName}`, rollNo: s.rollNo })));
       })
       .catch(() => setClassStudents([]));
-  }, [teacher.classGrade, teacher.classDivision]);
+  }, [profileStatus, teacher.classGrade, teacher.classDivision]);
 
   useEffect(() => {
-    if (!isWorkingDay || !dayOfWeek) { setDayPeriods([]); return; }
+    if (profileStatus !== 'linked' || !isWorkingDay || !dayOfWeek) { setDayPeriods([]); return; }
     api.get('/api/timetable', { grade: teacher.classGrade, division: teacher.classDivision, day: dayOfWeek })
       .then((data) => setDayPeriods(data.periods || []))
       .catch(() => setDayPeriods([]));
-  }, [dayOfWeek, isWorkingDay, teacher.classGrade, teacher.classDivision]);
+  }, [profileStatus, dayOfWeek, isWorkingDay, teacher.classGrade, teacher.classDivision]);
 
   useEffect(() => {
+    if (profileStatus !== 'linked') { setPeriodNotes([]); return; }
     api.get('/api/period-notes', { grade: teacher.classGrade, division: teacher.classDivision, date: dateStr })
       .then((data) => setPeriodNotes(data.notes || []))
       .catch(() => setPeriodNotes([]));
-  }, [dateStr, teacher.classGrade, teacher.classDivision]);
+  }, [profileStatus, dateStr, teacher.classGrade, teacher.classDivision]);
 
   const refreshDayAttendance = () => {
+    if (profileStatus !== 'linked') { setDayAttendance([]); return; }
     api.get('/api/attendance', { date: dateStr, grade: teacher.classGrade, division: teacher.classDivision })
       .then((rows) => setDayAttendance(rows || []))
       .catch(() => setDayAttendance([]));
   };
-  useEffect(refreshDayAttendance, [dateStr, teacher.classGrade, teacher.classDivision]);
+  useEffect(refreshDayAttendance, [profileStatus, dateStr, teacher.classGrade, teacher.classDivision]);
 
   const firstPeriod = useMemo(() => dayPeriods.find((p) => p.type === 'Period'), [dayPeriods]);
   const notesByPeriod = useMemo(() => Object.fromEntries(periodNotes.map((n) => [n.periodIndex, n])), [periodNotes]);
@@ -378,7 +395,11 @@ const Teachers = () => {
           <div>
             <h2 style={{ margin: 0, color: '#1e3a8a', fontWeight: 800 }}>Teachers Portal</h2>
             <p style={{ margin: '6px 0 0', color: '#334155', fontSize: '0.9rem' }}>
-              Welcome, <strong>{teacher.name}</strong> · {teacher.isClassTeacher ? 'Class Teacher, ' : ''}Grade {teacher.classGrade} {teacher.classDivisionLabel} · {classStudents.length} students
+              {profileStatus === 'loading' && 'Loading your teacher profile…'}
+              {profileStatus === 'unlinked' && 'No teacher profile is linked to this login.'}
+              {profileStatus === 'linked' && (
+                <>Welcome, <strong>{teacher.name}</strong> · {teacher.isClassTeacher ? 'Class Teacher, ' : ''}Grade {teacher.classGrade} {teacher.classDivisionLabel} · {classStudents.length} students</>
+              )}
             </p>
             {pushStatus !== 'unsupported' && (
               <button
@@ -402,31 +423,56 @@ const Teachers = () => {
         </div>
       </section>
 
-      <div style={{ display: 'flex', gap: '8px', marginBottom: '20px', flexWrap: 'wrap' }}>
-        {tabs.map((tab) => (
-          <button
-            key={tab.key}
-            type="button"
-            onClick={() => setActiveModule(tab.key)}
-            style={{ padding: '9px 16px', borderRadius: '999px', border: `1px solid ${activeModule === tab.key ? '#1e3a8a' : '#cbd5e1'}`, background: activeModule === tab.key ? '#1e3a8a' : '#fff', color: activeModule === tab.key ? '#fff' : '#334155', fontWeight: 700, cursor: 'pointer', fontSize: '0.88rem' }}
-          >
-            {tab.label}
-          </button>
-        ))}
-        {externalTabs.map((tab) => (
-          <Link
-            key={tab.to}
-            to={tab.to}
-            style={{ padding: '9px 16px', borderRadius: '999px', border: '1px solid #cbd5e1', background: '#fff', color: '#334155', fontWeight: 700, cursor: 'pointer', fontSize: '0.88rem', textDecoration: 'none' }}
-          >
-            {tab.label}
-          </Link>
-        ))}
-      </div>
+      {profileStatus === 'unlinked' ? (
+        <div style={{ ...cardBase, textAlign: 'center', padding: '32px 20px', color: '#475569' }}>
+          <p style={{ margin: 0, fontWeight: 700, color: '#1e3a8a' }}>No teacher profile is linked to this login.</p>
+          <p style={{ margin: '8px 0 0', fontSize: '0.88rem' }}>
+            Teachers Portal shows an individual teacher's own class — this account isn't linked to a staff record, so there's no class to show.
+            {externalTabs.length > 0 && ' Use the links below for school-wide views instead.'}
+          </p>
+          <div style={{ display: 'flex', gap: '8px', justifyContent: 'center', marginTop: '16px', flexWrap: 'wrap' }}>
+            {externalTabs.map((tab) => (
+              <Link
+                key={tab.to}
+                to={tab.to}
+                style={{ padding: '9px 16px', borderRadius: '999px', border: '1px solid #cbd5e1', background: '#fff', color: '#334155', fontWeight: 700, cursor: 'pointer', fontSize: '0.88rem', textDecoration: 'none' }}
+              >
+                {tab.label}
+              </Link>
+            ))}
+          </div>
+        </div>
+      ) : profileStatus === 'loading' ? (
+        <div style={{ ...cardBase, textAlign: 'center', color: '#64748b' }}>Loading…</div>
+      ) : (
+        <>
+          <div style={{ display: 'flex', gap: '8px', marginBottom: '20px', flexWrap: 'wrap' }}>
+            {tabs.map((tab) => (
+              <button
+                key={tab.key}
+                type="button"
+                onClick={() => setActiveModule(tab.key)}
+                style={{ padding: '9px 16px', borderRadius: '999px', border: `1px solid ${activeModule === tab.key ? '#1e3a8a' : '#cbd5e1'}`, background: activeModule === tab.key ? '#1e3a8a' : '#fff', color: activeModule === tab.key ? '#fff' : '#334155', fontWeight: 700, cursor: 'pointer', fontSize: '0.88rem' }}
+              >
+                {tab.label}
+              </button>
+            ))}
+            {externalTabs.map((tab) => (
+              <Link
+                key={tab.to}
+                to={tab.to}
+                style={{ padding: '9px 16px', borderRadius: '999px', border: '1px solid #cbd5e1', background: '#fff', color: '#334155', fontWeight: 700, cursor: 'pointer', fontSize: '0.88rem', textDecoration: 'none' }}
+              >
+                {tab.label}
+              </Link>
+            ))}
+          </div>
 
-      {activeModule === 'timetable' && renderTimetable()}
-      {activeModule === 'attendance' && renderAttendanceRecords()}
-      {activeModule === 'upcoming' && renderUpcoming()}
+          {activeModule === 'timetable' && renderTimetable()}
+          {activeModule === 'attendance' && renderAttendanceRecords()}
+          {activeModule === 'upcoming' && renderUpcoming()}
+        </>
+      )}
 
       {showAttendanceModal && (
         <AttendanceModal
