@@ -20,7 +20,7 @@ const PeriodDetails = () => {
   const [saveError, setSaveError] = useState('');
   const [uploading, setUploading] = useState(false);
 
-  const role = window.localStorage.getItem('smt-school-role');
+  const role = window.sessionStorage.getItem('smt-school-role');
   const canEdit = ['admin', 'principal', 'teacher'].includes(role);
 
   const loadPeriod = () => {
@@ -79,7 +79,7 @@ const PeriodDetails = () => {
     formData.append('ownerType', 'period_note');
     formData.append('ownerId', noteId);
     formData.append('file', file);
-    const token = window.localStorage.getItem('smt-school-token');
+    const token = window.sessionStorage.getItem('smt-school-token');
     fetch('/api/uploads', { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: formData })
       .then((r) => r.json().then((data) => { if (!r.ok) throw new Error(data.message); return data; }))
       .then(() => { setUploading(false); loadPeriod(); })

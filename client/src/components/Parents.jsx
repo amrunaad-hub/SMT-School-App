@@ -239,7 +239,7 @@ const Parents = () => {
 
     const loadAttachments = async () => {
       try {
-        const token = window.localStorage.getItem('smt-school-token');
+        const token = window.sessionStorage.getItem('smt-school-token');
         if (!token) {
           return;
         }
@@ -1015,7 +1015,7 @@ const Parents = () => {
                 formData.append('ownerType', 'leave_request');
                 formData.append('ownerId', newReq.id);
                 formData.append('file', leaveForm.document);
-                const token = window.localStorage.getItem('smt-school-token');
+                const token = window.sessionStorage.getItem('smt-school-token');
                 fetch('/api/uploads', { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: formData })
                   .then((res) => { if (!res.ok) pushNotification('Leave submitted, but the document failed to attach.', 'error'); })
                   .catch(() => pushNotification('Leave submitted, but the document failed to attach.', 'error'));
@@ -1946,7 +1946,7 @@ const Parents = () => {
               <p style={{ margin: '0 0 10px', color: '#9f1239', fontWeight: 700 }}>{attachmentPreview.title}</p>
               <div style={{ border: '1px solid #fecdd3', borderRadius: '10px', overflow: 'hidden' }}>
                 {attachmentPreview.attachments.map((fileItem, index) => {
-                  const token = window.localStorage.getItem('smt-school-token') || '';
+                  const token = window.sessionStorage.getItem('smt-school-token') || '';
                   const tokenQuery = token ? `?access_token=${encodeURIComponent(token)}` : '';
 
                   return (

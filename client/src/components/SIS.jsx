@@ -40,7 +40,7 @@ const AdmissionModal = ({ onClose, onSuccess }) => {
   };
 
   const uploadPhoto = async (file) => {
-    const token = window.localStorage.getItem('smt-school-token');
+    const token = window.sessionStorage.getItem('smt-school-token');
     const formData = new FormData();
     formData.append('category', 'student-photos');
     formData.append('file', file);

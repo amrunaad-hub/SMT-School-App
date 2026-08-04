@@ -46,8 +46,12 @@ const ProtectedRoute = ({ authRole, allowedRoles, children }) => {
 
 function App() {
   const [authRole, setAuthRole] = useState(() => {
-    const savedRole = window.localStorage.getItem('smt-school-role');
-    const savedToken = window.localStorage.getItem('smt-school-token');
+    // sessionStorage (not localStorage) deliberately — scoped per browser
+    // tab, so testing multiple accounts side by side in separate tabs works
+    // without one login bumping another. Trade-off: a session doesn't
+    // survive fully closing the tab/app, only refreshes within it.
+    const savedRole = window.sessionStorage.getItem('smt-school-role');
+    const savedToken = window.sessionStorage.getItem('smt-school-token');
     return savedRole && savedToken ? savedRole : '';
   });
 
@@ -71,8 +75,8 @@ function App() {
       }
 
       setAuthRole(payload.user.role);
-      window.localStorage.setItem('smt-school-role', payload.user.role);
-      window.localStorage.setItem('smt-school-token', payload.token);
+      window.sessionStorage.setItem('smt-school-role', payload.user.role);
+      window.sessionStorage.setItem('smt-school-token', payload.token);
       return true;
     } catch (error) {
       return false;
@@ -82,8 +86,8 @@ function App() {
   const handleLogout = () => {
     const clearLocal = () => {
       setAuthRole('');
-      window.localStorage.removeItem('smt-school-role');
-      window.localStorage.removeItem('smt-school-token');
+      window.sessionStorage.removeItem('smt-school-role');
+      window.sessionStorage.removeItem('smt-school-token');
     };
 
     // Push subscriptions live at the browser/device level, not per-login —

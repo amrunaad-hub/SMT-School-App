@@ -215,7 +215,7 @@ const ParentStudentProfile = ({ studentId, isMobile }) => {
     setUploading(true);
     setDocSubmitError('');
     try {
-      const token = window.localStorage.getItem('smt-school-token');
+      const token = window.sessionStorage.getItem('smt-school-token');
       const formData = new FormData();
       formData.append('file', file);
       const resp = await fetch('/api/uploads', { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: formData });

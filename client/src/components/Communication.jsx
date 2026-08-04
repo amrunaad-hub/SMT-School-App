@@ -269,7 +269,7 @@ const AudiencePicker = ({ audience, onChange, inputStyle, labelStyle }) => {
 };
 
 const Communication = () => {
-  const role = window.localStorage.getItem('smt-school-role');
+  const role = window.sessionStorage.getItem('smt-school-role');
   const canManage = role === 'admin' || role === 'principal' || role === 'teacher';
   const isAdminOrPrincipal = role === 'admin' || role === 'principal';
 
