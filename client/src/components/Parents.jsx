@@ -288,79 +288,30 @@ const Parents = () => {
     };
   }, [apiBase]);
 
-  // Parent login linked to multiple children — fetched from API, fallback to static data
-  const STATIC_LINKED_STUDENTS = useMemo(() => [
-    {
-      id: 'S-7A-15',
-      name: 'Aarav Kulkarni',
-      grade: 'Grade 7',
-      division: 'Alpha',
-      rollNo: '7A-15',
-      dob: '2015-03-15',
-      address: 'Flat 203, Rose Garden Apartments, Thane West, Maharashtra - 400601',
-      phone: '+91 98765 43210',
-      email: 'aarav.kulkarni@email.com',
-      bloodGroup: 'O+',
-      emergencyContact: 'Mrs. Priya Kulkarni (Mother) - +91 98765 43211',
-      photo: 'https://api.dicebear.com/7.x/adventurer/svg?seed=Aarav-Kulkarni',
-      admissionDate: '2020-06-01',
-    },
-    {
-      id: 'S-5B-08',
-      name: 'Ananya Kulkarni',
-      grade: 'Grade 5',
-      division: 'Beta',
-      rollNo: '5B-08',
-      dob: '2017-09-22',
-      address: 'Flat 203, Rose Garden Apartments, Thane West, Maharashtra - 400601',
-      phone: '+91 98765 43212',
-      email: 'ananya.kulkarni@email.com',
-      bloodGroup: 'A+',
-      emergencyContact: 'Mr. Rajesh Kulkarni (Father) - +91 98765 43211',
-      photo: 'https://api.dicebear.com/7.x/lorelei/svg?seed=Ananya-Kulkarni',
-      admissionDate: '2022-06-01',
-    },
-    {
-      id: 'S-3A-21',
-      name: 'Vihaan Kulkarni',
-      grade: 'Grade 3',
-      division: 'Alpha',
-      rollNo: '3A-21',
-      dob: '2019-01-11',
-      address: 'Flat 203, Rose Garden Apartments, Thane West, Maharashtra - 400601',
-      phone: '+91 98765 43213',
-      email: 'vihaan.kulkarni@email.com',
-      bloodGroup: 'B+',
-      emergencyContact: 'Mrs. Priya Kulkarni (Mother) - +91 98765 43211',
-      photo: 'https://api.dicebear.com/7.x/adventurer/svg?seed=Vihaan-Kulkarni',
-      admissionDate: '2024-06-01',
-    },
-  ], []);
-
-  // Starts empty (not STATIC_LINKED_STUDENTS) — seeding it with the fake
-  // Kulkarni family synchronously meant every real parent briefly saw someone
-  // else's child's name on every page load/refresh, until the real /children
-  // fetch below overwrote it a moment later. The fallback now only applies
-  // once we actually know the account has no real linked children.
   const [linkedStudents, setLinkedStudents] = useState([]);
   const [linkedStudentsLoaded, setLinkedStudentsLoaded] = useState(false);
 
   // Resolve the logged-in parent's real linked children (guardians.user_id ->
-  // student_guardians -> students). Falls back to demo data if this login isn't
-  // linked to any student yet (e.g. the shared demo `parent` account) or the
-  // request fails, so the portal never shows a blank state.
+  // student_guardians -> students). A login with no real linked children (the
+  // shared demo `parent` account, or a real account missing its guardian
+  // link) gets an honest empty state throughout the portal — see
+  // PLACEHOLDER_STUDENT below — rather than the fictional "Kulkarni family"
+  // fixture this used to fall back to. That fixture caused two problems: it
+  // briefly flashed on every real parent's page load/refresh before the real
+  // fetch overwrote it, and it made the demo login look inconsistent — the
+  // header/Quick Access showed a fake-but-real-looking student while the
+  // Student Profile tab correctly refused to render a fake profile.
   //
-  // Note: fee details below (feeDetailsByStudent) are still keyed off the demo
-  // student IDs (S-7A-15 etc.) — Module 1 only wires up the child-linkage itself,
-  // not the Fees module, so a real linked child currently falls back to showing
-  // the demo student's fee data on that tab. Worth a follow-up once Fees is revisited.
+  // Note: fee details below (feeDetailsByStudent) are still keyed off the old
+  // demo student IDs (S-7A-15 etc.) and not wired to real linked children at
+  // all — harmless for now since Fees is gated under Upcoming Features
+  // (unreachable), but worth fixing properly if Fees is ever un-gated.
   useEffect(() => {
     api.get('/api/auth/me/children')
       .then((data) => {
         const children = data.children || [];
         if (!children.length) {
-          setLinkedStudents(STATIC_LINKED_STUDENTS);
-          setSelectedChildId(STATIC_LINKED_STUDENTS[0].id);
+          setLinkedStudents([]);
           setLinkedStudentsLoaded(true);
           return;
         }
@@ -386,16 +337,17 @@ const Parents = () => {
         setLinkedStudentsLoaded(true);
       })
       .catch(() => {
-        setLinkedStudents(STATIC_LINKED_STUDENTS);
-        setSelectedChildId(STATIC_LINKED_STUDENTS[0].id);
+        setLinkedStudents([]);
         setLinkedStudentsLoaded(true);
       });
   }, []);
 
-  // Safe, non-identifying stand-in for the brief window before the real
-  // /children fetch resolves — never another child's actual name/details.
+  // Safe, non-identifying stand-in — used both for the brief window before
+  // the real /children fetch resolves, and permanently once we know for
+  // certain this login has no linked student. Never another child's actual
+  // name/details, and never the fictional Kulkarni family either.
   const PLACEHOLDER_STUDENT = {
-    id: '', name: 'Loading…', grade: '', division: '', rollNo: '', dob: '-',
+    id: '', name: linkedStudentsLoaded ? 'No student linked' : 'Loading…', grade: '', division: '', rollNo: '', dob: '-',
     address: '-', phone: '-', email: '-', bloodGroup: '-', emergencyContact: '-',
     relation: '-', house: '-', photo: '', admissionDate: '-',
   };
@@ -1768,38 +1720,48 @@ const Parents = () => {
           </div>
 
           <div style={{ background: '#fff', padding: isMobile ? '12px' : '16px' }}>
-            <div style={{ border: '1px solid #fecdd3', borderRadius: '12px', background: '#fff1f2', padding: isMobile ? '10px' : '12px', marginBottom: '12px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <img src={currentStudent.photo} alt="Current Student" style={{ width: isMobile ? '52px' : '60px', height: isMobile ? '52px' : '60px', borderRadius: '12px', border: '2px solid #fb7185', background: '#fff' }} />
-                <div>
-                  <p style={{ margin: 0, fontWeight: 800, color: '#9f1239', fontSize: isMobile ? '0.95rem' : '1.05rem' }}>{currentStudent.name}</p>
-                  <p style={{ margin: '4px 0 0', color: '#be123c', fontWeight: 600, fontSize: isMobile ? '0.8rem' : '0.9rem' }}>{currentStudent.grade} • {currentStudent.division} • Roll {currentStudent.rollNo}</p>
+            <div style={{ border: '1px solid #fecdd3', borderRadius: '12px', background: '#fff1f2', padding: isMobile ? '10px' : '12px', marginBottom: linkedStudents.length > 0 ? '12px' : 0 }}>
+              {linkedStudents.length === 0 ? (
+                <p style={{ margin: 0, color: '#9f1239', fontWeight: 700, fontSize: isMobile ? '0.85rem' : '0.92rem' }}>
+                  {linkedStudentsLoaded ? 'No student is linked to this account.' : 'Loading…'}
+                </p>
+              ) : (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <img src={currentStudent.photo} alt="Current Student" style={{ width: isMobile ? '52px' : '60px', height: isMobile ? '52px' : '60px', borderRadius: '12px', border: '2px solid #fb7185', background: '#fff' }} />
+                  <div>
+                    <p style={{ margin: 0, fontWeight: 800, color: '#9f1239', fontSize: isMobile ? '0.95rem' : '1.05rem' }}>{currentStudent.name}</p>
+                    <p style={{ margin: '4px 0 0', color: '#be123c', fontWeight: 600, fontSize: isMobile ? '0.8rem' : '0.9rem' }}>{currentStudent.grade} • {currentStudent.division} • Roll {currentStudent.rollNo}</p>
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
 
-            <p style={{ margin: '0 0 8px', color: '#9f1239', fontWeight: 700, fontSize: isMobile ? '0.82rem' : '0.9rem' }}>Switch Student</p>
-            <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', paddingBottom: '2px' }}>
-              {linkedStudents.map((child) => (
-                <button
-                  key={child.id}
-                  onClick={() => setSelectedChildId(child.id)}
-                  style={{
-                    padding: '8px 12px',
-                    borderRadius: '999px',
-                    border: `1px solid ${selectedChildId === child.id ? '#e11d48' : '#fda4af'}`,
-                    background: selectedChildId === child.id ? '#e11d48' : '#fff',
-                    color: selectedChildId === child.id ? '#fff' : '#9f1239',
-                    fontWeight: 700,
-                    cursor: 'pointer',
-                    whiteSpace: 'nowrap',
-                    minHeight: '36px',
-                  }}
-                >
-                  {child.name}
-                </button>
-              ))}
-            </div>
+            {linkedStudents.length > 1 && (
+              <>
+                <p style={{ margin: '0 0 8px', color: '#9f1239', fontWeight: 700, fontSize: isMobile ? '0.82rem' : '0.9rem' }}>Switch Student</p>
+                <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', paddingBottom: '2px' }}>
+                  {linkedStudents.map((child) => (
+                    <button
+                      key={child.id}
+                      onClick={() => setSelectedChildId(child.id)}
+                      style={{
+                        padding: '8px 12px',
+                        borderRadius: '999px',
+                        border: `1px solid ${selectedChildId === child.id ? '#e11d48' : '#fda4af'}`,
+                        background: selectedChildId === child.id ? '#e11d48' : '#fff',
+                        color: selectedChildId === child.id ? '#fff' : '#9f1239',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        whiteSpace: 'nowrap',
+                        minHeight: '36px',
+                      }}
+                    >
+                      {child.name}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
           </div>
         </div>
       </section>
