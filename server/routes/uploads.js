@@ -76,6 +76,87 @@ router.post('/', auth, authorize(['admin', 'teacher', 'principal', 'parent']), (
   });
 });
 
+// GET /api/uploads/mine — every document the logged-in user has personally
+// uploaded (documents.uploaded_by), across every owner type, with a
+// human-readable context label resolved per type — the "My Documents"
+// repository. Batches one lookup query per owner_type present rather than
+// one per document.
+router.get('/mine', auth, async (req, res) => {
+  try {
+    if (typeof req.user.id !== 'number') return res.json({ documents: [] });
+
+    const rows = await db('documents').where({ uploaded_by: req.user.id }).orderBy('uploaded_at', 'desc');
+    if (!rows.length) return res.json({ documents: [] });
+
+    const idsByType = {};
+    rows.forEach((r) => { (idsByType[r.owner_type] ||= new Set()).add(r.owner_id); });
+
+    const contextByKey = {};
+
+    if (idsByType.leave_request) {
+      const leaveRows = await db('leave_requests')
+        .join('students', 'students.id', 'leave_requests.student_id')
+        .whereIn('leave_requests.id', [...idsByType.leave_request])
+        .select('leave_requests.id', 'leave_requests.from_date', 'leave_requests.to_date', 'students.first_name', 'students.last_name');
+      leaveRows.forEach((r) => {
+        contextByKey[`leave_request:${r.id}`] = {
+          classification: 'Leave Application',
+          label: `${r.first_name} ${r.last_name} · ${r.from_date}${r.to_date !== r.from_date ? ` to ${r.to_date}` : ''}`,
+        };
+      });
+    }
+
+    if (idsByType.period_note) {
+      const noteRows = await db('timetable_period_notes').whereIn('id', [...idsByType.period_note]);
+      noteRows.forEach((r) => {
+        contextByKey[`period_note:${r.id}`] = {
+          classification: 'Classwork / Homework',
+          label: `Grade ${r.grade} ${r.division.charAt(0).toUpperCase() + r.division.slice(1)} · ${r.date} · Period ${r.period_index}`,
+        };
+      });
+    }
+
+    if (idsByType.notice) {
+      const noticeRows = await db('notices').whereIn('id', [...idsByType.notice]);
+      noticeRows.forEach((r) => {
+        contextByKey[`notice:${r.id}`] = { classification: 'Notice Attachment', label: r.title };
+      });
+    }
+
+    if (idsByType.student) {
+      const studentRows = await db('students').whereIn('id', [...idsByType.student]);
+      studentRows.forEach((r) => {
+        contextByKey[`student:${r.id}`] = { classification: 'Student Record', label: `${r.first_name} ${r.last_name}` };
+      });
+    }
+
+    if (idsByType.admission) {
+      const admissionRows = await db('admissions').whereIn('id', [...idsByType.admission]);
+      admissionRows.forEach((r) => {
+        contextByKey[`admission:${r.id}`] = { classification: 'Admission', label: r.child_name };
+      });
+    }
+
+    const documents = rows.map((r) => {
+      const ctx = contextByKey[`${r.owner_type}:${r.owner_id}`] || { classification: r.owner_type, label: '' };
+      return {
+        id: r.id,
+        docType: r.doc_type,
+        fileUrl: r.file_url,
+        originalFilename: r.original_filename,
+        uploadedAt: r.uploaded_at,
+        classification: ctx.classification,
+        contextLabel: ctx.label,
+      };
+    });
+
+    return res.json({ documents });
+  } catch (err) {
+    console.error('GET /api/uploads/mine error:', err.message);
+    return res.status(500).json({ message: 'Server error' });
+  }
+});
+
 // GET /api/uploads?ownerType=student&ownerId=5 — list documents for a given owner.
 router.get('/', auth, async (req, res) => {
   try {

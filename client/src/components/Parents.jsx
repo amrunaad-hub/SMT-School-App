@@ -3,6 +3,7 @@ import { jsPDF } from 'jspdf';
 import DOMPurify from 'dompurify';
 import { api } from '../api';
 import ParentStudentProfile from './ParentStudentProfile';
+import MyDocuments from './MyDocuments';
 import { formatDateIST, formatDateTimeIST, formatDateDMY, formatDateTimeDMY } from '../utils/formatDate';
 
 // currentStudent.grade is a display string ("Grade 3"); the timetable/notes
@@ -959,6 +960,7 @@ const Parents = () => {
     { key: 'activities', label: 'Teaching Updates', icon: '📚' },
     { key: 'circular', label: 'Communication', icon: '📢' },
     { key: 'contact', label: 'Important Contacts', icon: '📞' },
+    { key: 'documents', label: 'My Documents', icon: '📁' },
   ];
 
   // Small "you haven't seen this yet" counts shown as a badge on each Quick
@@ -1720,6 +1722,8 @@ const Parents = () => {
             ))}
           </div>
         );
+      case 'documents':
+        return <MyDocuments />;
       default:
         return <div>Select a module</div>;
     }

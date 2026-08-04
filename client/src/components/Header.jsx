@@ -45,6 +45,7 @@ const Header = ({ role = 'admin', onLogout, homePath = '/' }) => {
         { to: '/timetable', label: '⏰ Timetable' },
         { to: '/communication', label: '💬 Communication' },
         { to: '/edit-requests', label: '✏️ Edit Requests' },
+        { to: '/my-documents', label: '📁 My Documents' },
     ];
 
     const adminUpcomingGroup = {
@@ -91,6 +92,7 @@ const Header = ({ role = 'admin', onLogout, homePath = '/' }) => {
                 { to: '/parents', label: '👨‍👩‍👧 Parents' },
                 { to: '/communication', label: '💬 Communication' },
                 { to: '/edit-requests', label: '✅ Edit Requests' },
+                { to: '/my-documents', label: '📁 My Documents' },
             ],
         },
     ];

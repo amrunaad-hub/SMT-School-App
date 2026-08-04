@@ -23,6 +23,7 @@ import Washrooms from './components/Washrooms';
 import Parents from './components/Parents';
 import Teachers from './components/Teachers';
 import Login from './components/Login';
+import MyDocuments from './components/MyDocuments';
 import PublicAdmissionForm from './components/PublicAdmissionForm';
 
 const getHomePath = (role) => {
@@ -156,6 +157,7 @@ function App() {
           <Route path="/washrooms/:washroomId" element={<ProtectedRoute authRole={authRole} allowedRoles={['admin']}><Washrooms /></ProtectedRoute>} />
           <Route path="/communication" element={<ProtectedRoute authRole={authRole} allowedRoles={['admin', 'principal', 'teacher']}><Communication /></ProtectedRoute>} />
           <Route path="/edit-requests" element={<ProtectedRoute authRole={authRole} allowedRoles={['admin', 'principal']}><EditRequests /></ProtectedRoute>} />
+          <Route path="/my-documents" element={<ProtectedRoute authRole={authRole} allowedRoles={['admin', 'principal', 'teacher', 'parent']}><MyDocuments /></ProtectedRoute>} />
 
           <Route path="*" element={<Navigate to={authRole ? getHomePath(authRole) : '/login'} replace />} />
         </Routes>

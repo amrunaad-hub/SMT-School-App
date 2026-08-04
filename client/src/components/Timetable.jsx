@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { api } from '../api';
 import { formatDateKey, isSameDate, generateCalendarDays } from '../utils/calendarHelpers';
 import { formatDateDMY } from '../utils/formatDate';
+import AttendanceModal from './AttendanceModal';
 
 const SUBJECTS_G1_G4 = [
   'Library', 'Maths', 'EVS', 'English', 'Hindi', 'Marathi', 'Yoga', 'Gym', 'Cyber / Computer',
@@ -84,6 +85,10 @@ const Timetable = () => {
   const [loading, setLoading] = useState(true);
   const [myStaffCode, setMyStaffCode] = useState(null);
   const [myInitials, setMyInitials] = useState('');
+  const [myClass, setMyClass] = useState(null); // { grade, division, divisionOptions }
+  const [showAttendanceModal, setShowAttendanceModal] = useState(false);
+  const [attendanceDivision, setAttendanceDivision] = useState(null);
+  const role = window.localStorage.getItem('smt-school-role');
 
   useEffect(() => {
     api.get('/api/auth/me/staff-profile')
@@ -92,6 +97,16 @@ const Timetable = () => {
         if (!profile) return;
         setMyStaffCode(profile.staffCode);
         setMyInitials(getInitials(profile.displayName));
+
+        // Record Attendance is only meaningful for a teacher who's actually
+        // attached to a class (class teacher or subject teacher assigned to
+        // one) — mirrors the same resolution Teachers.jsx uses.
+        const classTeacherEntry = (profile.currentClassTeacherOf || [])[0];
+        const cls = classTeacherEntry || (profile.classAssignments || [])[0];
+        if (!cls) return;
+        const options = classTeacherEntry ? DIVISION_ORDER : [cls.division];
+        setMyClass({ grade: cls.grade, division: cls.division, divisionOptions: options });
+        setAttendanceDivision(cls.division);
       })
       .catch(() => {});
   }, []);
@@ -227,6 +242,18 @@ const Timetable = () => {
           </p>
         )}
 
+        {role === 'teacher' && myClass && (
+          <div style={{ marginBottom: '18px' }}>
+            <button
+              type="button"
+              onClick={() => setShowAttendanceModal(true)}
+              style={{ padding: '10px 18px', borderRadius: '10px', border: 'none', background: '#1e3a8a', color: '#fff', fontWeight: 700, cursor: 'pointer', fontSize: '0.88rem' }}
+            >
+              ✅ Record Attendance — Grade {myClass.grade} {DIVISION_LABEL[attendanceDivision || myClass.division]}
+            </button>
+          </div>
+        )}
+
         <div style={{ marginBottom: '18px', padding: isMobile ? '12px' : '14px 16px', borderRadius: '12px', border: `2px solid ${operationalDayStatus.isWorkingDay ? '#16a34a' : '#f59e0b'}`, background: operationalDayStatus.isWorkingDay ? '#f0fdf4' : '#fffbeb' }}>
           <strong style={{ color: operationalDayStatus.isWorkingDay ? '#166534' : '#92400e' }}>Day Status: {operationalDayStatus.label}</strong>
           <p style={{ margin: '6px 0 0', color: operationalDayStatus.isWorkingDay ? '#166534' : '#92400e' }}>{operationalDayStatus.detail}</p>
@@ -323,6 +350,18 @@ const Timetable = () => {
           </div>
         )}
       </section>
+
+      {showAttendanceModal && myClass && (
+        <AttendanceModal
+          date={formatDateKey(currentDate)}
+          grade={myClass.grade}
+          division={attendanceDivision || myClass.division}
+          divisionOptions={myClass.divisionOptions}
+          onDivisionChange={setAttendanceDivision}
+          onClose={() => setShowAttendanceModal(false)}
+          onLocked={() => {}}
+        />
+      )}
     </main>
   );
 };
