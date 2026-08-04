@@ -378,6 +378,19 @@ router.post('/leave-requests', auth, async (req, res) => {
       return res.status(403).json({ message: 'Not your child.' });
     }
 
+    // Once a day's attendance is locked, a leave/regularization application
+    // only makes sense if the student was actually marked Absent that day —
+    // otherwise there's nothing to regularize (e.g. already Present/Late),
+    // and this would otherwise let a parent silently paper over a locked,
+    // already-final record with an unrelated "leave" application.
+    const lockedRows = await db('attendance')
+      .where({ student_id: studentId, is_locked: true })
+      .whereBetween('date', [fromDate, toDate]);
+    const nonAbsentLocked = lockedRows.find((r) => r.status !== 'Absent');
+    if (nonAbsentLocked) {
+      return res.status(409).json({ message: `Attendance for ${nonAbsentLocked.date} is already locked and marked ${nonAbsentLocked.status} — only regularizing an actual absence is allowed.` });
+    }
+
     // Advance vs. regularization isn't a parent choice — it's evident from
     // the dates: a leave starting today or later is applied in advance, one
     // starting before today is filed after the fact.

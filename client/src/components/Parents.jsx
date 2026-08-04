@@ -1036,15 +1036,14 @@ const Parents = () => {
               setLeaveFormErrors({});
               pushNotification(successMsg);
             })
-            .catch(() => {
-              // Fallback: optimistic local update
-              const newReq = { id: `LR-${String(leaveRequests.length + 1).padStart(3, '0')}`, category: leaveForm.category, fromDate: leaveForm.fromDate, toDate: leaveForm.toDate, reason: leaveForm.reason, status: 'Pending', submittedAt: new Date().toISOString(), approvedBy: null, approvedAt: null };
-              setLeaveRequests((prev) => [...prev, newReq]);
+            .catch((err) => {
+              // A rejected submission (e.g. the server refusing an
+              // application for an already-locked, non-absent day) must
+              // surface as an actual error — silently faking success here
+              // previously meant the parent saw "submitted" and the modal
+              // closed even though nothing was actually saved.
               setLeaveSubmitting(false);
-              setShowLeaveModal(false);
-              setLeaveForm({ category: 'Casual', fromDate: '', toDate: '', reason: '', teacherNote: '', document: null, docName: '' });
-              setLeaveFormErrors({});
-              pushNotification(successMsg);
+              pushNotification(err.message || 'Could not submit — please try again.', 'error');
             });
         };
 
