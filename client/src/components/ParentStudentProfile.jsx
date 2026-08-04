@@ -19,7 +19,7 @@ const TABS = [
 // Fields marked locked:true go through admin approval instead of a direct
 // save — must stay in sync with LOCKED_EDIT_FIELDS/DIRECT_EDIT_FIELDS on the
 // server (server/routes/students.js), which enforces this same split.
-const OVERVIEW_FIELDS = [{ key: 'photoUrl', label: 'Photo URL' }];
+const OVERVIEW_FIELDS = [{ key: 'photoUrl', label: 'Student Photo', type: 'photo' }];
 const PERSONAL_FIELDS = [
   { key: 'firstName', label: 'First Name', locked: true },
   { key: 'middleName', label: 'Middle Name', locked: true },
@@ -96,6 +96,9 @@ const ParentStudentProfile = ({ studentId, isMobile }) => {
   const [uploading, setUploading] = useState(false);
   const [docSubmitError, setDocSubmitError] = useState('');
 
+  const [photoUploading, setPhotoUploading] = useState(false);
+  const [photoUploadError, setPhotoUploadError] = useState('');
+
   const [myRequests, setMyRequests] = useState([]);
 
   const loadStudent = () => {
@@ -163,6 +166,31 @@ const ParentStudentProfile = ({ studentId, isMobile }) => {
     } finally {
       setSaving(false);
     }
+  };
+
+  // Shared by both the camera-capture and gallery-picker inputs below —
+  // uploads immediately on selection and drops the resulting URL straight
+  // into the photo field, same upload-then-fill pattern as handleDocUpload.
+  const handlePhotoPick = (e) => {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+    setPhotoUploading(true);
+    setPhotoUploadError('');
+    const formData = new FormData();
+    formData.append('category', 'student-photos');
+    formData.append('file', file);
+    const token = window.localStorage.getItem('smt-school-token');
+    fetch('/api/uploads', { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: formData })
+      .then((r) => r.json().then((data) => { if (!r.ok) throw new Error(data.message); return data; }))
+      .then((data) => { setEditForm((f) => ({ ...f, photoUrl: data.fileUrl })); setPhotoUploading(false); })
+      .catch((err) => { setPhotoUploadError(err.message || 'Upload failed.'); setPhotoUploading(false); });
+    // Deferred, not synchronous — resetting a file input's value inside its
+    // own onChange corrupts React's internal value-tracking for that
+    // element, silently dropping the next native change event (picking a
+    // second photo, e.g. camera then gallery, stops working). Let React
+    // finish processing this event first.
+    const input = e.target;
+    setTimeout(() => { input.value = ''; }, 0);
   };
 
   const openSiblingsEdit = () => {
@@ -387,7 +415,25 @@ const ParentStudentProfile = ({ studentId, isMobile }) => {
             {FIELDS_FOR_TAB[editTab].map((f) => (
               <label key={f.key} style={labelStyle}>
                 {f.label}{f.locked && <span style={lockBadge}>🔒 requires admin approval</span>}
-                {f.type === 'select' ? (
+                {f.type === 'photo' ? (
+                  <div style={{ marginTop: '8px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '10px' }}>
+                      <img src={editForm.photoUrl || `https://api.dicebear.com/7.x/adventurer/svg?seed=${studentId}`} alt="" style={{ width: '64px', height: '64px', borderRadius: '10px', border: '1px solid #e2e8f0', background: '#f8fafc', objectFit: 'cover' }} />
+                      <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                        <label style={{ padding: '7px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', background: '#f8fafc', cursor: photoUploading ? 'default' : 'pointer', fontSize: '0.82rem', fontWeight: 600, opacity: photoUploading ? 0.6 : 1 }}>
+                          📷 Take Photo
+                          <input type="file" accept="image/*" capture="environment" onChange={handlePhotoPick} disabled={photoUploading} style={{ display: 'none' }} />
+                        </label>
+                        <label style={{ padding: '7px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', background: '#f8fafc', cursor: photoUploading ? 'default' : 'pointer', fontSize: '0.82rem', fontWeight: 600, opacity: photoUploading ? 0.6 : 1 }}>
+                          🖼️ Choose from Gallery
+                          <input type="file" accept="image/*" onChange={handlePhotoPick} disabled={photoUploading} style={{ display: 'none' }} />
+                        </label>
+                      </div>
+                    </div>
+                    {photoUploading && <p style={{ margin: 0, fontSize: '0.78rem', color: '#64748b' }}>Uploading…</p>}
+                    {photoUploadError && <p style={{ margin: 0, fontSize: '0.78rem', color: '#dc2626' }}>{photoUploadError}</p>}
+                  </div>
+                ) : f.type === 'select' ? (
                   <select style={inputStyle} value={editForm[f.key] || ''} onChange={(e) => setEditForm((form) => ({ ...form, [f.key]: e.target.value }))}>
                     {f.options.map((o) => <option key={o} value={o}>{o}</option>)}
                   </select>

@@ -107,7 +107,12 @@ const HR = () => {
       .then((r) => r.json().then((data) => { if (!r.ok) throw new Error(data.message); return data; }))
       .then((data) => { setStaffForm((f) => ({ ...f, photoUrl: data.fileUrl })); setUploadingPhoto(false); })
       .catch(() => setUploadingPhoto(false));
-    e.target.value = '';
+    // Deferred, not synchronous — resetting a file input's value inside its
+    // own onChange corrupts React's internal value-tracking for that
+    // element, silently dropping the next native change event (re-picking
+    // a photo a second time stops working). Let React finish first.
+    const input = e.target;
+    setTimeout(() => { input.value = ''; }, 0);
   };
 
   const submitStaffForm = () => {

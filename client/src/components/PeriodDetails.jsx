@@ -84,7 +84,12 @@ const PeriodDetails = () => {
       .then((r) => r.json().then((data) => { if (!r.ok) throw new Error(data.message); return data; }))
       .then(() => { setUploading(false); loadPeriod(); })
       .catch((err) => { setUploading(false); setSaveError(err.message || 'Upload failed.'); });
-    e.target.value = '';
+    // Deferred, not synchronous — resetting a file input's value inside its
+    // own onChange corrupts React's internal value-tracking for that
+    // element, silently dropping the next native change event (attaching a
+    // second file in a row stops working). Let React finish first.
+    const input = e.target;
+    setTimeout(() => { input.value = ''; }, 0);
   };
 
   const backButtonStyle = {

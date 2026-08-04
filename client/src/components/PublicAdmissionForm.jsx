@@ -141,7 +141,12 @@ const PublicAdmissionForm = () => {
       .then((r) => r.json().then((data) => { if (!r.ok) throw new Error(data.message); return data; }))
       .then((doc) => { setDocuments((d) => [...d, doc]); setUploading(false); })
       .catch((err) => { setUploading(false); setError(err.message); });
-    e.target.value = '';
+    // Deferred, not synchronous — resetting a file input's value inside its
+    // own onChange corrupts React's internal value-tracking for that
+    // element, silently dropping the next native change event (re-uploading
+    // to the same slot a second time stops working). Let React finish first.
+    const input = e.target;
+    setTimeout(() => { input.value = ''; }, 0);
   };
 
   const submitApplication = () => {

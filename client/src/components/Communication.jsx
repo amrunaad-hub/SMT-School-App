@@ -732,7 +732,19 @@ const Communication = () => {
               <input
                 type="file"
                 multiple
-                onChange={(e) => { setPendingDocuments((prev) => [...prev, ...Array.from(e.target.files)]); e.target.value = ''; }}
+                onChange={(e) => {
+                  setPendingDocuments((prev) => [...prev, ...Array.from(e.target.files)]);
+                  // Deferred, not synchronous: resetting a file input's value
+                  // from inside its own onChange corrupts React's internal
+                  // value-tracking for that element, silently dropping the
+                  // NEXT native change event even though the browser fires it
+                  // correctly — the exact bug behind "remove and re-add the
+                  // same file doesn't work" / "second file in a row doesn't
+                  // attach". Letting React finish processing this event
+                  // first avoids it.
+                  const input = e.target;
+                  setTimeout(() => { input.value = ''; }, 0);
+                }}
                 style={{ ...inputStyle, padding: '8px' }}
               />
               {(existingAttachments.length > 0 || pendingDocuments.length > 0) && (
