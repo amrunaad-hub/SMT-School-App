@@ -172,7 +172,7 @@ const StudentProfile = () => {
     formData.append('docType', uploadDocType);
     formData.append('file', file);
 
-    const token = window.sessionStorage.getItem('smt-school-token');
+    const token = window.localStorage.getItem('smt-school-token');
     fetch('/api/uploads', { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: formData })
       .then((r) => r.json().then((data) => { if (!r.ok) throw new Error(data.message); return data; }))
       .then(() => { setUploading(false); loadStudent(); })

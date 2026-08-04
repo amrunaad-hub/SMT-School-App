@@ -1,4 +1,4 @@
-const getToken = () => sessionStorage.getItem('smt-school-token');
+const getToken = () => localStorage.getItem('smt-school-token');
 
 const req = (method, path, body, params) => {
   let url = path;

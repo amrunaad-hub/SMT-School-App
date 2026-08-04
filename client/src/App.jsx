@@ -46,12 +46,16 @@ const ProtectedRoute = ({ authRole, allowedRoles, children }) => {
 
 function App() {
   const [authRole, setAuthRole] = useState(() => {
-    // sessionStorage (not localStorage) deliberately — scoped per browser
-    // tab, so testing multiple accounts side by side in separate tabs works
-    // without one login bumping another. Trade-off: a session doesn't
-    // survive fully closing the tab/app, only refreshes within it.
-    const savedRole = window.sessionStorage.getItem('smt-school-role');
-    const savedToken = window.sessionStorage.getItem('smt-school-token');
+    // localStorage (not sessionStorage) — a session must survive a mobile
+    // PWA being minimized/backgrounded, which can tear down and recreate
+    // the page context (wiping sessionStorage entirely) well before the
+    // user ever explicitly logs out. sessionStorage was tried briefly for
+    // easier multi-account testing in separate tabs, but persistent login
+    // (so push notifications keep working) is the higher-priority
+    // requirement for real parents/teachers — use separate Chrome profiles
+    // for multi-account testing instead.
+    const savedRole = window.localStorage.getItem('smt-school-role');
+    const savedToken = window.localStorage.getItem('smt-school-token');
     return savedRole && savedToken ? savedRole : '';
   });
 
@@ -75,8 +79,8 @@ function App() {
       }
 
       setAuthRole(payload.user.role);
-      window.sessionStorage.setItem('smt-school-role', payload.user.role);
-      window.sessionStorage.setItem('smt-school-token', payload.token);
+      window.localStorage.setItem('smt-school-role', payload.user.role);
+      window.localStorage.setItem('smt-school-token', payload.token);
       return true;
     } catch (error) {
       return false;
@@ -86,8 +90,8 @@ function App() {
   const handleLogout = () => {
     const clearLocal = () => {
       setAuthRole('');
-      window.sessionStorage.removeItem('smt-school-role');
-      window.sessionStorage.removeItem('smt-school-token');
+      window.localStorage.removeItem('smt-school-role');
+      window.localStorage.removeItem('smt-school-token');
     };
 
     // Push subscriptions live at the browser/device level, not per-login —

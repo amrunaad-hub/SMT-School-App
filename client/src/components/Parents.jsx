@@ -22,6 +22,18 @@ const Parents = () => {
   const [activityMonth, setActivityMonth] = useState(new Date(today.getFullYear(), today.getMonth(), 1));
   const [timetableMonth, setTimetableMonth] = useState(new Date(today.getFullYear(), today.getMonth(), 1));
   const [timetableEntries, setTimetableEntries] = useState([]);
+
+  // Switching to the Timetable Quick Access card always jumps back to
+  // today's date, even if the parent had previously navigated elsewhere in
+  // it and left it there — not just on first page load.
+  const openModule = (key) => {
+    if (key === 'timetable') {
+      const now = new Date();
+      setSelectedTimetableDate(now);
+      setTimetableMonth(new Date(now.getFullYear(), now.getMonth(), 1));
+    }
+    setActiveModule(key);
+  };
   const [activityView, setActivityView] = useState('classwork');
   // Opens straight to today's timetable instance rather than the month grid,
   // so the parent lands on current data instead of navigating there each time.
@@ -239,7 +251,7 @@ const Parents = () => {
 
     const loadAttachments = async () => {
       try {
-        const token = window.sessionStorage.getItem('smt-school-token');
+        const token = window.localStorage.getItem('smt-school-token');
         if (!token) {
           return;
         }
@@ -1015,7 +1027,7 @@ const Parents = () => {
                 formData.append('ownerType', 'leave_request');
                 formData.append('ownerId', newReq.id);
                 formData.append('file', leaveForm.document);
-                const token = window.sessionStorage.getItem('smt-school-token');
+                const token = window.localStorage.getItem('smt-school-token');
                 fetch('/api/uploads', { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: formData })
                   .then((res) => { if (!res.ok) pushNotification('Leave submitted, but the document failed to attach.', 'error'); })
                   .catch(() => pushNotification('Leave submitted, but the document failed to attach.', 'error'));
@@ -1791,7 +1803,7 @@ const Parents = () => {
             return (
               <button
                 key={module.key}
-                onClick={() => setActiveModule(module.key)}
+                onClick={() => openModule(module.key)}
                 style={{
                   position: 'relative',
                   border: `1px solid ${activeModule === module.key ? '#fb7185' : '#fecdd3'}`,
@@ -1907,7 +1919,7 @@ const Parents = () => {
                   <button
                     key={module.key}
                     onClick={() => {
-                      setActiveModule(module.key);
+                      openModule(module.key);
                       setIsMenuOpen(false);
                     }}
                     style={{
@@ -1946,7 +1958,7 @@ const Parents = () => {
               <p style={{ margin: '0 0 10px', color: '#9f1239', fontWeight: 700 }}>{attachmentPreview.title}</p>
               <div style={{ border: '1px solid #fecdd3', borderRadius: '10px', overflow: 'hidden' }}>
                 {attachmentPreview.attachments.map((fileItem, index) => {
-                  const token = window.sessionStorage.getItem('smt-school-token') || '';
+                  const token = window.localStorage.getItem('smt-school-token') || '';
                   const tokenQuery = token ? `?access_token=${encodeURIComponent(token)}` : '';
 
                   return (

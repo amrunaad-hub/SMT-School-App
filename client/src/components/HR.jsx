@@ -102,7 +102,7 @@ const HR = () => {
     const formData = new FormData();
     formData.append('category', 'staff-photos');
     formData.append('file', file);
-    const token = window.sessionStorage.getItem('smt-school-token');
+    const token = window.localStorage.getItem('smt-school-token');
     fetch('/api/uploads', { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: formData })
       .then((r) => r.json().then((data) => { if (!r.ok) throw new Error(data.message); return data; }))
       .then((data) => { setStaffForm((f) => ({ ...f, photoUrl: data.fileUrl })); setUploadingPhoto(false); })

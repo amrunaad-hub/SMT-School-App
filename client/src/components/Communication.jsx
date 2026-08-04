@@ -297,7 +297,7 @@ const AudiencePicker = ({ audience, onChange, inputStyle, labelStyle }) => {
 };
 
 const Communication = () => {
-  const role = window.sessionStorage.getItem('smt-school-role');
+  const role = window.localStorage.getItem('smt-school-role');
   const canManage = role === 'admin' || role === 'principal' || role === 'teacher';
   const isAdminOrPrincipal = role === 'admin' || role === 'principal';
 
@@ -435,7 +435,7 @@ const Communication = () => {
     formData.append('ownerType', 'notice');
     formData.append('ownerId', noticeId);
     formData.append('file', file);
-    const token = window.sessionStorage.getItem('smt-school-token');
+    const token = window.localStorage.getItem('smt-school-token');
     const res = await fetch('/api/uploads', { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: formData });
     if (!res.ok) throw new Error(`Failed to attach "${file.name}".`);
   };
@@ -476,7 +476,7 @@ const Communication = () => {
         const formData = new FormData();
         formData.append('category', 'notices');
         formData.append('file', file);
-        const token = window.sessionStorage.getItem('smt-school-token');
+        const token = window.localStorage.getItem('smt-school-token');
         const res = await fetch('/api/uploads', { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: formData });
         if (!res.ok) continue;
         const data = await res.json();
