@@ -142,7 +142,7 @@ const Header = ({ role = 'admin', onLogout, homePath = '/' }) => {
                 <img src={schoolLogo} alt="SMT English Medium School Logo" style={{ height: isMobile ? '42px' : '60px', width: 'auto', borderRadius: '6px' }} />
                 <div>
                     <h1 style={{ margin: 0, fontSize: isMobile ? '1.05rem' : '1.6rem', fontWeight: '700' }}>VidyaSetu</h1>
-                    <p style={{ margin: '6px 0 0', color: '#dbeafe', fontSize: isMobile ? '0.82rem' : '1rem', fontWeight: '500' }}>Smart School Management • {role.toUpperCase()}</p>
+                    <p style={{ margin: '6px 0 0', color: '#dbeafe', fontSize: isMobile ? '0.82rem' : '1rem', fontWeight: '500' }}>{displayName ? `Welcome, ${displayName}` : `Smart School Management • ${role.toUpperCase()}`}</p>
                 </div>
             </Link>
             <nav style={{ width: isMobile ? '100%' : 'auto', overflow: 'visible' }}>
@@ -214,11 +214,6 @@ const Header = ({ role = 'admin', onLogout, homePath = '/' }) => {
                             <Link style={{ ...topLinkStyle, width: '100%', textAlign: 'center', background: 'rgba(16,185,129,0.25)', border: '2px solid rgba(16,185,129,0.55)' }} to={role === 'teacher' ? '/teachers' : '/parents'}>
                                 {role === 'teacher' ? '👩‍🏫 Teachers Portal' : '👨‍👩‍👧 Parents Portal'}
                             </Link>
-                        </li>
-                    )}
-                    {displayName && (
-                        <li style={{ ...mobileNavItemStyle, display: 'flex', alignItems: 'center', color: '#dbeafe', fontSize: '0.82rem', fontWeight: 600, whiteSpace: 'nowrap', justifyContent: isMobile ? 'center' : 'flex-start' }}>
-                            👤 {displayName}
                         </li>
                     )}
                     <li style={mobileNavItemStyle}>

@@ -56,14 +56,30 @@ app.use(helmet({
     },
 }));
 
+// Most parents/teachers are on Indian mobile carriers behind CGNAT, so
+// dozens of unrelated users can legitimately share one public IP — 300
+// requests/15min per IP was getting exhausted by ordinary shared-IP
+// traffic (each page load fires several API calls) and locking real users
+// out with a misleading "invalid credentials" screen. Raised well above
+// what any single small group of users would organically generate; brute
+// force on login specifically is still bounded by authLimiter below.
 const apiLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
-    max: process.env.NODE_ENV === 'production' ? 300 : 1000,
+    max: process.env.NODE_ENV === 'production' ? 3000 : 1000,
     standardHeaders: true,
     legacyHeaders: false,
     message: { message: 'Too many requests, please try again later.' },
 });
 
+const authLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: process.env.NODE_ENV === 'production' ? 50 : 1000,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { message: 'Too many login attempts. Please wait a few minutes and try again.' },
+});
+
+app.use('/api/auth/login', authLimiter);
 app.use('/api', apiLimiter);
 
 app.use((req, res, next) => {
