@@ -337,6 +337,15 @@ const Communication = () => {
   const [saveError, setSaveError] = useState(null);
   const [viewMode, setViewMode] = useState('grid');
 
+  // Document attachments (separate from images embedded inline in the
+  // message body): pendingDocuments are freshly-picked files not uploaded
+  // yet, existingAttachments are already-uploaded ones (edit mode),
+  // removedAttachmentIds tracks existing ones marked for removal on save.
+  const [pendingDocuments, setPendingDocuments] = useState([]);
+  const [existingAttachments, setExistingAttachments] = useState([]);
+  const [removedAttachmentIds, setRemovedAttachmentIds] = useState([]);
+  const quillRef = useRef(null);
+
   const handleEventDateChange = (value) => {
     setForm((f) => ({ ...f, eventDate: value, expiresAt: expiresAtTouched ? f.expiresAt : value }));
   };
@@ -395,6 +404,9 @@ const Communication = () => {
     setForm(EMPTY_FORM);
     setExpiresAtTouched(false);
     setEditingId(null);
+    setPendingDocuments([]);
+    setExistingAttachments([]);
+    setRemovedAttachmentIds([]);
     setShowForm(false);
   };
 
@@ -410,8 +422,71 @@ const Communication = () => {
     });
     setExpiresAtTouched(true);
     setEditingId(notice._id);
+    setPendingDocuments([]);
+    setExistingAttachments(notice.attachments || []);
+    setRemovedAttachmentIds([]);
     setSaveError(null);
     setShowForm(true);
+  };
+
+  const uploadNoticeDocument = async (noticeId, file) => {
+    const formData = new FormData();
+    formData.append('category', 'notices');
+    formData.append('ownerType', 'notice');
+    formData.append('ownerId', noticeId);
+    formData.append('file', file);
+    const token = window.sessionStorage.getItem('smt-school-token');
+    const res = await fetch('/api/uploads', { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: formData });
+    if (!res.ok) throw new Error(`Failed to attach "${file.name}".`);
+  };
+
+  // Dropping an image (e.g. a pasted screenshot saved as a file) directly
+  // into the message box embeds it inline at the drop position, instead of
+  // just being a separate downloadable attachment. Uploads bare (no
+  // ownerType/ownerId) since the URL is embedded straight into the body
+  // HTML — nothing else needs to reference it as an owned document.
+  const handleEditorDrop = async (e) => {
+    const files = Array.from(e.dataTransfer?.files || []).filter((f) => f.type.startsWith('image/'));
+    if (!files.length) return;
+    e.preventDefault();
+    e.stopPropagation();
+
+    const quill = quillRef.current?.getEditor();
+    if (!quill) return;
+
+    let index = quill.getSelection()?.index ?? quill.getLength();
+    try {
+      let range;
+      if (document.caretRangeFromPoint) {
+        range = document.caretRangeFromPoint(e.clientX, e.clientY);
+      } else if (document.caretPositionFromPoint) {
+        const pos = document.caretPositionFromPoint(e.clientX, e.clientY);
+        if (pos) { range = document.createRange(); range.setStart(pos.offsetNode, pos.offset); }
+      }
+      if (range) {
+        const blot = Quill.find(range.startContainer, true);
+        if (blot) index = quill.getIndex(blot) + range.startOffset;
+      }
+    } catch {
+      // Fall back to the current selection/end-of-document index above.
+    }
+
+    for (const file of files) {
+      try {
+        const formData = new FormData();
+        formData.append('category', 'notices');
+        formData.append('file', file);
+        const token = window.sessionStorage.getItem('smt-school-token');
+        const res = await fetch('/api/uploads', { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: formData });
+        if (!res.ok) continue;
+        const data = await res.json();
+        quill.insertEmbed(index, 'image', data.fileUrl, 'user');
+        index += 1;
+        quill.setSelection(index, 0, 'user');
+      } catch {
+        // Skip this file, still try any remaining dropped files.
+      }
+    }
   };
 
   const handleSubmit = async (e) => {
@@ -437,11 +512,17 @@ const Communication = () => {
         eventDate: form.eventDate || null,
         expiresAt: form.expiresAt || null,
       };
+      let noticeId = editingId;
       if (editingId) {
         await api.put(`/api/notices/${editingId}`, payload);
       } else {
-        await api.post('/api/notices', payload);
+        const created = await api.post('/api/notices', payload);
+        noticeId = created.id;
       }
+
+      await Promise.all(removedAttachmentIds.map((id) => api.delete(`/api/uploads/${id}`).catch(() => {})));
+      await Promise.all(pendingDocuments.map((file) => uploadNoticeDocument(noticeId, file)));
+
       closeForm();
       loadNotices();
     } catch (err) {
@@ -492,6 +573,7 @@ const Communication = () => {
 
   return (
     <main style={{ padding: '24px', maxWidth: '1220px', margin: '0 auto' }}>
+      <style>{'.notice-editor .ql-editor { min-height: 280px; }'}</style>
       <section>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '12px' }}>
           <div>
@@ -531,14 +613,6 @@ const Communication = () => {
               <label style={labelStyle}>Title *</label>
               <input style={inputStyle} value={form.title} onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))} placeholder="e.g. School closed for Diwali" />
             </div>
-            <div>
-              <label style={labelStyle}>Message *</label>
-              <div style={{ overflowX: 'auto' }}>
-                <EditorErrorBoundary>
-                  <ReactQuill theme="snow" value={form.body} onChange={(html) => setForm((f) => ({ ...f, body: html }))} modules={QUILL_MODULES} style={{ background: '#fff' }} />
-                </EditorErrorBoundary>
-              </div>
-            </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '14px' }}>
               <div>
                 <label style={labelStyle}>Category</label>
@@ -564,6 +638,41 @@ const Communication = () => {
             </div>
 
             <AudiencePicker audience={form.targetAudience} onChange={(targetAudience) => setForm((f) => ({ ...f, targetAudience }))} inputStyle={inputStyle} labelStyle={labelStyle} />
+
+            <div>
+              <label style={labelStyle}>Attach Documents (optional, multiple allowed)</label>
+              <input
+                type="file"
+                multiple
+                onChange={(e) => { setPendingDocuments((prev) => [...prev, ...Array.from(e.target.files)]); e.target.value = ''; }}
+                style={{ ...inputStyle, padding: '8px' }}
+              />
+              {(existingAttachments.length > 0 || pendingDocuments.length > 0) && (
+                <div style={{ marginTop: '8px', display: 'grid', gap: '6px' }}>
+                  {existingAttachments.map((doc) => (
+                    <div key={doc.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 10px', borderRadius: '6px', background: '#f8fafc', border: '1px solid #e2e8f0', fontSize: '0.8rem' }}>
+                      <a href={doc.fileUrl} target="_blank" rel="noreferrer" style={{ color: '#1e40af' }}>{doc.originalFilename}</a>
+                      <button type="button" onClick={() => { setExistingAttachments((prev) => prev.filter((d) => d.id !== doc.id)); setRemovedAttachmentIds((prev) => [...prev, doc.id]); }} style={{ border: 'none', background: 'none', color: '#991b1b', cursor: 'pointer', fontWeight: 700, fontSize: '0.78rem' }}>Remove</button>
+                    </div>
+                  ))}
+                  {pendingDocuments.map((file, idx) => (
+                    <div key={`${file.name}-${idx}`} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 10px', borderRadius: '6px', background: '#eff6ff', border: '1px solid #bfdbfe', fontSize: '0.8rem' }}>
+                      <span style={{ color: '#1e3a8a' }}>{file.name} <em style={{ color: '#64748b', fontStyle: 'normal' }}>(new)</em></span>
+                      <button type="button" onClick={() => setPendingDocuments((prev) => prev.filter((_, i) => i !== idx))} style={{ border: 'none', background: 'none', color: '#991b1b', cursor: 'pointer', fontWeight: 700, fontSize: '0.78rem' }}>Remove</button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div>
+              <label style={labelStyle}>Message * <span style={{ fontWeight: 500, color: '#94a3b8' }}>— drag &amp; drop a screenshot/image directly into the box to embed it inline</span></label>
+              <div className="notice-editor" style={{ overflowX: 'auto' }} onDrop={handleEditorDrop} onDragOver={(e) => e.preventDefault()}>
+                <EditorErrorBoundary>
+                  <ReactQuill ref={quillRef} theme="snow" value={form.body} onChange={(html) => setForm((f) => ({ ...f, body: html }))} modules={QUILL_MODULES} style={{ background: '#fff' }} />
+                </EditorErrorBoundary>
+              </div>
+            </div>
 
             {saveError && <div style={{ color: '#991b1b', fontSize: '0.82rem' }}>{saveError}</div>}
             <div>

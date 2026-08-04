@@ -7,7 +7,7 @@ const { upload, publicUrlFor } = require('../utils/upload');
 const { serializeRow } = require('../utils/serialize');
 const { isParentOfStudent } = require('../utils/classAccess');
 
-const OWNER_TYPES = ['student', 'admission', 'period_note', 'leave_request'];
+const OWNER_TYPES = ['student', 'admission', 'period_note', 'leave_request', 'notice'];
 const DOC_TYPES = ['Birth Certificate', 'Aadhar', 'Transfer Certificate', 'Photo', 'Medical Certificate', 'Other'];
 
 // POST /api/uploads — multipart form: file, category, and optionally
@@ -46,6 +46,16 @@ router.post('/', auth, authorize(['admin', 'teacher', 'principal', 'parent']), (
 
       if (!OWNER_TYPES.includes(ownerType) || !ownerId) {
         return res.status(400).json({ message: 'ownerType and ownerId are required together.' });
+      }
+
+      // A teacher may only attach to a notice they created themselves;
+      // admin/principal can attach to any (mirrors PUT /api/notices/:id's
+      // own canModifyNotice check).
+      if (ownerType === 'notice' && req.user.role === 'teacher') {
+        const notice = await db('notices').where({ id: Number(ownerId) }).first();
+        if (!notice || notice.created_by_user_id !== req.user.id) {
+          return res.status(403).json({ message: 'You can only attach documents to notices you created.' });
+        }
       }
 
       const [id] = await db('documents').insert({

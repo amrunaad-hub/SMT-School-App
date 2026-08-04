@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom';
 const Login = ({ onLogin }) => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -37,13 +38,23 @@ const Login = ({ onLogin }) => {
           />
 
           <label style={{ display: 'block', marginBottom: '7px', color: '#334155', fontWeight: 700 }}>Password</label>
-          <input
-            type="password"
-            value={password}
-            onChange={(event) => setPassword(event.target.value)}
-            placeholder="Enter password"
-            style={{ width: '100%', minHeight: '42px', borderRadius: '10px', border: '1px solid #cbd5e1', padding: '0 12px', outline: 'none', marginBottom: '14px', fontSize: '0.92rem' }}
-          />
+          <div style={{ position: 'relative', marginBottom: '14px' }}>
+            <input
+              type={showPassword ? 'text' : 'password'}
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+              placeholder="Enter password"
+              style={{ width: '100%', minHeight: '42px', borderRadius: '10px', border: '1px solid #cbd5e1', padding: '0 44px 0 12px', outline: 'none', fontSize: '0.92rem', boxSizing: 'border-box' }}
+            />
+            <button
+              type="button"
+              onClick={() => setShowPassword((v) => !v)}
+              aria-label={showPassword ? 'Hide password' : 'Show password'}
+              style={{ position: 'absolute', right: '4px', top: '50%', transform: 'translateY(-50%)', border: 'none', background: 'none', cursor: 'pointer', padding: '8px', color: '#64748b', fontSize: '1rem', lineHeight: 1 }}
+            >
+              {showPassword ? '🙈' : '👁️'}
+            </button>
+          </div>
 
           {error && <p style={{ color: '#dc2626', fontWeight: 600, marginTop: 0, marginBottom: '12px', fontSize: '0.84rem' }}>{error}</p>}
 

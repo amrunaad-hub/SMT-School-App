@@ -37,6 +37,20 @@ const generateNoticeCode = async () => {
   return `NTC-${String(num + 1).padStart(3, '0')}`;
 };
 
+// Multiple attachments per notice live in the generic `documents` table
+// (owner_type='notice'), same pattern as leave_request/period_note — batches
+// one query instead of one per notice.
+async function attachDocuments(notices) {
+  if (!notices.length) return notices;
+  const docs = await db('documents').where({ owner_type: 'notice' }).whereIn('owner_id', notices.map((n) => n.id));
+  const byNotice = {};
+  docs.forEach((d) => {
+    (byNotice[d.owner_id] ||= []).push({ id: d.id, docType: d.doc_type, fileUrl: d.file_url, originalFilename: d.original_filename });
+  });
+  notices.forEach((n) => { n.attachments = byNotice[n.id] || []; });
+  return notices;
+}
+
 // GET /api/notices — admin/principal-facing: everything, regardless of
 // audience or expiry (the frontend buckets Active vs Archived itself; a
 // notice is never hidden from the API just because it expired).
@@ -58,6 +72,7 @@ router.get('/', auth, async (req, res) => {
       notice.openCount = Number(openRow?.count || 0);
       return notice;
     }));
+    await attachDocuments(notices);
 
     return res.json({ notices, total: notices.length });
   } catch (err) {
@@ -90,6 +105,7 @@ router.get('/mine', auth, async (req, res) => {
       readRows.forEach((r) => readIds.add(r.notice_id));
     }
     applicable.forEach((notice) => { notice.isRead = readIds.has(notice.id); });
+    await attachDocuments(applicable);
 
     return res.json({ notices: applicable, total: applicable.length });
   } catch (err) {

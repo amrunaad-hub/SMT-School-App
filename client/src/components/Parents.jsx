@@ -858,7 +858,7 @@ const Parents = () => {
         title: n.title,
         body: n.body,
         issuedBy: n.issuedBy || '',
-        attachments: n.attachmentUrl ? [n.attachmentUrl] : [],
+        attachments: (n.attachments || []).map((d) => d.fileUrl),
         isRead: !!n.isRead,
         isArchived: !n.isActive || (n.expiresAt && n.expiresAt.slice(0, 10) < todayStr),
       }));
