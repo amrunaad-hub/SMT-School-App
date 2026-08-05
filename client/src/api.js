@@ -19,7 +19,18 @@ const req = (method, path, body, params) => {
     ...(body ? { body: JSON.stringify(body) } : {}),
   }).then(async (r) => {
     const data = await r.json();
-    if (!r.ok) throw new Error(data.message || 'Request failed');
+    if (!r.ok) {
+      // A dead/expired token must not be treated like "no data" — every
+      // component that catches a failed request differently (empty list,
+      // silent no-op, etc.) would otherwise show its own misleading story
+      // instead of the real one: your session ended, log in again. One
+      // global signal here, one global handler in App.jsx, instead of each
+      // call site having to guess.
+      if (r.status === 401) {
+        window.dispatchEvent(new CustomEvent('auth:expired'));
+      }
+      throw new Error(data.message || 'Request failed');
+    }
     return data;
   });
 };

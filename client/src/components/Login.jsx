@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 
-const Login = ({ onLogin }) => {
+const Login = ({ onLogin, sessionExpired }) => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -27,6 +27,12 @@ const Login = ({ onLogin }) => {
       <section style={{ width: '100%', maxWidth: '420px', background: 'rgba(255,255,255,0.96)', border: '1px solid #fda4af', borderRadius: '18px', padding: '22px', boxShadow: '0 20px 34px rgba(30, 64, 175, 0.2)' }}>
         <h1 style={{ margin: 0, color: '#1e3a8a', fontSize: '1.6rem' }}>VidyaSetu Secure Login</h1>
         <p style={{ color: '#475569', marginTop: '8px', marginBottom: '18px' }}>Role-based access for admin, parents and teachers.</p>
+
+        {sessionExpired && (
+          <p style={{ background: '#eff6ff', border: '1px solid #93c5fd', color: '#1e3a8a', fontWeight: 600, borderRadius: '10px', padding: '10px 12px', marginTop: 0, marginBottom: '14px', fontSize: '0.85rem' }}>
+            Your session ended — please log in again.
+          </p>
+        )}
 
         <form onSubmit={handleSubmit}>
           <label style={{ display: 'block', marginBottom: '7px', color: '#334155', fontWeight: 700 }}>Username</label>

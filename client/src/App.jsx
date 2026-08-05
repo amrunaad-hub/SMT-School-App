@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { api } from './api';
 import Header from './components/Header';
@@ -59,6 +59,24 @@ function App() {
     const savedToken = window.localStorage.getItem('smt-school-token');
     return savedRole && savedToken ? savedRole : '';
   });
+  const [sessionExpired, setSessionExpired] = useState(false);
+
+  // Any API call returning 401 (dead/expired token) fires this — see api.js.
+  // Without it, the app kept looking logged in while every request quietly
+  // failed, and each screen showed its own misleading story (e.g. Parents
+  // Portal reading "no student linked" hours after a real login, when the
+  // actual problem was an expired session). Force a clean, honest logout
+  // instead, with a message explaining why.
+  useEffect(() => {
+    const onExpired = () => {
+      setAuthRole('');
+      window.localStorage.removeItem('smt-school-role');
+      window.localStorage.removeItem('smt-school-token');
+      setSessionExpired(true);
+    };
+    window.addEventListener('auth:expired', onExpired);
+    return () => window.removeEventListener('auth:expired', onExpired);
+  }, []);
 
   const handleLogin = async (username, password) => {
     try {
@@ -80,6 +98,7 @@ function App() {
       }
 
       setAuthRole(payload.user.role);
+      setSessionExpired(false);
       window.localStorage.setItem('smt-school-role', payload.user.role);
       window.localStorage.setItem('smt-school-token', payload.token);
       return true;
@@ -119,7 +138,7 @@ function App() {
       <div className="App" style={{ background: 'linear-gradient(135deg, #f0f9ff 0%, #f3f4f6 50%, #faf5ff 100%)', minHeight: '100vh', color: '#1f2937', fontFamily: 'system-ui, -apple-system, sans-serif' }}>
         {authRole && <Header role={authRole} onLogout={handleLogout} homePath={getHomePath(authRole)} />}
         <Routes>
-          <Route path="/login" element={authRole ? <Navigate to={getHomePath(authRole)} replace /> : <Login onLogin={handleLogin} />} />
+          <Route path="/login" element={authRole ? <Navigate to={getHomePath(authRole)} replace /> : <Login onLogin={handleLogin} sessionExpired={sessionExpired} />} />
           {/* Public, unauthenticated online admission application — no login required. */}
           <Route path="/apply" element={<PublicAdmissionForm />} />
 

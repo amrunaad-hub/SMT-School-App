@@ -31,7 +31,14 @@ const issueToken = (user) => {
         },
         secret,
         {
-            expiresIn: process.env.JWT_EXPIRES_IN || '8h',
+            // Parents/teachers log in once and expect push notifications to
+            // keep working indefinitely until they explicitly log out (see
+            // the localStorage-over-sessionStorage decision in App.jsx) — an
+            // 8h token directly undermined that: the app kept looking logged
+            // in while every API call silently 401'd in the background,
+            // which read as "no student linked" / random blank states hours
+            // after a real login, not as a clear "please log in again."
+            expiresIn: process.env.JWT_EXPIRES_IN || '90d',
             issuer: process.env.JWT_ISSUER || 'smt-school-erp',
             audience: process.env.JWT_AUDIENCE || 'smt-school-clients',
         }
