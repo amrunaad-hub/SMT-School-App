@@ -661,7 +661,7 @@ const Communication = () => {
 
   return (
     <main style={{ padding: '24px', maxWidth: '1220px', margin: '0 auto' }}>
-      <style>{'.notice-editor .ql-editor { min-height: 280px; }'}</style>
+      <style>{'.notice-editor .ql-editor { min-height: 280px; } .notice-body-html { overflow-wrap: anywhere; max-width: 100%; } .notice-body-html * { white-space: normal !important; overflow-wrap: anywhere !important; max-width: 100% !important; }'}</style>
       <section>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '12px' }}>
           <div>
@@ -855,6 +855,7 @@ const Communication = () => {
                   </div>
                   {notice.issuedBy && <p style={{ margin: '0 0 8px', color: '#64748b', fontSize: '0.78rem', fontWeight: 600 }}>By {notice.issuedBy}</p>}
                   <div
+                    className="notice-body-html"
                     style={{ margin: '0 0 10px', color: '#475569', fontSize: '0.84rem', lineHeight: 1.55, maxHeight: '4.6em', overflow: 'hidden' }}
                     dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(notice.body) }}
                   />

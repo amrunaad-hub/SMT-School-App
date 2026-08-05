@@ -10,11 +10,12 @@ const req = (method, path, body, params) => {
     ).toString();
     if (qs) url += '?' + qs;
   }
+  const token = getToken();
   return fetch(url, {
     method,
     headers: {
       'Content-Type': 'application/json',
-      Authorization: `Bearer ${getToken()}`,
+      Authorization: `Bearer ${token}`,
     },
     ...(body ? { body: JSON.stringify(body) } : {}),
   }).then(async (r) => {
@@ -26,7 +27,13 @@ const req = (method, path, body, params) => {
       // instead of the real one: your session ended, log in again. One
       // global signal here, one global handler in App.jsx, instead of each
       // call site having to guess.
-      if (r.status === 401) {
+      //
+      // Only fire it when a real token was actually sent and still got
+      // rejected. A request that went out with no token yet (a startup
+      // race — some effect reading localStorage before a just-completed
+      // login has written to it) isn't a session expiring; treating it as
+      // one force-logs-out a user who just successfully logged in.
+      if (r.status === 401 && token) {
         window.dispatchEvent(new CustomEvent('auth:expired'));
       }
       throw new Error(data.message || 'Request failed');

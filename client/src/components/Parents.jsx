@@ -1559,7 +1559,8 @@ const Parents = () => {
                   </div>
                   <div style={{ maxHeight: isOpen ? '320px' : '0px', opacity: isOpen ? 1 : 0, overflow: 'hidden', transition: 'max-height 240ms ease, opacity 220ms ease' }}>
                     <div style={{ padding: isMobile ? '0 12px 12px' : '0 14px 14px', borderTop: '1px solid #ffe4e6' }}>
-                      <div style={{ margin: '10px 0 0', color: '#374151', fontSize: isMobile ? '0.82rem' : '0.9rem', lineHeight: 1.5 }} dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(notice.body) }} />
+                      <style>{'.notice-body-html { overflow-wrap: anywhere; max-width: 100%; } .notice-body-html * { white-space: normal !important; overflow-wrap: anywhere !important; max-width: 100% !important; }'}</style>
+                      <div className="notice-body-html" style={{ margin: '10px 0 0', color: '#374151', fontSize: isMobile ? '0.82rem' : '0.9rem', lineHeight: 1.5 }} dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(notice.body) }} />
                       {notice.attachments.length > 0 && (
                         <button onClick={() => openAttachmentPreview(notice.title, notice.attachments)} style={{ marginTop: '8px', border: '1px solid #fb7185', background: '#fff1f2', color: '#9f1239', borderRadius: '999px', padding: '6px 10px', fontWeight: 700, cursor: 'pointer' }}>📎 {notice.attachments.length} Attachment</button>
                       )}

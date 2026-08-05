@@ -97,10 +97,17 @@ function App() {
         return false;
       }
 
-      setAuthRole(payload.user.role);
-      setSessionExpired(false);
+      // Write storage BEFORE flipping React state. This app is on React 17,
+      // which (unlike 18) doesn't auto-batch state updates made after an
+      // `await` — setAuthRole here can trigger an immediate, synchronous
+      // remount of <Header>, whose effect reads the token from localStorage
+      // right then. Setting state first meant that effect could fire before
+      // the token/role were actually written, sending `Bearer null` and
+      // getting 401'd on the very first request after every login.
       window.localStorage.setItem('smt-school-role', payload.user.role);
       window.localStorage.setItem('smt-school-token', payload.token);
+      setAuthRole(payload.user.role);
+      setSessionExpired(false);
       return true;
     } catch (error) {
       return false;
