@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import schoolLogo from '../assets/logo-source.png';
 
 const Login = ({ onLogin, sessionExpired }) => {
   const [username, setUsername] = useState('');
@@ -22,9 +23,13 @@ const Login = ({ onLogin, sessionExpired }) => {
   };
 
   return (
-    <main style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '18px', background: 'radial-gradient(circle at 10% 10%, #fde68a 0%, #fee2e2 40%, #dbeafe 100%)' }}>
-      <section style={{ width: '100%', maxWidth: '420px', background: 'rgba(255,255,255,0.96)', border: '1px solid #fda4af', borderRadius: '18px', padding: '22px', boxShadow: '0 20px 34px rgba(30, 64, 175, 0.2)' }}>
-        <h1 style={{ margin: '0 0 18px', color: '#1e3a8a', fontSize: '1.6rem' }}>VidyaSetu Secure Login</h1>
+    <main style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '18px', background: '#f1f5f9' }}>
+      <section style={{ width: '100%', maxWidth: '400px', background: '#fff', border: '1px solid #e2e8f0', borderRadius: '16px', padding: '32px 28px', boxShadow: '0 10px 30px rgba(15, 23, 42, 0.08)' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: '26px' }}>
+          <img src={schoolLogo} alt="Saraswati English Medium School" style={{ height: '64px', width: 'auto', borderRadius: '8px', marginBottom: '14px' }} />
+          <h1 style={{ margin: 0, color: '#1e3a8a', fontSize: '1.4rem', fontWeight: 800 }}>VidyaSetu</h1>
+          <p style={{ margin: '4px 0 0', color: '#64748b', fontSize: '0.85rem', fontWeight: 600 }}>Login</p>
+        </div>
 
         {sessionExpired && (
           <p style={{ background: '#eff6ff', border: '1px solid #93c5fd', color: '#1e3a8a', fontWeight: 600, borderRadius: '10px', padding: '10px 12px', marginTop: 0, marginBottom: '14px', fontSize: '0.85rem' }}>
@@ -65,7 +70,7 @@ const Login = ({ onLogin, sessionExpired }) => {
           <button
             type="submit"
             disabled={isSubmitting}
-            style={{ width: '100%', minHeight: '44px', border: 'none', borderRadius: '10px', background: 'linear-gradient(135deg, #1d4ed8 0%, #7e22ce 100%)', color: '#fff', fontWeight: 700, cursor: 'pointer', fontSize: '0.95rem' }}
+            style={{ width: '100%', minHeight: '44px', border: 'none', borderRadius: '10px', background: '#1e3a8a', color: '#fff', fontWeight: 700, cursor: isSubmitting ? 'default' : 'pointer', fontSize: '0.95rem', opacity: isSubmitting ? 0.75 : 1 }}
           >
             {isSubmitting ? 'Signing in...' : 'Login'}
           </button>
