@@ -4,6 +4,27 @@
   box-sizing: border-box;
 }
 
+/* Every fontSize in this app is set in rem (verified: all ~500 of them),
+   which is relative to this root size — so scaling it here scales every
+   message/card/label/header at once, everywhere, without touching
+   individual components. --font-scale is the user-controlled multiplier
+   from the A-/A+ control (FontSizeControl.jsx); the mobile media query
+   gives a larger *base* before that multiplier even applies, since mobile
+   text was reported too small by default. calc()/media queries recompute
+   live on resize/orientation change, so no JS resize listener is needed
+   for the base half of this — only the scale itself needs to be applied
+   in JS (see FontSizeControl.jsx). */
+:root {
+  --font-scale: 1;
+  font-size: calc(16px * var(--font-scale));
+}
+
+@media (max-width: 900px) {
+  :root {
+    font-size: calc(21px * var(--font-scale));
+  }
+}
+
 body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
     'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',

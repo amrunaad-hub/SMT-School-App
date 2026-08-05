@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import schoolLogo from '../assets/logo-source.png';
+import FontSizeControl from './FontSizeControl';
 
 const Login = ({ onLogin, sessionExpired }) => {
   const [username, setUsername] = useState('');
@@ -24,7 +25,10 @@ const Login = ({ onLogin, sessionExpired }) => {
 
   return (
     <main style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '18px', background: '#f1f5f9' }}>
-      <section style={{ width: '100%', maxWidth: '400px', background: '#fff', border: '1px solid #e2e8f0', borderRadius: '16px', padding: '32px 28px', boxShadow: '0 10px 30px rgba(15, 23, 42, 0.08)' }}>
+      <section style={{ width: '100%', maxWidth: '400px', background: '#fff', border: '1px solid #e2e8f0', borderRadius: '16px', padding: '32px 28px', boxShadow: '0 10px 30px rgba(15, 23, 42, 0.08)', position: 'relative' }}>
+        <div style={{ position: 'absolute', top: '16px', right: '16px' }}>
+          <FontSizeControl variant="light" />
+        </div>
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: '26px' }}>
           <img src={schoolLogo} alt="Saraswati English Medium School" style={{ height: '64px', width: 'auto', borderRadius: '8px', marginBottom: '14px' }} />
           <h1 style={{ margin: 0, color: '#1e3a8a', fontSize: '1.4rem', fontWeight: 800 }}>VidyaSetu</h1>

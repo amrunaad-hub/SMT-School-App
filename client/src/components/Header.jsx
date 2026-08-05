@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import schoolLogo from '../assets/logo-source.png';
 import { api } from '../api';
+import FontSizeControl from './FontSizeControl';
 
 const Header = ({ role = 'admin', onLogout, homePath = '/' }) => {
     const [isMobile, setIsMobile] = useState(() => window.innerWidth < 900);
@@ -148,13 +149,16 @@ const Header = ({ role = 'admin', onLogout, homePath = '/' }) => {
                 </div>
             </Link>
             {isParent ? (
-                <button
-                    type="button"
-                    onClick={onLogout}
-                    style={{ flexShrink: 0, color: 'white', border: '1px solid rgba(248,113,113,0.8)', background: 'rgba(239,68,68,0.25)', borderRadius: '8px', padding: isMobile ? '6px 10px' : '8px 14px', fontSize: isMobile ? '0.78rem' : '0.85rem', fontWeight: '600', cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}
-                >
-                    🔒 Logout
-                </button>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+                    <FontSizeControl variant="dark" />
+                    <button
+                        type="button"
+                        onClick={onLogout}
+                        style={{ flexShrink: 0, color: 'white', border: '1px solid rgba(248,113,113,0.8)', background: 'rgba(239,68,68,0.25)', borderRadius: '8px', padding: isMobile ? '6px 10px' : '8px 14px', fontSize: isMobile ? '0.78rem' : '0.85rem', fontWeight: '600', cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}
+                    >
+                        🔒 Logout
+                    </button>
+                </div>
             ) : (
             <nav style={{ width: isMobile ? '100%' : 'auto', overflow: 'visible' }}>
                 <ul style={{ display: 'flex', gap: '10px', listStyle: 'none', margin: 0, padding: 0, flexWrap: 'wrap', overflow: 'visible', scrollbarWidth: 'thin' }}>
@@ -229,6 +233,9 @@ const Header = ({ role = 'admin', onLogout, homePath = '/' }) => {
                             </Link>
                         </li>
                     )}
+                    <li style={{ ...mobileNavItemStyle, display: 'flex', alignItems: 'center', justifyContent: isMobile ? 'center' : 'flex-start' }}>
+                        <FontSizeControl variant="dark" />
+                    </li>
                     <li style={mobileNavItemStyle}>
                         <button
                             type="button"

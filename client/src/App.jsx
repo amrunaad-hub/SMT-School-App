@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { api, markLoggingOut, clearLoggingOut } from './api';
+import { applyStoredFontScale } from './components/FontSizeControl';
 import Header from './components/Header';
 import Dashboard from './components/Dashboard';
 import CommandCenter from './components/CommandCenter';
@@ -60,6 +61,14 @@ function App() {
     return savedRole && savedToken ? savedRole : '';
   });
   const [sessionExpired, setSessionExpired] = useState(false);
+
+  // Applies the saved text-size preference on every route, including the
+  // login page — FontSizeControl (rendered in Header/Login) only mounts once
+  // authenticated or on the login form itself, but the preference needs to
+  // already be in effect the instant App mounts, everywhere.
+  useEffect(() => {
+    applyStoredFontScale();
+  }, []);
 
   // Any API call returning 401 (dead/expired token) fires this — see api.js.
   // Without it, the app kept looking logged in while every request quietly
