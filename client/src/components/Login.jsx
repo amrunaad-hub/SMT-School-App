@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
 
 const Login = ({ onLogin, sessionExpired }) => {
   const [username, setUsername] = useState('');
@@ -25,8 +24,7 @@ const Login = ({ onLogin, sessionExpired }) => {
   return (
     <main style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '18px', background: 'radial-gradient(circle at 10% 10%, #fde68a 0%, #fee2e2 40%, #dbeafe 100%)' }}>
       <section style={{ width: '100%', maxWidth: '420px', background: 'rgba(255,255,255,0.96)', border: '1px solid #fda4af', borderRadius: '18px', padding: '22px', boxShadow: '0 20px 34px rgba(30, 64, 175, 0.2)' }}>
-        <h1 style={{ margin: 0, color: '#1e3a8a', fontSize: '1.6rem' }}>VidyaSetu Secure Login</h1>
-        <p style={{ color: '#475569', marginTop: '8px', marginBottom: '18px' }}>Role-based access for admin, parents and teachers.</p>
+        <h1 style={{ margin: '0 0 18px', color: '#1e3a8a', fontSize: '1.6rem' }}>VidyaSetu Secure Login</h1>
 
         {sessionExpired && (
           <p style={{ background: '#eff6ff', border: '1px solid #93c5fd', color: '#1e3a8a', fontWeight: 600, borderRadius: '10px', padding: '10px 12px', marginTop: 0, marginBottom: '14px', fontSize: '0.85rem' }}>
@@ -72,10 +70,6 @@ const Login = ({ onLogin, sessionExpired }) => {
             {isSubmitting ? 'Signing in...' : 'Login'}
           </button>
         </form>
-
-        <p style={{ textAlign: 'center', marginTop: '16px', marginBottom: 0, fontSize: '0.86rem', color: '#475569' }}>
-          New family? <Link to="/apply" style={{ color: '#1d4ed8', fontWeight: 700 }}>Apply for admission</Link>
-        </p>
       </section>
     </main>
   );
