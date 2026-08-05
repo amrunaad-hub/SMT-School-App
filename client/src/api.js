@@ -1,5 +1,19 @@
 const getToken = () => localStorage.getItem('smt-school-token');
 
+// Set while an intentional, user-initiated logout is in flight (see
+// App.jsx's handleLogout) so any 401 that arrives during it — e.g. the
+// logout flow's own push-unsubscribe call, or some unrelated request that
+// happened to be in-flight at the moment of clicking Logout — doesn't get
+// misread as an unexpected session death and show "Your session ended" on
+// the next visit to the login page. A logout the user asked for is not a
+// surprise; only an involuntary one should carry that message.
+let loggingOut = false;
+export const markLoggingOut = () => { loggingOut = true; };
+// Called on a fresh successful login — otherwise the flag set by the first
+// logout of the session would stay true forever, silently swallowing any
+// real session-expiry 401 for the rest of the app's lifetime.
+export const clearLoggingOut = () => { loggingOut = false; };
+
 const req = (method, path, body, params) => {
   let url = path;
   if (params) {
@@ -33,7 +47,7 @@ const req = (method, path, body, params) => {
       // race — some effect reading localStorage before a just-completed
       // login has written to it) isn't a session expiring; treating it as
       // one force-logs-out a user who just successfully logged in.
-      if (r.status === 401 && token) {
+      if (r.status === 401 && token && !loggingOut) {
         window.dispatchEvent(new CustomEvent('auth:expired'));
       }
       throw new Error(data.message || 'Request failed');

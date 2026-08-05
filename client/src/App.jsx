@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { api } from './api';
+import { api, markLoggingOut, clearLoggingOut } from './api';
 import Header from './components/Header';
 import Dashboard from './components/Dashboard';
 import CommandCenter from './components/CommandCenter';
@@ -106,6 +106,7 @@ function App() {
       // getting 401'd on the very first request after every login.
       window.localStorage.setItem('smt-school-role', payload.user.role);
       window.localStorage.setItem('smt-school-token', payload.token);
+      clearLoggingOut();
       setAuthRole(payload.user.role);
       setSessionExpired(false);
       return true;
@@ -115,8 +116,14 @@ function App() {
   };
 
   const handleLogout = () => {
+    // Mark this as intentional before anything else fires — the push-
+    // unsubscribe call below (or any other request already in flight) could
+    // otherwise return a 401 mid-logout and get misread by api.js as a
+    // surprise session death.
+    markLoggingOut();
     const clearLocal = () => {
       setAuthRole('');
+      setSessionExpired(false);
       window.localStorage.removeItem('smt-school-role');
       window.localStorage.removeItem('smt-school-token');
     };

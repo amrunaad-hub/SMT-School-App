@@ -1557,7 +1557,14 @@ const Parents = () => {
                       {isOpen ? '▲ Close' : '▼ Open Notice'}
                     </button>
                   </div>
-                  <div style={{ maxHeight: isOpen ? '320px' : '0px', opacity: isOpen ? 1 : 0, overflow: 'hidden', transition: 'max-height 240ms ease, opacity 220ms ease' }}>
+                  {/* maxHeight here is just the collapse/expand animation's
+                      vehicle, not a real content limit — 320px silently
+                      clipped anything longer (the attachment button lives
+                      below the body text, so a long notice hid it entirely
+                      with no visual sign anything was missing). 4000px is
+                      larger than any real notice will ever reach; overflowY
+                      auto is the safety net for the rare one that does. */}
+                  <div style={{ maxHeight: isOpen ? '4000px' : '0px', overflow: isOpen ? 'auto' : 'hidden', opacity: isOpen ? 1 : 0, transition: 'max-height 240ms ease, opacity 220ms ease' }}>
                     <div style={{ padding: isMobile ? '0 12px 12px' : '0 14px 14px', borderTop: '1px solid #ffe4e6' }}>
                       <style>{'.notice-body-html { overflow-wrap: anywhere; max-width: 100%; } .notice-body-html * { white-space: normal !important; overflow-wrap: anywhere !important; max-width: 100% !important; }'}</style>
                       <div className="notice-body-html" style={{ margin: '10px 0 0', color: '#374151', fontSize: isMobile ? '0.82rem' : '0.9rem', lineHeight: 1.5 }} dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(notice.body) }} />
