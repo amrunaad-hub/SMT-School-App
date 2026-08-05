@@ -136,15 +136,26 @@ const Header = ({ role = 'admin', onLogout, homePath = '/' }) => {
         }))
         .filter((group) => group.items.length > 0);
 
+    const isParent = role === 'parent';
+
     return (
-        <header style={{ background: 'linear-gradient(135deg, #1e40af 0%, #1e3a8a 100%)', color: 'white', padding: isMobile ? '14px 12px' : '20px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px', boxShadow: '0 4px 16px rgba(0, 0, 0, 0.15)', position: 'relative', zIndex: 50 }}>
-            <Link to={homePath} style={{ display: 'flex', alignItems: 'center', gap: '12px', width: isMobile ? '100%' : 'auto', textDecoration: 'none', color: 'inherit' }}>
-                <img src={schoolLogo} alt="SMT English Medium School Logo" style={{ height: isMobile ? '42px' : '60px', width: 'auto', borderRadius: '6px' }} />
-                <div>
-                    <h1 style={{ margin: 0, fontSize: isMobile ? '1.05rem' : '1.6rem', fontWeight: '700' }}>VidyaSetu</h1>
-                    <p style={{ margin: '6px 0 0', color: '#dbeafe', fontSize: isMobile ? '0.82rem' : '1rem', fontWeight: '500' }}>{displayName ? `Welcome, ${displayName}` : `Smart School Management • ${role.toUpperCase()}`}</p>
+        <header style={{ background: 'linear-gradient(135deg, #1e40af 0%, #1e3a8a 100%)', color: 'white', padding: isMobile ? '14px 12px' : '20px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: isParent ? 'nowrap' : 'wrap', gap: '12px', boxShadow: '0 4px 16px rgba(0, 0, 0, 0.15)', position: 'relative', zIndex: 50 }}>
+            <Link to={homePath} style={{ display: 'flex', alignItems: 'center', gap: '12px', width: isParent || !isMobile ? 'auto' : '100%', minWidth: 0, textDecoration: 'none', color: 'inherit' }}>
+                <img src={schoolLogo} alt="SMT English Medium School Logo" style={{ height: isMobile ? '42px' : '60px', width: 'auto', borderRadius: '6px', flexShrink: 0 }} />
+                <div style={{ minWidth: 0 }}>
+                    <h1 style={{ margin: 0, fontSize: isMobile ? '1.05rem' : '1.6rem', fontWeight: '700', whiteSpace: isParent ? 'nowrap' : 'normal', overflow: isParent ? 'hidden' : 'visible', textOverflow: isParent ? 'ellipsis' : 'clip' }}>SMT&apos;s VidyaSetu</h1>
+                    <p style={{ margin: '6px 0 0', color: '#dbeafe', fontSize: isMobile ? '0.82rem' : '1rem', fontWeight: '500', whiteSpace: isParent ? 'nowrap' : 'normal', overflow: isParent ? 'hidden' : 'visible', textOverflow: isParent ? 'ellipsis' : 'clip' }}>{displayName ? `Welcome, ${displayName}` : `Smart School Management • ${role.toUpperCase()}`}</p>
                 </div>
             </Link>
+            {isParent ? (
+                <button
+                    type="button"
+                    onClick={onLogout}
+                    style={{ flexShrink: 0, color: 'white', border: '1px solid rgba(248,113,113,0.8)', background: 'rgba(239,68,68,0.25)', borderRadius: '8px', padding: isMobile ? '6px 10px' : '8px 14px', fontSize: isMobile ? '0.78rem' : '0.85rem', fontWeight: '600', cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}
+                >
+                    🔒 Logout
+                </button>
+            ) : (
             <nav style={{ width: isMobile ? '100%' : 'auto', overflow: 'visible' }}>
                 <ul style={{ display: 'flex', gap: '10px', listStyle: 'none', margin: 0, padding: 0, flexWrap: 'wrap', overflow: 'visible', scrollbarWidth: 'thin' }}>
                     {(isAdmin || isPrincipal) ? (
@@ -210,9 +221,11 @@ const Header = ({ role = 'admin', onLogout, homePath = '/' }) => {
                             })}
                         </>
                     ) : (
+                        // Only teacher reaches here — parent gets the compact
+                        // logo-row layout above instead of this nav entirely.
                         <li style={{ ...mobileNavItemStyle, minWidth: '220px' }}>
-                            <Link style={{ ...topLinkStyle, width: '100%', textAlign: 'center', background: 'rgba(16,185,129,0.25)', border: '2px solid rgba(16,185,129,0.55)' }} to={role === 'teacher' ? '/teachers' : '/parents'}>
-                                {role === 'teacher' ? '👩‍🏫 Teachers Portal' : '👨‍👩‍👧 Parents Portal'}
+                            <Link style={{ ...topLinkStyle, width: '100%', textAlign: 'center', background: 'rgba(16,185,129,0.25)', border: '2px solid rgba(16,185,129,0.55)' }} to="/teachers">
+                                👩‍🏫 Teachers Portal
                             </Link>
                         </li>
                     )}
@@ -227,6 +240,7 @@ const Header = ({ role = 'admin', onLogout, homePath = '/' }) => {
                     </li>
                 </ul>
             </nav>
+            )}
         </header>
     );
 };

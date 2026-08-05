@@ -43,6 +43,7 @@ const Parents = () => {
   const [circularSearch, setCircularSearch] = useState('');
   const [isMobile, setIsMobile] = useState(() => window.innerWidth < 900);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [showNotifDropdown, setShowNotifDropdown] = useState(false);
   const [currentMonth, setCurrentMonth] = useState(() => {
     if (deepLinkAttendanceDate) {
       const d = new Date(deepLinkAttendanceDate);
@@ -925,12 +926,26 @@ const Parents = () => {
   const attendancePendingRegularizationCount = attendanceData.filter((d) => d.type === 'unregularized').length;
   const circularUnreadCount = mergedCircularNotices.filter((n) => !n.isArchived && !n.isRead).length;
 
+  const activitiesUnreadCount = periodNoteUpdates.filter((n) => !n.isRead).length;
   const moduleBadgeCounts = {
     profile: profileIncompleteCount,
     attendance: attendancePendingRegularizationCount,
     circular: circularUnreadCount,
-    activities: periodNoteUpdates.filter((n) => !n.isRead).length,
+    activities: activitiesUnreadCount,
   };
+
+  // The bell shows the real total of open action items across every module
+  // — same numbers as the Quick Access badges below, not the separate
+  // server push-notification log, which was showing an unrelated (and much
+  // smaller) count. Clicking it lists exactly what's pending, grouped by
+  // module, each item jumping straight to that module.
+  const pendingActionItems = [
+    profileIncompleteCount > 0 && { key: 'profile', icon: '👤', label: 'Student Profile', count: profileIncompleteCount, desc: `${profileIncompleteCount} field${profileIncompleteCount === 1 ? '' : 's'} incomplete` },
+    attendancePendingRegularizationCount > 0 && { key: 'attendance', icon: '📅', label: 'Attendance', count: attendancePendingRegularizationCount, desc: `${attendancePendingRegularizationCount} day${attendancePendingRegularizationCount === 1 ? '' : 's'} need regularization` },
+    circularUnreadCount > 0 && { key: 'circular', icon: '📢', label: 'Communication', count: circularUnreadCount, desc: `${circularUnreadCount} unread notice${circularUnreadCount === 1 ? '' : 's'}` },
+    activitiesUnreadCount > 0 && { key: 'activities', icon: '📚', label: 'Teaching Updates', count: activitiesUnreadCount, desc: `${activitiesUnreadCount} unread update${activitiesUnreadCount === 1 ? '' : 's'}` },
+  ].filter(Boolean);
+  const totalPendingCount = pendingActionItems.reduce((sum, item) => sum + item.count, 0);
 
   const upcomingModules = [
     { key: 'fees', label: 'Fees', icon: '💳' },
@@ -1700,33 +1715,60 @@ const Parents = () => {
 
   return (
     <main style={{ padding: isMobile ? '12px 12px 80px' : '24px', maxWidth: '1240px', margin: '0 auto', color: '#1f2937', background: 'linear-gradient(180deg, #fff1f2 0%, #fff7ed 100%)', minHeight: 'calc(100vh - 100px)' }}>
-      <section style={{ marginBottom: '16px' }}>
-        <div style={{ borderRadius: '18px', overflow: 'hidden', border: '1px solid #fecdd3', boxShadow: '0 12px 28px rgba(244, 63, 94, 0.15)' }}>
-          <div style={{ background: 'linear-gradient(135deg, #ef4444 0%, #e11d48 100%)', color: '#fff', padding: isMobile ? '14px' : '20px', position: 'relative' }}>
-            <h2 style={{ margin: 0, fontSize: isMobile ? '1.25rem' : '1.7rem', fontWeight: 800 }}>Parents Portal</h2>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '6px', flexWrap: 'wrap' }}>
-              <p style={{ margin: 0, color: '#ffe4e6', fontWeight: 600, fontSize: isMobile ? '0.84rem' : '0.95rem' }}>SMT School, Thane</p>
-              {pushStatus !== 'unsupported' && (
-                <button
-                  type="button"
-                  onClick={pushStatus === 'on' ? disablePushNotifications : enablePushNotifications}
-                  disabled={pushStatus === 'busy'}
-                  style={{ border: '1px solid rgba(255,255,255,0.6)', background: pushStatus === 'on' ? 'rgba(255,255,255,0.25)' : 'transparent', color: '#fff', borderRadius: '999px', padding: '3px 10px', fontSize: '0.72rem', fontWeight: 700, cursor: pushStatus === 'busy' ? 'default' : 'pointer', opacity: pushStatus === 'busy' ? 0.7 : 1 }}
-                >
-                  {pushStatus === 'on' ? '🔔 Notifications On' : pushStatus === 'busy' ? 'Working…' : '🔕 Enable Notifications'}
-                </button>
-              )}
+      <section style={{ marginBottom: '12px', display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '8px', position: 'relative' }}>
+        {pushStatus !== 'unsupported' && (
+          <button
+            type="button"
+            onClick={pushStatus === 'on' ? disablePushNotifications : enablePushNotifications}
+            disabled={pushStatus === 'busy'}
+            style={{ border: '1px solid #fda4af', background: pushStatus === 'on' ? '#ffe4e6' : '#fff', color: '#9f1239', borderRadius: '999px', padding: '5px 12px', fontSize: '0.76rem', fontWeight: 700, cursor: pushStatus === 'busy' ? 'default' : 'pointer', opacity: pushStatus === 'busy' ? 0.7 : 1 }}
+          >
+            {pushStatus === 'on' ? '🔔 Notifications On' : pushStatus === 'busy' ? 'Working…' : '🔕 Enable Notifications'}
+          </button>
+        )}
+        <button
+          type="button"
+          onClick={() => setShowNotifDropdown((v) => !v)}
+          style={{ position: 'relative', border: '1px solid #fda4af', background: '#fff', color: '#9f1239', borderRadius: '999px', width: '38px', height: '38px', fontSize: '1.05rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+        >
+          🔔
+          {totalPendingCount > 0 && (
+            <span style={{ position: 'absolute', top: '-6px', right: '-6px', minWidth: '20px', height: '20px', padding: '0 5px', borderRadius: '999px', background: '#e11d48', color: '#fff', fontSize: '0.68rem', fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 6px rgba(225,29,72,0.5)' }}>
+              {totalPendingCount > 99 ? '99+' : totalPendingCount}
+            </span>
+          )}
+        </button>
+
+        {showNotifDropdown && (
+          <div style={{ position: 'absolute', top: '44px', right: 0, zIndex: 40, width: isMobile ? '280px' : '320px', background: '#fff', border: '1px solid #fecdd3', borderRadius: '14px', boxShadow: '0 16px 34px rgba(15,23,42,0.18)', overflow: 'hidden' }}>
+            <div style={{ padding: '10px 14px', borderBottom: '1px solid #fecdd3', fontWeight: 800, color: '#9f1239', fontSize: '0.88rem' }}>
+              {totalPendingCount > 0 ? `${totalPendingCount} pending action${totalPendingCount === 1 ? '' : 's'}` : 'All caught up'}
             </div>
-            {serverNotifications.unreadCount > 0 && (
-              <div
-                title={serverNotifications.notifications.slice(0, 5).map((n) => n.title).join('\n')}
-                style={{ position: 'absolute', top: isMobile ? '10px' : '16px', right: isMobile ? '10px' : '16px', background: '#fff', color: '#e11d48', borderRadius: '999px', padding: '4px 10px', fontWeight: 800, fontSize: '0.78rem' }}
-              >
-                🔔 {serverNotifications.unreadCount}
-              </div>
+            {pendingActionItems.length === 0 ? (
+              <p style={{ margin: 0, padding: '16px 14px', color: '#9ca3af', fontSize: '0.84rem' }}>Nothing needs your attention right now.</p>
+            ) : (
+              pendingActionItems.map((item) => (
+                <button
+                  key={item.key}
+                  type="button"
+                  onClick={() => { openModule(item.key); setShowNotifDropdown(false); }}
+                  style={{ display: 'flex', alignItems: 'center', gap: '10px', width: '100%', textAlign: 'left', border: 'none', borderBottom: '1px solid #fff1f2', background: '#fff', padding: '10px 14px', cursor: 'pointer' }}
+                >
+                  <span style={{ fontSize: '1.15rem' }}>{item.icon}</span>
+                  <span style={{ flex: 1 }}>
+                    <span style={{ display: 'block', fontWeight: 700, color: '#9f1239', fontSize: '0.84rem' }}>{item.label}</span>
+                    <span style={{ display: 'block', color: '#6b7280', fontSize: '0.76rem' }}>{item.desc}</span>
+                  </span>
+                  <span style={{ minWidth: '22px', height: '22px', padding: '0 6px', borderRadius: '999px', background: '#e11d48', color: '#fff', fontSize: '0.72rem', fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{item.count}</span>
+                </button>
+              ))
             )}
           </div>
+        )}
+      </section>
 
+      <section style={{ marginBottom: '16px' }}>
+        <div style={{ borderRadius: '18px', overflow: 'hidden', border: '1px solid #fecdd3', boxShadow: '0 12px 28px rgba(244, 63, 94, 0.15)' }}>
           <div style={{ background: '#fff', padding: isMobile ? '12px' : '16px' }}>
             <div style={{ border: '1px solid #fecdd3', borderRadius: '12px', background: '#fff1f2', padding: isMobile ? '10px' : '12px', marginBottom: linkedStudents.length > 0 ? '12px' : 0 }}>
               {linkedStudents.length === 0 ? (
@@ -1813,8 +1855,12 @@ const Parents = () => {
             );
           })}
         </div>
+      </section>
 
-        <h4 style={{ margin: '14px 0 8px', color: '#9ca3af', fontSize: '0.72rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>🚧 Upcoming Features</h4>
+      {renderModule()}
+
+      <section style={{ marginTop: '16px', background: '#fff', border: '1px solid #fecdd3', borderRadius: '16px', padding: isMobile ? '12px' : '16px' }}>
+        <h4 style={{ margin: '0 0 8px', color: '#9ca3af', fontSize: '0.72rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>🚧 Upcoming Features</h4>
         <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(4, 1fr)' : 'repeat(8, minmax(95px, 1fr))', gap: '8px' }}>
           {upcomingModules.map((module) => (
             <div
@@ -1841,8 +1887,6 @@ const Parents = () => {
           ))}
         </div>
       </section>
-
-      {renderModule()}
 
       {isMobile && (
         <>
