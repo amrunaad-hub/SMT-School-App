@@ -3,9 +3,8 @@ import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { api } from '../api';
 import { formatDateTimeDMY } from '../utils/formatDate';
+import AudiencePicker from './AudiencePicker';
 
-const GRADES = Array.from({ length: 10 }, (_, i) => i + 1);
-const DIVISIONS = ['alpha', 'beta', 'gamma'];
 const FIELD_TYPE_OPTIONS = [
   { value: 'text', label: 'Text (single line)' },
   { value: 'number', label: 'Number' },
@@ -15,8 +14,23 @@ const FIELD_TYPE_OPTIONS = [
   { value: 'multiselect', label: 'Dropdown (pick multiple)' },
   { value: 'file', label: 'Attachment' },
 ];
-const AUDIENCE_DEFAULT = { allGrades: false, gradeSelections: [] };
+// Same shape/model as Notices' audience (server/utils/noticeAudience.js):
+// grade/division selection always reaches parents directly, no separate
+// "target parents" toggle — Teachers and Specific Students are independent
+// additive facets on top, via the shared AudiencePicker.
+const AUDIENCE_DEFAULT = { allGrades: false, gradeSelections: [], grades: [], allDivisions: false, divisions: [], allTeachers: false, teacherIds: [], studentIds: [] };
 const newFieldId = () => `f${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+
+// Short human summary of an audience object, for the forms list.
+const audienceSummary = (a) => {
+  const chips = [];
+  if (a.allGrades) chips.push('All Grades');
+  else if (a.gradeSelections.length > 0) chips.push(`${a.gradeSelections.length} grade(s)`);
+  if (a.allTeachers) chips.push('All Teachers');
+  else if (a.teacherIds.length > 0) chips.push(`${a.teacherIds.length} teacher(s)`);
+  if (a.studentIds.length > 0) chips.push(`${a.studentIds.length} student(s)`);
+  return chips.length ? chips.join(' · ') : 'No audience selected';
+};
 
 const cardBase = { background: '#fff', border: '1px solid #e2e8f0', borderRadius: '14px', padding: '16px 18px', boxShadow: '0 4px 12px rgba(15,23,42,0.06)' };
 const inputStyle = { width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '0.88rem', fontFamily: 'inherit', boxSizing: 'border-box' };
@@ -36,71 +50,23 @@ const downloadBlob = (filename, blob) => {
   URL.revokeObjectURL(url);
 };
 
-// Simplified version of Communication.jsx's AudiencePicker — Forms only
-// needs the grade/division facet (parents-vs-teachers is a separate toggle
-// here), so the teacher/student search machinery there doesn't apply.
-const GradeDivisionPicker = ({ audience, onChange }) => {
-  const toggleAllGrades = () => {
-    const allGrades = !audience.allGrades;
-    onChange({ ...audience, allGrades, gradeSelections: allGrades ? [] : audience.gradeSelections });
-  };
-  const toggleGrade = (g) => {
-    if (audience.allGrades) return;
-    const exists = audience.gradeSelections.some((gs) => gs.grade === g);
-    const gradeSelections = exists
-      ? audience.gradeSelections.filter((gs) => gs.grade !== g)
-      : [...audience.gradeSelections, { grade: g, allDivisions: true, divisions: [] }];
-    onChange({ ...audience, gradeSelections });
-  };
-  const toggleGradeAllDivisions = (g) => {
-    onChange({ ...audience, gradeSelections: audience.gradeSelections.map((gs) => (gs.grade === g ? { ...gs, allDivisions: !gs.allDivisions, divisions: [] } : gs)) });
-  };
-  const toggleGradeDivision = (g, d) => {
-    onChange({
-      ...audience,
-      gradeSelections: audience.gradeSelections.map((gs) => {
-        if (gs.grade !== g) return gs;
-        const divisions = gs.divisions.includes(d) ? gs.divisions.filter((x) => x !== d) : [...gs.divisions, d];
-        return { ...gs, divisions };
-      }),
-    });
-  };
-
-  return (
-    <div style={{ border: '1px solid #e2e8f0', borderRadius: '10px', padding: '12px 14px', background: '#fbfcfe' }}>
-      <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: audience.allGrades ? 0 : '10px' }}>
-        <label style={pillStyle(audience.allGrades)}>
-          <input type="checkbox" checked={audience.allGrades} onChange={toggleAllGrades} /> All Grades
-        </label>
-        {!audience.allGrades && GRADES.map((g) => (
-          <label key={g} style={pillStyle(audience.gradeSelections.some((gs) => gs.grade === g))}>
-            <input type="checkbox" checked={audience.gradeSelections.some((gs) => gs.grade === g)} onChange={() => toggleGrade(g)} /> Grade {g}
-          </label>
-        ))}
-      </div>
-      {!audience.allGrades && audience.gradeSelections.length > 0 && (
-        <div style={{ display: 'grid', gap: '6px' }}>
-          {audience.gradeSelections.slice().sort((a, b) => a.grade - b.grade).map((gs) => (
-            <div key={gs.grade} style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', padding: '6px 10px', background: '#f1f5f9', borderRadius: '8px' }}>
-              <strong style={{ fontSize: '0.8rem', color: '#334155' }}>Grade {gs.grade}:</strong>
-              <label style={pillStyle(gs.allDivisions)}>
-                <input type="checkbox" checked={gs.allDivisions} onChange={() => toggleGradeAllDivisions(gs.grade)} /> All Divisions
-              </label>
-              {!gs.allDivisions && DIVISIONS.map((d) => (
-                <label key={d} style={pillStyle(gs.divisions.includes(d))}>
-                  <input type="checkbox" checked={gs.divisions.includes(d)} onChange={() => toggleGradeDivision(gs.grade, d)} /> {d}
-                </label>
-              ))}
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-};
+const MIN_OPTIONS = 2;
 
 const FieldBuilderRow = ({ field, onChange, onRemove }) => {
   const needsOptions = ['radio', 'select', 'multiselect'].includes(field.type);
+  const options = field.options && field.options.length >= MIN_OPTIONS ? field.options : [...(field.options || []), '', ''].slice(0, Math.max(MIN_OPTIONS, (field.options || []).length));
+
+  const changeType = (type) => {
+    const next = { ...field, type };
+    if (['radio', 'select', 'multiselect'].includes(type) && (!field.options || field.options.length < MIN_OPTIONS)) {
+      next.options = Array.from({ length: MIN_OPTIONS }, (_, i) => (field.options || [])[i] || '');
+    }
+    onChange(next);
+  };
+  const changeOption = (index, value) => onChange({ ...field, options: options.map((o, i) => (i === index ? value : o)) });
+  const addOption = () => onChange({ ...field, options: [...options, ''] });
+  const removeOption = (index) => onChange({ ...field, options: options.filter((_, i) => i !== index) });
+
   return (
     <div style={{ border: '1px solid #e2e8f0', borderRadius: '10px', padding: '12px', marginBottom: '10px', background: '#fbfcfe' }}>
       <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
@@ -110,7 +76,7 @@ const FieldBuilderRow = ({ field, onChange, onRemove }) => {
           placeholder="Question / field label"
           style={{ ...inputStyle, flex: 2, minWidth: '180px' }}
         />
-        <select value={field.type} onChange={(e) => onChange({ ...field, type: e.target.value })} style={{ ...inputStyle, flex: 1, minWidth: '160px' }}>
+        <select value={field.type} onChange={(e) => changeType(e.target.value)} style={{ ...inputStyle, flex: 1, minWidth: '160px' }}>
           {FIELD_TYPE_OPTIONS.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
         </select>
         <label style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '0.8rem', color: '#334155', whiteSpace: 'nowrap' }}>
@@ -119,12 +85,28 @@ const FieldBuilderRow = ({ field, onChange, onRemove }) => {
         <button type="button" onClick={onRemove} style={{ border: '1px solid #fca5a5', background: '#fef2f2', color: '#b91c1c', borderRadius: '8px', padding: '7px 10px', cursor: 'pointer', fontWeight: 700 }}>✕ Remove</button>
       </div>
       {needsOptions && (
-        <input
-          value={(field.options || []).join(', ')}
-          onChange={(e) => onChange({ ...field, options: e.target.value.split(',').map((s) => s.trim()).filter(Boolean) })}
-          placeholder="Options, comma-separated (e.g. Small, Medium, Large)"
-          style={{ ...inputStyle, marginTop: '8px' }}
-        />
+        <div style={{ marginTop: '10px', display: 'grid', gap: '6px' }}>
+          <span style={{ fontSize: '0.76rem', fontWeight: 700, color: '#64748b' }}>Options (at least {MIN_OPTIONS})</span>
+          {options.map((opt, i) => (
+            <div key={i} style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+              <input
+                value={opt}
+                onChange={(e) => changeOption(i, e.target.value)}
+                placeholder={`Option ${i + 1}`}
+                style={{ ...inputStyle, flex: 1 }}
+              />
+              <button
+                type="button"
+                onClick={() => removeOption(i)}
+                disabled={options.length <= MIN_OPTIONS}
+                style={{ border: '1px solid #e2e8f0', background: options.length <= MIN_OPTIONS ? '#f8fafc' : '#fef2f2', color: options.length <= MIN_OPTIONS ? '#cbd5e1' : '#b91c1c', borderRadius: '8px', padding: '8px 10px', cursor: options.length <= MIN_OPTIONS ? 'default' : 'pointer', fontWeight: 700 }}
+              >
+                ✕
+              </button>
+            </div>
+          ))}
+          <button type="button" onClick={addOption} style={{ justifySelf: 'start', border: '1px solid #c7d2fe', background: '#eef2ff', color: '#4338ca', borderRadius: '8px', padding: '6px 12px', cursor: 'pointer', fontWeight: 700, fontSize: '0.8rem' }}>+ Add Option</button>
+        </div>
       )}
     </div>
   );
@@ -163,14 +145,14 @@ const Forms = () => {
   };
   useEffect(load, [canManage]);
 
-  const emptyDraft = () => ({ title: '', description: '', fields: [], targetAudience: { ...AUDIENCE_DEFAULT }, targetParents: false, targetTeachers: false });
+  const emptyDraft = () => ({ title: '', description: '', fields: [], targetAudience: { ...AUDIENCE_DEFAULT } });
 
   const startCreate = () => { setEditingId(null); setFormDraft(emptyDraft()); setShowCreatePanel(true); };
   const startEdit = (form) => {
     setEditingId(form.id);
     setFormDraft({
       title: form.title, description: form.description || '', fields: form.fields,
-      targetAudience: form.targetAudience, targetParents: form.targetParents, targetTeachers: form.targetTeachers,
+      targetAudience: { ...AUDIENCE_DEFAULT, ...form.targetAudience },
     });
     setShowCreatePanel(true);
   };
@@ -182,8 +164,16 @@ const Forms = () => {
     setSaving(true);
     setError('');
     try {
-      if (editingId) await api.put(`/api/forms/${editingId}`, formDraft);
-      else await api.post('/api/forms', formDraft);
+      const payload = {
+        ...formDraft,
+        fields: formDraft.fields.map((f) => (
+          ['radio', 'select', 'multiselect'].includes(f.type)
+            ? { ...f, options: f.options.map((o) => o.trim()).filter(Boolean) }
+            : f
+        )),
+      };
+      if (editingId) await api.put(`/api/forms/${editingId}`, payload);
+      else await api.post('/api/forms', payload);
       setShowCreatePanel(false);
       setFormDraft(null);
       load();
@@ -366,18 +356,9 @@ const Forms = () => {
           ))}
           <button type="button" onClick={addField} style={buttonSecondary}>+ Add Field</button>
 
-          <label style={labelStyle}>Who is this for?</label>
-          <div style={{ display: 'flex', gap: '10px' }}>
-            <label style={pillStyle(formDraft.targetParents)}>
-              <input type="checkbox" checked={formDraft.targetParents} onChange={(e) => setFormDraft({ ...formDraft, targetParents: e.target.checked })} /> Parents
-            </label>
-            <label style={pillStyle(formDraft.targetTeachers)}>
-              <input type="checkbox" checked={formDraft.targetTeachers} onChange={(e) => setFormDraft({ ...formDraft, targetTeachers: e.target.checked })} /> Teachers
-            </label>
+          <div style={{ marginTop: '16px' }}>
+            <AudiencePicker audience={formDraft.targetAudience} onChange={(targetAudience) => setFormDraft({ ...formDraft, targetAudience })} inputStyle={inputStyle} labelStyle={labelStyle} />
           </div>
-
-          <label style={labelStyle}>Grades &amp; Divisions</label>
-          <GradeDivisionPicker audience={formDraft.targetAudience} onChange={(targetAudience) => setFormDraft({ ...formDraft, targetAudience })} />
 
           <div style={{ display: 'flex', gap: '10px', marginTop: '16px' }}>
             <button type="button" onClick={saveForm} disabled={saving} style={{ ...buttonPrimary, opacity: saving ? 0.7 : 1 }}>{saving ? 'Saving…' : 'Save Form'}</button>
@@ -448,7 +429,7 @@ const Forms = () => {
                     <span style={{ marginLeft: '8px', padding: '2px 8px', borderRadius: '999px', background: form.isActive ? '#dcfce7' : '#f1f5f9', color: form.isActive ? '#166534' : '#94a3b8', fontSize: '0.68rem', fontWeight: 700, verticalAlign: 'middle' }}>{form.isActive ? 'Active' : 'Inactive'}</span>
                   </p>
                   <p style={{ margin: '4px 0 0', color: '#64748b', fontSize: '0.82rem' }}>{form.description}</p>
-                  <p style={{ margin: '6px 0 0', color: '#4338ca', fontSize: '0.78rem', fontWeight: 700 }}>{form.responseCount} response{form.responseCount === 1 ? '' : 's'} · {[form.targetParents && 'Parents', form.targetTeachers && 'Teachers'].filter(Boolean).join(' & ')}</p>
+                  <p style={{ margin: '6px 0 0', color: '#4338ca', fontSize: '0.78rem', fontWeight: 700 }}>{form.responseCount} response{form.responseCount === 1 ? '' : 's'} · {audienceSummary({ ...AUDIENCE_DEFAULT, ...form.targetAudience })}</p>
                 </div>
                 <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
                   <button type="button" onClick={() => openResponses(form)} style={buttonSecondary}>📋 Responses</button>

@@ -6,18 +6,33 @@ const db = require('../db/database');
 const auth = require('../middleware/auth');
 const authorize = require('../middleware/authorize');
 const { serializeRow } = require('../utils/serialize');
-const { formAppliesToUser, normalizeFormAudience } = require('../utils/formAudience');
+const { formAppliesToUser } = require('../utils/formAudience');
+const { normalizeAudience } = require('../utils/noticeAudience');
 
 const FIELD_TYPES = ['text', 'number', 'textarea', 'radio', 'select', 'multiselect', 'file'];
 const JSON_FIELDS = ['fields', 'target_audience'];
-const BOOL_FIELDS = ['is_active', 'target_parents', 'target_teachers'];
+const BOOL_FIELDS = ['is_active'];
 const MANAGE_ROLES = ['admin', 'principal', 'superuser'];
 
 const serializeForm = (row) => {
   const out = serializeRow(row, { jsonFields: JSON_FIELDS, boolFields: BOOL_FIELDS, jsonDefault: [] });
-  out.targetAudience = normalizeFormAudience(out.targetAudience);
+  out.targetAudience = normalizeAudience(out.targetAudience);
   return out;
 };
+
+const MIN_OPTIONS = 2;
+
+// Trims/drops blank options in place — the client now does this too before
+// saving, but a direct API call shouldn't be able to bypass it and store a
+// field with empty-string options.
+function normalizeFields(fields) {
+  if (!Array.isArray(fields)) return fields;
+  return fields.map((f) => (
+    f && ['radio', 'select', 'multiselect'].includes(f.type) && Array.isArray(f.options)
+      ? { ...f, options: f.options.map((o) => String(o).trim()).filter(Boolean) }
+      : f
+  ));
+}
 
 function validateFields(fields) {
   if (!Array.isArray(fields) || fields.length === 0) return 'At least one field is required.';
@@ -25,28 +40,34 @@ function validateFields(fields) {
     if (!f || !f.id || !String(f.label || '').trim() || !FIELD_TYPES.includes(f.type)) {
       return 'Each field needs a label and a valid type.';
     }
-    if (['radio', 'select', 'multiselect'].includes(f.type) && (!Array.isArray(f.options) || f.options.length === 0)) {
-      return `Field "${f.label}" needs at least one option.`;
+    if (['radio', 'select', 'multiselect'].includes(f.type) && (!Array.isArray(f.options) || f.options.length < MIN_OPTIONS)) {
+      return `Field "${f.label}" needs at least ${MIN_OPTIONS} options.`;
     }
   }
   return null;
 }
 
-function validateAudience(targetAudience, targetParents, targetTeachers) {
-  if (!targetParents && !targetTeachers) return 'Select at least Parents or Teachers.';
-  const a = normalizeFormAudience(targetAudience);
-  if (!a.allGrades && a.gradeSelections.length === 0) return 'Select at least one grade, or All Grades.';
+// Same "must actually reach someone" rule as Notices — additive facets, so
+// any one of Grade/Division (→ parents), Teachers, or Specific Students
+// being non-empty is enough; there's no separate role toggle to check.
+function validateAudience(targetAudience) {
+  const a = normalizeAudience(targetAudience);
+  const hasGradeDivision = a.allGrades || a.gradeSelections.length > 0;
+  const hasTeachers = a.allTeachers || a.teacherIds.length > 0;
+  const hasStudents = a.studentIds.length > 0;
+  if (!hasGradeDivision && !hasTeachers && !hasStudents) return 'Select at least a grade, teachers, or specific students.';
   return null;
 }
 
 // POST /api/forms (admin/principal/superuser)
 router.post('/', auth, authorize(MANAGE_ROLES), async (req, res) => {
   try {
-    const { title, description, fields, targetAudience, targetParents, targetTeachers } = req.body;
+    const { title, description, targetAudience } = req.body;
+    const fields = normalizeFields(req.body.fields);
     if (!title || !String(title).trim()) return res.status(400).json({ message: 'Title is required.' });
     const fieldsErr = validateFields(fields);
     if (fieldsErr) return res.status(400).json({ message: fieldsErr });
-    const audienceErr = validateAudience(targetAudience, targetParents, targetTeachers);
+    const audienceErr = validateAudience(targetAudience);
     if (audienceErr) return res.status(400).json({ message: audienceErr });
 
     const now = new Date().toISOString();
@@ -54,9 +75,7 @@ router.post('/', auth, authorize(MANAGE_ROLES), async (req, res) => {
       title: String(title).trim(),
       description: description || '',
       fields: JSON.stringify(fields),
-      target_audience: JSON.stringify(normalizeFormAudience(targetAudience)),
-      target_parents: !!targetParents,
-      target_teachers: !!targetTeachers,
+      target_audience: JSON.stringify(normalizeAudience(targetAudience)),
       is_active: 1,
       created_by: req.user.id,
       created_at: now,
@@ -76,7 +95,8 @@ router.put('/:id', auth, authorize(MANAGE_ROLES), async (req, res) => {
     const existing = await db('forms').where({ id: req.params.id }).first();
     if (!existing) return res.status(404).json({ message: 'Form not found.' });
 
-    const { title, description, fields, targetAudience, targetParents, targetTeachers, isActive } = req.body;
+    const { title, description, targetAudience, isActive } = req.body;
+    const fields = req.body.fields !== undefined ? normalizeFields(req.body.fields) : undefined;
     const updates = {};
 
     if (title !== undefined) {
@@ -90,15 +110,10 @@ router.put('/:id', auth, authorize(MANAGE_ROLES), async (req, res) => {
       updates.fields = JSON.stringify(fields);
     }
 
-    if (targetAudience !== undefined || targetParents !== undefined || targetTeachers !== undefined) {
-      const nextParents = targetParents !== undefined ? !!targetParents : !!existing.target_parents;
-      const nextTeachers = targetTeachers !== undefined ? !!targetTeachers : !!existing.target_teachers;
-      const nextAudience = targetAudience !== undefined ? targetAudience : JSON.parse(existing.target_audience || '{}');
-      const audienceErr = validateAudience(nextAudience, nextParents, nextTeachers);
+    if (targetAudience !== undefined) {
+      const audienceErr = validateAudience(targetAudience);
       if (audienceErr) return res.status(400).json({ message: audienceErr });
-      updates.target_audience = JSON.stringify(normalizeFormAudience(nextAudience));
-      updates.target_parents = nextParents;
-      updates.target_teachers = nextTeachers;
+      updates.target_audience = JSON.stringify(normalizeAudience(targetAudience));
     }
     if (isActive !== undefined) updates.is_active = isActive ? 1 : 0;
     updates.updated_at = new Date().toISOString();

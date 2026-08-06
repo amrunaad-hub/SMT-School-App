@@ -1,20 +1,10 @@
-// Resolves whether a Form applies to a given parent/teacher, reusing the
-// exact grade/division matching Notices already established (see
-// server/utils/noticeAudience.js) rather than a second implementation. A
-// Form's audience is deliberately simpler than a Notice's: one grade/division
-// picker plus a target_parents/target_teachers role toggle, no separate
-// named-teacher or named-student facets.
-const { matchesGradeDivision } = require('./noticeAudience');
-const { teacherCanAccessGrade } = require('./classAccess');
-
-const AUDIENCE_DEFAULT = { allGrades: false, gradeSelections: [], grades: [], allDivisions: false, divisions: [] };
-
-function normalizeFormAudience(targetAudience) {
-  if (!targetAudience || typeof targetAudience !== 'object' || Array.isArray(targetAudience)) {
-    return { ...AUDIENCE_DEFAULT };
-  }
-  return { ...AUDIENCE_DEFAULT, ...targetAudience };
-}
+// Resolves whether a Form applies to a given parent/teacher. Forms now use
+// the exact same audience shape/semantics as Notices (see
+// server/utils/noticeAudience.js) — grade/division selection always reaches
+// parents directly (no separate "target parents" flag), Teachers is an
+// independent facet (allTeachers/teacherIds), and Specific Students is a
+// third independent facet — rather than a second, parallel implementation.
+const { matchesGradeDivision, normalizeAudience } = require('./noticeAudience');
 
 async function resolveChildren(db, userId) {
   const guardian = await db('guardians').where({ user_id: userId }).first();
@@ -25,27 +15,29 @@ async function resolveChildren(db, userId) {
     .select('students.id', 'students.grade', 'students.division');
 }
 
+async function resolveTeacherStaffId(db, userId) {
+  const staffRow = await db('staff').where({ user_id: userId }).first();
+  return staffRow ? staffRow.id : null;
+}
+
 async function formAppliesToUser(db, form, user) {
   if (!form.isActive) return false;
-  const audience = normalizeFormAudience(form.targetAudience !== undefined ? form.targetAudience : form.target_audience);
+  const audience = normalizeAudience(form.targetAudience !== undefined ? form.targetAudience : form.target_audience);
 
   if (user.role === 'teacher') {
-    if (!form.targetTeachers) return false;
-    if (audience.allGrades) return true;
-    for (const gs of audience.gradeSelections) {
-      if (await teacherCanAccessGrade(db, user.id, gs.grade)) return true;
-    }
-    return false;
+    if (audience.allTeachers) return true;
+    if (audience.teacherIds.length === 0) return false;
+    const staffId = await resolveTeacherStaffId(db, user.id);
+    return staffId !== null && audience.teacherIds.includes(staffId);
   }
 
   if (user.role === 'parent') {
-    if (!form.targetParents) return false;
     const children = await resolveChildren(db, user.id);
     if (children.length === 0) return false;
-    return children.some((c) => matchesGradeDivision(audience, c.grade, c.division));
+    return children.some((c) => matchesGradeDivision(audience, c.grade, c.division) || audience.studentIds.includes(c.id));
   }
 
   return false;
 }
 
-module.exports = { formAppliesToUser, normalizeFormAudience, AUDIENCE_DEFAULT };
+module.exports = { formAppliesToUser };
