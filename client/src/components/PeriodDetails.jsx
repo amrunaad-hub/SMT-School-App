@@ -10,6 +10,7 @@ const PeriodDetails = () => {
   const navigate = useNavigate();
 
   const [period, setPeriod] = useState(null);
+  const [dayPeriods, setDayPeriods] = useState([]);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const [note, setNote] = useState({ classwork: '', homework: '', specialInstructions: '' });
@@ -38,6 +39,7 @@ const PeriodDetails = () => {
         const found = periods.find((p) => p.periodIndex === idx);
         if (!found) { setNotFound(true); setLoading(false); return; }
         setPeriod(found);
+        setDayPeriods([...periods].sort((a, b) => a.periodIndex - b.periodIndex));
 
         const existingNote = (notesData.notes || []).find((n) => n.periodIndex === idx);
         if (existingNote) {
@@ -113,6 +115,11 @@ const PeriodDetails = () => {
     );
   }
 
+  const currentIdx = dayPeriods.findIndex((p) => p.periodIndex === Number(periodIndex));
+  const prevPeriod = currentIdx > 0 ? dayPeriods[currentIdx - 1] : null;
+  const nextPeriod = currentIdx >= 0 && currentIdx < dayPeriods.length - 1 ? dayPeriods[currentIdx + 1] : null;
+  const goToPeriod = (p) => navigate(`/timetable/period/${grade}/${division}/${p.periodIndex}/${date}`);
+
   const detailStyle = { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '16px', marginTop: '20px' };
   const fieldStyle = { padding: '16px', border: '1px solid #e5e7eb', borderRadius: '8px', background: '#f9fafb' };
   const textareaStyle = { width: '100%', minHeight: '80px', padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1', marginTop: '8px', boxSizing: 'border-box', fontFamily: 'inherit' };
@@ -124,6 +131,25 @@ const PeriodDetails = () => {
         <Link to="/timetable" style={backButtonStyle}>← Back to Timetable</Link>
         <h2>Period Details</h2>
         <h3>Grade {grade} {division.charAt(0).toUpperCase() + division.slice(1)} · {period.type} · {formatDateDMY(date, { withWeekday: true })}</h3>
+
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'stretch', gap: '10px', marginTop: '16px', flexWrap: 'wrap' }}>
+          <button
+            type="button"
+            onClick={() => prevPeriod && goToPeriod(prevPeriod)}
+            disabled={!prevPeriod}
+            style={{ flex: 1, minWidth: '160px', textAlign: 'left', padding: '10px 16px', borderRadius: '10px', border: '1px solid #cbd5e1', background: prevPeriod ? '#fff' : '#f8fafc', color: prevPeriod ? '#1e293b' : '#cbd5e1', cursor: prevPeriod ? 'pointer' : 'default', fontWeight: 600 }}
+          >
+            {prevPeriod ? <>← Previous: {prevPeriod.subject || prevPeriod.type}</> : '← Previous: none'}
+          </button>
+          <button
+            type="button"
+            onClick={() => nextPeriod && goToPeriod(nextPeriod)}
+            disabled={!nextPeriod}
+            style={{ flex: 1, minWidth: '160px', textAlign: 'right', padding: '10px 16px', borderRadius: '10px', border: '1px solid #cbd5e1', background: nextPeriod ? '#fff' : '#f8fafc', color: nextPeriod ? '#1e293b' : '#cbd5e1', cursor: nextPeriod ? 'pointer' : 'default', fontWeight: 600 }}
+          >
+            {nextPeriod ? <>Next: {nextPeriod.subject || nextPeriod.type} →</> : 'Next: none →'}
+          </button>
+        </div>
 
         <div style={detailStyle}>
           <div style={fieldStyle}><strong>Time:</strong> {period.time}</div>
