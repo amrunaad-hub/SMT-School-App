@@ -1821,7 +1821,7 @@ const Parents = () => {
           <h3 style={{ margin: 0, color: '#9f1239', fontSize: isMobile ? '1rem' : '1.1rem' }}>Quick Access</h3>
           <span style={{ fontSize: isMobile ? '0.75rem' : '0.82rem', color: '#be123c', fontWeight: 600 }}>Linked Students: {linkedStudents.length}</span>
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(4, 1fr)' : 'repeat(8, minmax(95px, 1fr))', gridAutoRows: isMobile ? '5.5rem' : '6rem', gap: '8px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(4, minmax(0, 1fr))' : 'repeat(8, minmax(0, 1fr))', gridAutoRows: isMobile ? '5.5rem' : '6rem', gap: '8px' }}>
           {workingModules.map((module) => {
             const badgeCount = moduleBadgeCounts[module.key] || 0;
             return (
@@ -1860,7 +1860,7 @@ const Parents = () => {
 
       <section style={{ marginTop: '16px', background: '#fff', border: '1px solid #fecdd3', borderRadius: '16px', padding: isMobile ? '12px' : '16px' }}>
         <h4 style={{ margin: '0 0 8px', color: '#9ca3af', fontSize: '0.72rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>🚧 Upcoming Features</h4>
-        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(4, 1fr)' : 'repeat(8, minmax(95px, 1fr))', gridAutoRows: isMobile ? '5.5rem' : '6rem', gap: '8px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(4, minmax(0, 1fr))' : 'repeat(8, minmax(0, 1fr))', gridAutoRows: isMobile ? '5.5rem' : '6rem', gap: '8px' }}>
           {upcomingModules.map((module) => (
             <div
               key={module.key}
@@ -1938,7 +1938,7 @@ const Parents = () => {
               }}
             >
               <div style={{ width: '52px', height: '5px', borderRadius: '8px', background: '#e5e7eb', margin: '0 auto 12px' }} />
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gridAutoRows: '6rem', gap: '10px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gridAutoRows: '6rem', gap: '10px' }}>
                 {workingModules.map((module) => (
                   <button
                     key={module.key}
