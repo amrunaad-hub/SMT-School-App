@@ -1821,7 +1821,7 @@ const Parents = () => {
           <h3 style={{ margin: 0, color: '#9f1239', fontSize: isMobile ? '1rem' : '1.1rem' }}>Quick Access</h3>
           <span style={{ fontSize: isMobile ? '0.75rem' : '0.82rem', color: '#be123c', fontWeight: 600 }}>Linked Students: {linkedStudents.length}</span>
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(4, 1fr)' : 'repeat(8, minmax(95px, 1fr))', gap: '8px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(4, 1fr)' : 'repeat(8, minmax(95px, 1fr))', gridAutoRows: isMobile ? '5.5rem' : '6rem', gap: '8px' }}>
           {workingModules.map((module) => {
             const badgeCount = moduleBadgeCounts[module.key] || 0;
             return (
@@ -1834,7 +1834,6 @@ const Parents = () => {
                   background: activeModule === module.key ? '#ffe4e6' : '#fff',
                   borderRadius: '12px',
                   padding: isMobile ? '8px 6px' : '10px 8px',
-                  minHeight: isMobile ? '72px' : '82px',
                   cursor: 'pointer',
                   display: 'flex',
                   flexDirection: 'column',
@@ -1842,6 +1841,7 @@ const Parents = () => {
                   justifyContent: 'center',
                   gap: '4px',
                   color: '#881337',
+                  overflow: 'hidden',
                 }}
               >
                 {badgeCount > 0 && (
@@ -1849,8 +1849,8 @@ const Parents = () => {
                     {badgeCount > 99 ? '99+' : badgeCount}
                   </span>
                 )}
-                <span style={{ fontSize: isMobile ? '1.05rem' : '1.2rem' }}>{module.icon}</span>
-                <span style={{ fontSize: isMobile ? '0.66rem' : '0.78rem', fontWeight: 700, textAlign: 'center', lineHeight: 1.2 }}>{module.label}</span>
+                <span style={{ fontSize: isMobile ? '1.05rem' : '1.2rem', flexShrink: 0 }}>{module.icon}</span>
+                <span style={{ fontSize: isMobile ? '0.66rem' : '0.78rem', fontWeight: 700, textAlign: 'center', lineHeight: 1.2, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{module.label}</span>
               </button>
             );
           })}
@@ -1861,7 +1861,7 @@ const Parents = () => {
 
       <section style={{ marginTop: '16px', background: '#fff', border: '1px solid #fecdd3', borderRadius: '16px', padding: isMobile ? '12px' : '16px' }}>
         <h4 style={{ margin: '0 0 8px', color: '#9ca3af', fontSize: '0.72rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>🚧 Upcoming Features</h4>
-        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(4, 1fr)' : 'repeat(8, minmax(95px, 1fr))', gap: '8px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(4, 1fr)' : 'repeat(8, minmax(95px, 1fr))', gridAutoRows: isMobile ? '5.5rem' : '6rem', gap: '8px' }}>
           {upcomingModules.map((module) => (
             <div
               key={module.key}
@@ -1870,7 +1870,6 @@ const Parents = () => {
                 background: '#fafafa',
                 borderRadius: '12px',
                 padding: isMobile ? '8px 6px' : '10px 8px',
-                minHeight: isMobile ? '72px' : '82px',
                 cursor: 'not-allowed',
                 display: 'flex',
                 flexDirection: 'column',
@@ -1879,10 +1878,11 @@ const Parents = () => {
                 gap: '4px',
                 color: '#94a3b8',
                 opacity: 0.85,
+                overflow: 'hidden',
               }}
             >
-              <span style={{ fontSize: isMobile ? '1.05rem' : '1.2rem' }}>{module.icon}</span>
-              <span style={{ fontSize: isMobile ? '0.66rem' : '0.78rem', fontWeight: 700, textAlign: 'center', lineHeight: 1.2 }}>{module.label}</span>
+              <span style={{ fontSize: isMobile ? '1.05rem' : '1.2rem', flexShrink: 0 }}>{module.icon}</span>
+              <span style={{ fontSize: isMobile ? '0.66rem' : '0.78rem', fontWeight: 700, textAlign: 'center', lineHeight: 1.2, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{module.label}</span>
             </div>
           ))}
         </div>
@@ -1940,7 +1940,7 @@ const Parents = () => {
               }}
             >
               <div style={{ width: '52px', height: '5px', borderRadius: '8px', background: '#e5e7eb', margin: '0 auto 12px' }} />
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gridAutoRows: '6rem', gap: '10px' }}>
                 {workingModules.map((module) => (
                   <button
                     key={module.key}
@@ -1953,7 +1953,6 @@ const Parents = () => {
                       background: activeModule === module.key ? '#ffe4e6' : '#fff',
                       borderRadius: '12px',
                       padding: '10px 8px',
-                      minHeight: '78px',
                       display: 'flex',
                       flexDirection: 'column',
                       alignItems: 'center',
@@ -1961,10 +1960,11 @@ const Parents = () => {
                       gap: '4px',
                       color: '#881337',
                       cursor: 'pointer',
+                      overflow: 'hidden',
                     }}
                   >
-                    <span style={{ fontSize: '1.12rem' }}>{module.icon}</span>
-                    <span style={{ fontSize: '0.69rem', fontWeight: 700, textAlign: 'center', lineHeight: 1.2 }}>{module.label}</span>
+                    <span style={{ fontSize: '1.12rem', flexShrink: 0 }}>{module.icon}</span>
+                    <span style={{ fontSize: '0.69rem', fontWeight: 700, textAlign: 'center', lineHeight: 1.2, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{module.label}</span>
                   </button>
                 ))}
               </div>
