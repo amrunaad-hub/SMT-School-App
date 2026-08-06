@@ -125,4 +125,4 @@ async function resolveReachCount(db, targetAudience) {
   return parentCount + teacherCount;
 }
 
-module.exports = { noticeAppliesToUser, normalizeAudience, resolveReachCount, AUDIENCE_DEFAULT };
+module.exports = { noticeAppliesToUser, normalizeAudience, resolveReachCount, matchesGradeDivision, AUDIENCE_DEFAULT };

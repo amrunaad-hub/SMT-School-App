@@ -4,6 +4,7 @@ import DOMPurify from 'dompurify';
 import { api } from '../api';
 import ParentStudentProfile from './ParentStudentProfile';
 import MyDocuments from './MyDocuments';
+import Forms from './Forms';
 import { formatDateIST, formatDateTimeIST, formatDateDMY, formatDateTimeDMY } from '../utils/formatDate';
 
 // currentStudent.grade is a display string ("Grade 3"); the timetable/notes
@@ -1136,6 +1137,7 @@ const Parents = () => {
     { key: 'circular', label: 'Communication', icon: '📢' },
     { key: 'contact', label: 'Important Contacts', icon: '📞' },
     { key: 'documents', label: 'My Documents', icon: '📁' },
+    { key: 'forms', label: 'Forms', icon: '📝' },
   ];
 
   // Small "you haven't seen this yet" counts shown as a badge on each Quick
@@ -2000,6 +2002,8 @@ const Parents = () => {
         );
       case 'documents':
         return <MyDocuments />;
+      case 'forms':
+        return <Forms />;
       default:
         return <div>Select a module</div>;
     }

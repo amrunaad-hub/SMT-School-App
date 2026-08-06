@@ -44,6 +44,7 @@ const Header = ({ role = 'admin', onLogout, homePath = '/' }) => {
         { to: '/sis', label: '👥 SIS' },
         { to: '/attendance', label: '✅ Attendance' },
         { to: '/attendance-register', label: '📖 Attendance Register' },
+        { to: '/forms', label: '📝 Forms' },
         { to: '/timetable', label: '⏰ Timetable' },
         { to: '/communication', label: '💬 Communication' },
         { to: '/edit-requests', label: '✏️ Edit Requests' },
@@ -74,6 +75,7 @@ const Header = ({ role = 'admin', onLogout, homePath = '/' }) => {
                 { to: '/exams', label: '📊 Exams' },
                 { to: '/attendance', label: '✅ Attendance' },
                 { to: '/attendance-register', label: '📖 Attendance Register' },
+                { to: '/forms', label: '📝 Forms' },
             ],
         },
         {

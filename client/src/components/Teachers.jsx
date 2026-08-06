@@ -225,21 +225,35 @@ const Teachers = () => {
     setSelectedDate(next);
   };
 
-  const tabs = [
-    { key: 'timetable', label: "⏰ Day's Timetable" },
-    { key: 'attendance', label: '✅ Attendance Records' },
-    { key: 'upcoming', label: '🚧 Upcoming Features' },
-  ];
+  // Rendered last and visually muted/pushed aside (see the tab row below) —
+  // mixing a "coming soon" tab in among real working ones made the whole
+  // strip read as one undifferentiated list.
+  const upcomingTab = { key: 'upcoming', label: '🚧 Upcoming Features' };
 
-  // Full Timetable / Communication / My Documents are separate pages (not
-  // internal tab state), but sit in the same uniform tab row as the ones
-  // above instead of a visually distinct "Quick Links" section — one
-  // consistent navigation strip, not two different-looking concepts.
+  // Full Timetable / Attendance Register / Communication / My Documents are
+  // separate pages (not internal tab state); externalTabs is the flat list
+  // used by the "no teacher profile linked" fallback view below, which has
+  // no internal tabs to interleave with. navItems (below) is what the main
+  // tab row actually renders, in an order that keeps related views adjacent
+  // — Day's Timetable beside Full Timetable, Attendance Records beside
+  // Attendance Register — rather than every internal tab first and every
+  // external link after regardless of topic.
   const externalTabs = [
     { to: '/timetable', label: '📅 Full Timetable' },
     { to: '/attendance-register', label: '📖 Attendance Register' },
+    { to: '/forms', label: '📝 Forms' },
     { to: '/communication', label: '💬 Communication' },
     { to: '/my-documents', label: '📁 My Documents' },
+  ];
+
+  const navItems = [
+    { type: 'internal', key: 'timetable', label: "⏰ Day's Timetable" },
+    { type: 'external', to: '/timetable', label: '📅 Full Timetable' },
+    { type: 'internal', key: 'attendance', label: '✅ Attendance Records' },
+    { type: 'external', to: '/attendance-register', label: '📖 Attendance Register' },
+    { type: 'external', to: '/forms', label: '📝 Forms' },
+    { type: 'external', to: '/communication', label: '💬 Communication' },
+    { type: 'external', to: '/my-documents', label: '📁 My Documents' },
   ];
 
   const UPCOMING_LINKS = [
@@ -439,25 +453,31 @@ const Teachers = () => {
       ) : (
         <>
           <div style={{ display: 'flex', gap: '8px', marginBottom: '20px', flexWrap: 'wrap' }}>
-            {tabs.map((tab) => (
+            {navItems.map((item) => (item.type === 'internal' ? (
               <button
-                key={tab.key}
+                key={item.key}
                 type="button"
-                onClick={() => setActiveModule(tab.key)}
-                style={{ padding: '9px 16px', borderRadius: '999px', border: `1px solid ${activeModule === tab.key ? '#1e3a8a' : '#cbd5e1'}`, background: activeModule === tab.key ? '#1e3a8a' : '#fff', color: activeModule === tab.key ? '#fff' : '#334155', fontWeight: 700, cursor: 'pointer', fontSize: '0.88rem' }}
+                onClick={() => setActiveModule(item.key)}
+                style={{ padding: '9px 16px', borderRadius: '999px', border: `1px solid ${activeModule === item.key ? '#1e3a8a' : '#cbd5e1'}`, background: activeModule === item.key ? '#1e3a8a' : '#fff', color: activeModule === item.key ? '#fff' : '#334155', fontWeight: 700, cursor: 'pointer', fontSize: '0.88rem' }}
               >
-                {tab.label}
+                {item.label}
               </button>
-            ))}
-            {externalTabs.map((tab) => (
+            ) : (
               <Link
-                key={tab.to}
-                to={tab.to}
+                key={item.to}
+                to={item.to}
                 style={{ padding: '9px 16px', borderRadius: '999px', border: '1px solid #cbd5e1', background: '#fff', color: '#334155', fontWeight: 700, cursor: 'pointer', fontSize: '0.88rem', textDecoration: 'none' }}
               >
-                {tab.label}
+                {item.label}
               </Link>
-            ))}
+            )))}
+            <button
+              type="button"
+              onClick={() => setActiveModule(upcomingTab.key)}
+              style={{ marginLeft: 'auto', padding: '9px 16px', borderRadius: '999px', border: `1px dashed ${activeModule === upcomingTab.key ? '#94a3b8' : '#cbd5e1'}`, background: activeModule === upcomingTab.key ? '#f1f5f9' : '#fafafa', color: '#64748b', fontWeight: 700, cursor: 'pointer', fontSize: '0.88rem' }}
+            >
+              {upcomingTab.label}
+            </button>
           </div>
 
           {activeModule === 'timetable' && renderTimetable()}

@@ -7,7 +7,7 @@ const { upload, publicUrlFor } = require('../utils/upload');
 const { serializeRow } = require('../utils/serialize');
 const { isParentOfStudent } = require('../utils/classAccess');
 
-const OWNER_TYPES = ['student', 'admission', 'period_note', 'leave_request', 'notice'];
+const OWNER_TYPES = ['student', 'admission', 'period_note', 'leave_request', 'notice', 'form_submission'];
 const DOC_TYPES = ['Birth Certificate', 'Aadhar', 'Transfer Certificate', 'Photo', 'Medical Certificate', 'Other'];
 
 // POST /api/uploads — multipart form: file, category, and optionally
@@ -27,16 +27,28 @@ router.post('/', auth, authorize(['admin', 'teacher', 'principal', 'parent']), (
 
       // Parents may attach a document directly only to their own child's leave
       // request (evidence for a leave application, no approval workflow
-      // needed there) — every other owner type (student/admission/period_note)
-      // requires going through POST /api/students/:id/edit-requests instead,
-      // so an upload alone can never bypass that approval queue.
+      // needed there) or their own Forms submission — every other owner type
+      // (student/admission/period_note) requires going through
+      // POST /api/students/:id/edit-requests instead, so an upload alone can
+      // never bypass that approval queue.
       if (req.user.role === 'parent' && (ownerType || ownerId)) {
-        if (ownerType !== 'leave_request' || !ownerId) {
+        if (ownerType === 'leave_request' && ownerId) {
+          const leaveRequest = await db('leave_requests').where({ id: Number(ownerId) }).first();
+          if (!leaveRequest || !(await isParentOfStudent(db, req.user.id, leaveRequest.student_id))) {
+            return res.status(403).json({ message: 'Not your child\'s leave request.' });
+          }
+        } else if (ownerType !== 'form_submission') {
           return res.status(403).json({ message: 'Parents cannot attach documents directly; submit an edit request instead.' });
         }
-        const leaveRequest = await db('leave_requests').where({ id: Number(ownerId) }).first();
-        if (!leaveRequest || !(await isParentOfStudent(db, req.user.id, leaveRequest.student_id))) {
-          return res.status(403).json({ message: 'Not your child\'s leave request.' });
+      }
+
+      // A Forms attachment must reference the uploader's own submission,
+      // regardless of role (parent or teacher) — otherwise anyone could
+      // attach a file to someone else's response by guessing its id.
+      if (ownerType === 'form_submission' && ownerId) {
+        const submission = await db('form_submissions').where({ id: Number(ownerId) }).first();
+        if (!submission || submission.submitted_by !== req.user.id) {
+          return res.status(403).json({ message: 'Not your form submission.' });
         }
       }
 
@@ -134,6 +146,24 @@ router.get('/mine', auth, async (req, res) => {
       const admissionRows = await db('admissions').whereIn('id', [...idsByType.admission]);
       admissionRows.forEach((r) => {
         contextByKey[`admission:${r.id}`] = { classification: 'Admission', label: r.child_name };
+      });
+    }
+
+    // Grouped/labeled as "Forms / <title> — <created date>" — this app has no
+    // real folder concept anywhere (documents is a flat table); every
+    // classification here is that same faked-via-label grouping, and this is
+    // the literal "subfolder per form" the Forms feature asked for.
+    if (idsByType.form_submission) {
+      const submissionRows = await db('form_submissions').whereIn('id', [...idsByType.form_submission]);
+      const formIds = [...new Set(submissionRows.map((s) => s.form_id))];
+      const formRows = await db('forms').whereIn('id', formIds);
+      const formById = Object.fromEntries(formRows.map((f) => [f.id, f]));
+      submissionRows.forEach((s) => {
+        const form = formById[s.form_id];
+        contextByKey[`form_submission:${s.id}`] = {
+          classification: 'Forms',
+          label: form ? `${form.title} — ${new Date(form.created_at).toISOString().slice(0, 10)}` : 'Form response',
+        };
       });
     }
 
