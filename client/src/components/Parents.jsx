@@ -1841,7 +1841,6 @@ const Parents = () => {
                   justifyContent: 'center',
                   gap: '4px',
                   color: '#881337',
-                  overflow: 'hidden',
                 }}
               >
                 {badgeCount > 0 && (
@@ -1878,7 +1877,6 @@ const Parents = () => {
                 gap: '4px',
                 color: '#94a3b8',
                 opacity: 0.85,
-                overflow: 'hidden',
               }}
             >
               <span style={{ fontSize: isMobile ? '1.05rem' : '1.2rem', flexShrink: 0 }}>{module.icon}</span>
@@ -1960,7 +1958,6 @@ const Parents = () => {
                       gap: '4px',
                       color: '#881337',
                       cursor: 'pointer',
-                      overflow: 'hidden',
                     }}
                   >
                     <span style={{ fontSize: '1.12rem', flexShrink: 0 }}>{module.icon}</span>
