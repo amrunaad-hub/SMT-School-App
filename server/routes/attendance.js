@@ -332,6 +332,17 @@ router.put('/:id', auth, authorize(['admin', 'principal', 'teacher']), async (re
 });
 
 function shapeLeaveRequest(row) {
+  // row.status is never updated after insert anywhere in this codebase — a
+  // leave request "takes effect immediately" (see POST above, no approval
+  // gate), so the DB column is permanently stuck at whatever it was set to
+  // on creation ('Pending'), regardless of whether the leave has already
+  // happened. That produced a visible contradiction: this list showed
+  // "Pending" for a date while the attendance-derived "Last 10 Days
+  // History" correctly showed "Approved Leave" for that same date. Derive
+  // the status from the date range instead — once a request's start date
+  // has arrived, it's already in effect.
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const status = row.from_date <= todayStr ? 'Approved' : 'Pending';
   return {
     id: row.id,
     studentId: row.student_id,
@@ -340,10 +351,10 @@ function shapeLeaveRequest(row) {
     fromDate: row.from_date,
     toDate: row.to_date,
     reason: row.reason,
-    status: row.status,
+    status,
     submittedAt: row.created_at,
     approvedBy: null,
-    approvedAt: row.status !== 'Pending' ? row.updated_at : null,
+    approvedAt: status === 'Approved' ? row.updated_at : null,
   };
 }
 
