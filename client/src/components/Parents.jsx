@@ -40,6 +40,24 @@ const Parents = () => {
   // so the parent lands on current data instead of navigating there each time.
   const [activityDrillLevel, setActivityDrillLevel] = useState('day'); // 'month' -> 'week' -> 'day' (a timetable instance)
   const [activitySearch, setActivitySearch] = useState('');
+  // 'date' = the existing calendar drill-down; 'subject' = collate one
+  // subject's updates across a date range (e.g. all ICT updates this term).
+  const [activityMode, setActivityMode] = useState('date');
+  const [subjectList, setSubjectList] = useState([]);
+  const [selectedSubject, setSelectedSubject] = useState('');
+  const schoolYearStart = () => {
+    const now = new Date();
+    const year = now.getMonth() >= 5 ? now.getFullYear() : now.getFullYear() - 1; // school year starts June 1
+    return `${year}-06-01`;
+  };
+  const [subjectFrom, setSubjectFrom] = useState(schoolYearStart());
+  const [subjectTo, setSubjectTo] = useState(() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  });
+  const [subjectSummary, setSubjectSummary] = useState([]);
+  const [subjectSummaryLoading, setSubjectSummaryLoading] = useState(false);
+  const [subjectSummaryError, setSubjectSummaryError] = useState('');
   const [circularSearch, setCircularSearch] = useState('');
   const [isMobile, setIsMobile] = useState(() => window.innerWidth < 900);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -369,14 +387,16 @@ const Parents = () => {
     ])
       .then(([timetableData, notesData]) => {
         const periods = timetableData.periods || [];
-        const notes = (notesData.notes || []).filter((n) => n.classwork || n.homework);
+        const notes = (notesData.notes || []).filter((n) => n.classwork || n.homework || n.specialInstructions);
         setDailyActivities(notes.map((n) => {
           const p = periods.find((per) => per.periodIndex === n.periodIndex) || {};
           return {
             date: dateKey,
             period: `Period ${n.periodIndex} - ${p.subject || ''}`,
+            subject: p.subject || '',
             classwork: n.classwork || '',
             homework: n.homework || '',
+            specialInstructions: n.specialInstructions || '',
             teacher: p.teacherName || '',
             attachments: (n.attachments || []).map((a) => a.fileUrl),
           };
@@ -384,6 +404,34 @@ const Parents = () => {
       })
       .catch(() => setDailyActivities([]));
   }, [currentStudent, selectedActivityDate]);
+
+  // Subject list for the "By Subject" export picker — refetched whenever the
+  // selected child changes since grade/division determine what's taught.
+  useEffect(() => {
+    if (!currentStudent || !currentStudent.id) { setSubjectList([]); return; }
+    api.get('/api/period-notes/subjects', { studentId: currentStudent.id })
+      .then((data) => {
+        const subjects = data.subjects || [];
+        setSubjectList(subjects);
+        setSelectedSubject((prev) => (subjects.includes(prev) ? prev : (subjects[0] || '')));
+      })
+      .catch(() => setSubjectList([]));
+  }, [currentStudent]);
+
+  const fetchSubjectSummary = () => {
+    if (!currentStudent || !currentStudent.id || !selectedSubject || !subjectFrom || !subjectTo) return;
+    setSubjectSummaryLoading(true);
+    setSubjectSummaryError('');
+    api.get('/api/period-notes/subject-summary', { studentId: currentStudent.id, subject: selectedSubject, from: subjectFrom, to: subjectTo })
+      .then((data) => setSubjectSummary(data.notes || []))
+      .catch(() => { setSubjectSummary([]); setSubjectSummaryError('Could not load updates for this subject/range.'); })
+      .finally(() => setSubjectSummaryLoading(false));
+  };
+
+  useEffect(() => {
+    if (activityMode === 'subject') fetchSubjectSummary();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activityMode, currentStudent, selectedSubject]);
 
   // Static weekly schedule for the student's own grade+division — the same
   // periods recur every week for that class, keyed by day-of-week rather than
@@ -572,6 +620,134 @@ const Parents = () => {
       addReceiptPageToDoc(doc, entry.student, entry.instalment, index, entries.length);
     });
     doc.save(filename);
+  };
+
+  // Shared layout engine for the teaching-update exports below: draws a
+  // banner + subtitle lines, then flows a list of { heading, fields } blocks
+  // with word-wrapped text, adding pages as content overflows.
+  const buildTeachingUpdatesPdf = ({ title, subtitleLines, blocks, filename, emptyMessage }) => {
+    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+    const marginX = 14;
+    const contentWidth = pageWidth - marginX * 2;
+    let y = 0;
+
+    const drawHeader = () => {
+      y = 18;
+      doc.setFillColor(30, 64, 175);
+      doc.roundedRect(marginX, 12, 18, 18, 2, 2, 'F');
+      doc.setTextColor(255, 255, 255);
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(10);
+      doc.text('SMT', marginX + 9, 23, { align: 'center' });
+
+      doc.setTextColor(30, 64, 175);
+      doc.setFontSize(12);
+      doc.text('SMT SCHOOL, THANE', marginX + 22, 19);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(71, 85, 105);
+      doc.setFontSize(9);
+      doc.text('Academic Excellence | Discipline | Character', marginX + 22, 25);
+
+      y = 38;
+      doc.setTextColor(17, 24, 39);
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(14);
+      doc.text(title, marginX, y);
+      y += 7;
+      doc.setDrawColor(16, 185, 129);
+      doc.setLineWidth(0.6);
+      doc.line(marginX, y, pageWidth - marginX, y);
+      y += 8;
+
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(10);
+      doc.setTextColor(51, 65, 85);
+      subtitleLines.forEach((line) => { doc.text(line, marginX, y); y += 6; });
+      y += 2;
+    };
+
+    const ensureSpace = (needed) => {
+      if (y + needed > pageHeight - 16) {
+        doc.addPage();
+        y = 16;
+      }
+    };
+
+    drawHeader();
+
+    if (!blocks.length) {
+      doc.setFont('helvetica', 'italic');
+      doc.setFontSize(10);
+      doc.setTextColor(100, 116, 139);
+      doc.text(emptyMessage, marginX, y);
+    }
+
+    blocks.forEach((block) => {
+      ensureSpace(12);
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(11);
+      doc.setTextColor(67, 56, 202);
+      doc.text(block.heading, marginX, y);
+      y += 5.5;
+
+      block.fields.forEach(([label, value]) => {
+        if (!value) return;
+        const wrapped = doc.splitTextToSize(`${label}: ${value}`, contentWidth);
+        ensureSpace(wrapped.length * 5 + 2);
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(9.5);
+        doc.setTextColor(51, 65, 85);
+        doc.text(wrapped, marginX, y);
+        y += wrapped.length * 5 + 2;
+      });
+
+      y += 2;
+      doc.setDrawColor(226, 232, 240);
+      doc.setLineWidth(0.2);
+      ensureSpace(4);
+      doc.line(marginX, y, pageWidth - marginX, y);
+      y += 6;
+    });
+
+    doc.save(filename);
+  };
+
+  const downloadDaySummaryPdf = () => {
+    const dateLabel = formatDateDMY(selectedActivityDate, { withWeekday: true });
+    buildTeachingUpdatesPdf({
+      title: 'Teaching Updates - Day Summary',
+      subtitleLines: [
+        `Student: ${currentStudent.name} (${currentStudent.grade} ${currentStudent.division})`,
+        `Date: ${dateLabel}`,
+        `Generated On: ${formatDateTimeDMY(new Date())}`,
+      ],
+      blocks: dailyActivities.map((a) => ({
+        heading: a.period,
+        fields: [['Classwork', a.classwork], ['Homework', a.homework], ['Special Instructions', a.specialInstructions], ['Teacher', a.teacher]],
+      })),
+      filename: `${currentStudent.rollNo || 'student'}-teaching-updates-${formatDateKey(selectedActivityDate)}.pdf`,
+      emptyMessage: 'No teaching updates recorded for this date.',
+    });
+  };
+
+  const downloadSubjectSummaryPdf = () => {
+    if (!selectedSubject) return;
+    buildTeachingUpdatesPdf({
+      title: `Teaching Updates - ${selectedSubject}`,
+      subtitleLines: [
+        `Student: ${currentStudent.name} (${currentStudent.grade} ${currentStudent.division})`,
+        `Range: ${formatDateDMY(subjectFrom)} to ${formatDateDMY(subjectTo)}`,
+        `Generated On: ${formatDateTimeDMY(new Date())}`,
+      ],
+      blocks: subjectSummary.map((n) => ({
+        heading: `${formatDateDMY(n.date)} - Period ${n.periodIndex}`,
+        fields: [['Classwork', n.classwork], ['Homework', n.homework], ['Special Instructions', n.specialInstructions], ['Teacher', n.senderName]],
+      })),
+      filename: `${currentStudent.rollNo || 'student'}-${selectedSubject.replace(/\s+/g, '-')}-updates.pdf`,
+      emptyMessage: `No ${selectedSubject} updates recorded in this range.`,
+    });
   };
 
   const getPaidReceiptEntriesForStudent = (student) => {
@@ -805,7 +981,7 @@ const Parents = () => {
     }
 
     const query = activitySearch.toLowerCase();
-    return `${activity.period} ${activity.classwork} ${activity.homework} ${activity.teacher}`.toLowerCase().includes(query);
+    return `${activity.period} ${activity.classwork} ${activity.homework} ${activity.specialInstructions} ${activity.teacher}`.toLowerCase().includes(query);
   });
 
   const selectedTimetableEntries = timetableEntries;
@@ -1342,7 +1518,12 @@ const Parents = () => {
           <div style={{ padding: isMobile ? '16px' : '24px', borderRadius: '16px', background: 'linear-gradient(135deg, #e0e7ff 0%, #f0f4ff 100%)', border: '2px solid #6366f1', boxShadow: '0 4px 16px rgba(99, 102, 241, 0.1)' }}>
             <h3 style={{ color: '#3730a3', fontSize: isMobile ? '1.2rem' : '1.4rem', fontWeight: '700', marginBottom: '16px' }}>📚 Teaching Updates</h3>
 
-            {periodNoteUpdates.length > 0 && (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', marginBottom: '16px', border: '1px solid #6366f1', borderRadius: '999px', overflow: 'hidden' }}>
+              <button onClick={() => setActivityMode('date')} style={{ border: 'none', background: activityMode === 'date' ? '#4338ca' : '#eef2ff', color: activityMode === 'date' ? '#fff' : '#3730a3', fontWeight: 700, padding: '10px', cursor: 'pointer' }}>📅 By Date</button>
+              <button onClick={() => setActivityMode('subject')} style={{ border: 'none', background: activityMode === 'subject' ? '#4338ca' : '#eef2ff', color: activityMode === 'subject' ? '#fff' : '#3730a3', fontWeight: 700, padding: '10px', cursor: 'pointer' }}>📖 By Subject</button>
+            </div>
+
+            {activityMode === 'date' && periodNoteUpdates.length > 0 && (
               <div style={{ background: '#fff', borderRadius: '12px', border: '1px solid #c7d2fe', padding: isMobile ? '10px' : '14px', marginBottom: '16px' }}>
                 <h4 style={{ margin: '0 0 10px', color: '#3730a3', fontSize: isMobile ? '0.95rem' : '1.02rem', fontWeight: 700 }}>Recent Updates</h4>
                 {periodNoteUpdates.map((note) => {
@@ -1392,7 +1573,7 @@ const Parents = () => {
               </div>
             )}
 
-            {activityDrillLevel === 'month' && (
+            {activityMode === 'date' && activityDrillLevel === 'month' && (
               <div style={{ background: '#fff', borderRadius: '12px', border: '1px solid #c7d2fe', padding: isMobile ? '10px' : '14px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', marginBottom: '10px' }}>
                   <button onClick={() => changeMonthKeepingDay(activityMonth, setActivityMonth, selectedActivityDate, setSelectedActivityDate, -1)} style={navButtonStyle}>←</button>
@@ -1429,7 +1610,7 @@ const Parents = () => {
               </div>
             )}
 
-            {activityDrillLevel === 'week' && (
+            {activityMode === 'date' && activityDrillLevel === 'week' && (
               <div style={{ background: '#fff', borderRadius: '12px', border: '1px solid #c7d2fe', padding: isMobile ? '10px' : '14px' }}>
                 <button onClick={() => setActivityDrillLevel('month')} style={backLinkStyle}>← Back to Month</button>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', marginBottom: '10px' }}>
@@ -1461,25 +1642,30 @@ const Parents = () => {
               </div>
             )}
 
-            {activityDrillLevel === 'day' && (
+            {activityMode === 'date' && activityDrillLevel === 'day' && (
               <>
                 <button onClick={() => setActivityDrillLevel('week')} style={backLinkStyle}>← Back to Week</button>
                 <div style={{ background: '#fff', borderRadius: '12px', border: '1px solid #c7d2fe', padding: isMobile ? '10px' : '14px', marginBottom: '14px' }}>
-                  <h4 style={{ margin: '0 0 10px', color: '#3730a3', fontSize: isMobile ? '1.02rem' : '1.1rem', fontWeight: 700 }}>{formatDateDMY(selectedActivityDate, { withWeekday: true })}</h4>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px', flexWrap: 'wrap', marginBottom: '10px' }}>
+                    <h4 style={{ margin: 0, color: '#3730a3', fontSize: isMobile ? '1.02rem' : '1.1rem', fontWeight: 700 }}>{formatDateDMY(selectedActivityDate, { withWeekday: true })}</h4>
+                    <button onClick={downloadDaySummaryPdf} disabled={!dailyActivities.length} style={{ border: '1px solid #059669', background: dailyActivities.length ? '#ecfdf5' : '#f1f5f9', color: dailyActivities.length ? '#065f46' : '#94a3b8', borderRadius: '999px', padding: '7px 12px', fontWeight: 700, fontSize: '0.78rem', cursor: dailyActivities.length ? 'pointer' : 'not-allowed' }}>⬇ Download Day Summary (PDF)</button>
+                  </div>
                   <input
                     value={activitySearch}
                     onChange={(e) => setActivitySearch(e.target.value)}
                     placeholder="Search activity, subject, teacher"
                     style={{ width: '100%', minHeight: '40px', border: '1px solid #c7d2fe', borderRadius: '999px', padding: '0 14px', fontSize: isMobile ? '0.85rem' : '0.9rem', outline: 'none' }}
                   />
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', marginTop: '10px', border: '1px solid #c7d2fe', borderRadius: '999px', overflow: 'hidden' }}>
-                    <button onClick={() => setActivityView('classwork')} style={{ border: 'none', background: activityView === 'classwork' ? '#4f46e5' : '#eef2ff', color: activityView === 'classwork' ? '#fff' : '#3730a3', fontWeight: 700, padding: '9px 10px', cursor: 'pointer' }}>Class Work</button>
-                    <button onClick={() => setActivityView('homework')} style={{ border: 'none', background: activityView === 'homework' ? '#4f46e5' : '#eef2ff', color: activityView === 'homework' ? '#fff' : '#3730a3', fontWeight: 700, padding: '9px 10px', cursor: 'pointer' }}>Home Work</button>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', marginTop: '10px', border: '1px solid #c7d2fe', borderRadius: '999px', overflow: 'hidden' }}>
+                    <button onClick={() => setActivityView('classwork')} style={{ border: 'none', background: activityView === 'classwork' ? '#4f46e5' : '#eef2ff', color: activityView === 'classwork' ? '#fff' : '#3730a3', fontWeight: 700, padding: '9px 6px', cursor: 'pointer', fontSize: '0.85rem' }}>Class Work</button>
+                    <button onClick={() => setActivityView('homework')} style={{ border: 'none', background: activityView === 'homework' ? '#4f46e5' : '#eef2ff', color: activityView === 'homework' ? '#fff' : '#3730a3', fontWeight: 700, padding: '9px 6px', cursor: 'pointer', fontSize: '0.85rem' }}>Home Work</button>
+                    <button onClick={() => setActivityView('instructions')} style={{ border: 'none', background: activityView === 'instructions' ? '#4f46e5' : '#eef2ff', color: activityView === 'instructions' ? '#fff' : '#3730a3', fontWeight: 700, padding: '9px 6px', cursor: 'pointer', fontSize: '0.85rem' }}>Instructions</button>
                   </div>
                 </div>
                 {selectedActivityEntries.length ? selectedActivityEntries.map((activity, index) => {
                   const cardId = `activity-${activity.date}-${activity.period}`;
                   const isOpen = isAccordionOpen(cardId, index);
+                  const viewText = activityView === 'classwork' ? activity.classwork : activityView === 'homework' ? activity.homework : activity.specialInstructions;
 
                   return (
                     <div key={cardId} style={{ marginBottom: '10px', background: '#fff', borderRadius: '10px', border: '1px solid #a5b4fc', boxShadow: '0 2px 6px rgba(99, 102, 241, 0.1)', overflow: 'hidden' }}>
@@ -1492,7 +1678,7 @@ const Parents = () => {
                       </button>
                       <div style={{ maxHeight: isOpen ? '240px' : '0px', opacity: isOpen ? 1 : 0, overflow: 'hidden', transition: 'max-height 240ms ease, opacity 220ms ease' }}>
                         <div style={{ padding: isMobile ? '0 12px 12px' : '0 14px 14px', borderTop: '1px solid #e0e7ff' }}>
-                          <p style={{ margin: '10px 0 0', color: '#374151', fontSize: isMobile ? '0.82rem' : '0.9rem' }}>{activityView === 'classwork' ? activity.classwork : activity.homework}</p>
+                          <p style={{ margin: '10px 0 0', color: '#374151', fontSize: isMobile ? '0.82rem' : '0.9rem' }}>{viewText || '—'}</p>
                           <p style={{ margin: '8px 0 0', color: '#6366f1', fontSize: isMobile ? '0.78rem' : '0.85rem', fontWeight: 700 }}>👩‍🏫 {activity.teacher}</p>
                           {activity.attachments.length > 0 && (
                             <button onClick={() => openAttachmentPreview(`${activity.period} Attachment`, activity.attachments)} style={{ marginTop: '8px', border: '1px solid #6366f1', background: '#eef2ff', color: '#3730a3', borderRadius: '999px', padding: '6px 10px', fontWeight: 700, cursor: 'pointer' }}>📎 {activity.attachments.length} Attachment</button>
@@ -1505,6 +1691,57 @@ const Parents = () => {
                   <div style={{ background: '#fff', padding: isMobile ? '14px' : '18px', borderRadius: '12px', border: '1px dashed #6366f1', color: '#3730a3', fontWeight: 600 }}>No activities found for selected date/search.</div>
                 )}
               </>
+            )}
+
+            {activityMode === 'subject' && (
+              <div style={{ background: '#fff', borderRadius: '12px', border: '1px solid #c7d2fe', padding: isMobile ? '10px' : '14px' }}>
+                {subjectList.length === 0 ? (
+                  <p style={{ color: '#64748b', margin: 0 }}>No subjects found for this class yet.</p>
+                ) : (
+                  <>
+                    <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr 1fr', gap: '8px', marginBottom: '10px' }}>
+                      <label style={{ fontSize: '0.8rem', color: '#3730a3', fontWeight: 700 }}>
+                        Subject
+                        <select value={selectedSubject} onChange={(e) => setSelectedSubject(e.target.value)} style={{ width: '100%', minHeight: '38px', borderRadius: '8px', border: '1px solid #c7d2fe', padding: '0 8px', marginTop: '4px' }}>
+                          {subjectList.map((s) => <option key={s} value={s}>{s}</option>)}
+                        </select>
+                      </label>
+                      <label style={{ fontSize: '0.8rem', color: '#3730a3', fontWeight: 700 }}>
+                        From
+                        <input type="date" value={subjectFrom} onChange={(e) => setSubjectFrom(e.target.value)} style={{ width: '100%', minHeight: '38px', borderRadius: '8px', border: '1px solid #c7d2fe', padding: '0 8px', marginTop: '4px' }} />
+                      </label>
+                      <label style={{ fontSize: '0.8rem', color: '#3730a3', fontWeight: 700 }}>
+                        To
+                        <input type="date" value={subjectTo} onChange={(e) => setSubjectTo(e.target.value)} style={{ width: '100%', minHeight: '38px', borderRadius: '8px', border: '1px solid #c7d2fe', padding: '0 8px', marginTop: '4px' }} />
+                      </label>
+                    </div>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '12px' }}>
+                      <button onClick={() => { setSubjectFrom(schoolYearStart()); setSubjectTo(formatDateKey(new Date())); }} style={{ border: '1px solid #6366f1', background: '#eef2ff', color: '#3730a3', borderRadius: '999px', padding: '6px 12px', fontWeight: 600, fontSize: '0.78rem', cursor: 'pointer' }}>Since Start of Year</button>
+                      <button onClick={() => { const now = new Date(); setSubjectFrom(`${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`); setSubjectTo(formatDateKey(now)); }} style={{ border: '1px solid #6366f1', background: '#eef2ff', color: '#3730a3', borderRadius: '999px', padding: '6px 12px', fontWeight: 600, fontSize: '0.78rem', cursor: 'pointer' }}>This Month</button>
+                      <button onClick={fetchSubjectSummary} style={{ border: '1px solid #4338ca', background: '#4338ca', color: '#fff', borderRadius: '999px', padding: '6px 14px', fontWeight: 700, fontSize: '0.78rem', cursor: 'pointer' }}>Apply Range</button>
+                      <button onClick={downloadSubjectSummaryPdf} disabled={!subjectSummary.length} style={{ border: '1px solid #059669', background: subjectSummary.length ? '#ecfdf5' : '#f1f5f9', color: subjectSummary.length ? '#065f46' : '#94a3b8', borderRadius: '999px', padding: '6px 14px', fontWeight: 700, fontSize: '0.78rem', cursor: subjectSummary.length ? 'pointer' : 'not-allowed' }}>⬇ Download PDF</button>
+                    </div>
+
+                    {subjectSummaryLoading ? (
+                      <p style={{ color: '#64748b' }}>Loading…</p>
+                    ) : subjectSummaryError ? (
+                      <p style={{ color: '#dc2626' }}>{subjectSummaryError}</p>
+                    ) : subjectSummary.length ? (
+                      subjectSummary.map((n) => (
+                        <div key={n.id} style={{ marginBottom: '10px', background: '#f8fafc', borderRadius: '10px', border: '1px solid #e0e7ff', padding: isMobile ? '10px' : '12px' }}>
+                          <p style={{ margin: 0, color: '#3730a3', fontWeight: 800, fontSize: '0.88rem' }}>{formatDateDMY(n.date)} · Period {n.periodIndex}</p>
+                          <p style={{ margin: '3px 0 8px', color: '#4338ca', fontSize: '0.76rem', fontWeight: 600 }}>By {n.senderName}</p>
+                          {n.classwork && <p style={{ margin: '4px 0 0', fontSize: '0.85rem', color: '#374151' }}><strong>Classwork:</strong> {n.classwork}</p>}
+                          {n.homework && <p style={{ margin: '4px 0 0', fontSize: '0.85rem', color: '#374151' }}><strong>Homework:</strong> {n.homework}</p>}
+                          {n.specialInstructions && <p style={{ margin: '4px 0 0', fontSize: '0.85rem', color: '#374151' }}><strong>Instructions:</strong> {n.specialInstructions}</p>}
+                        </div>
+                      ))
+                    ) : (
+                      <div style={{ background: '#fff', padding: '14px', borderRadius: '12px', border: '1px dashed #6366f1', color: '#3730a3', fontWeight: 600 }}>No {selectedSubject} updates recorded in this range.</div>
+                    )}
+                  </>
+                )}
+              </div>
             )}
           </div>
         );
