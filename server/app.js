@@ -27,7 +27,9 @@ const housesRoutes = require('./routes/houses');
 const periodNotesRoutes = require('./routes/period-notes');
 const notificationsRoutes = require('./routes/notifications');
 const pushRoutes = require('./routes/push');
+const auditLogsRoutes = require('./routes/audit-logs');
 const { UPLOAD_ROOT } = require('./utils/upload');
+const { logAudit } = require('./utils/auditLog');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -125,6 +127,29 @@ app.use((req, res, next) => {
     next();
 });
 
+// Brief audit trail for every write anywhere in the app — method + path +
+// resulting status, attributed to whoever made it. Mounted before the
+// routers but reads req.user (set by each route's own `auth` middleware)
+// inside a res.on('finish') callback, which fires after that middleware has
+// already run — so this needs no per-route changes to capture identity.
+app.use((req, res, next) => {
+    if (req.method !== 'GET' && req.path.startsWith('/api/') && req.path !== '/api/auth/login' && req.path !== '/api/auth/logout') {
+        res.on('finish', () => {
+            logAudit({
+                eventType: 'request',
+                userId: req.user && typeof req.user.id === 'number' ? req.user.id : null,
+                username: req.user ? req.user.username : null,
+                role: req.user ? req.user.role : null,
+                ip: req.ip,
+                method: req.method,
+                path: req.path,
+                summary: `${req.method} ${req.path} → ${res.statusCode}`,
+            });
+        });
+    }
+    next();
+});
+
 // Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/attachments', attachmentRoutes);
@@ -146,6 +171,7 @@ app.use('/api/houses', housesRoutes);
 app.use('/api/period-notes', periodNotesRoutes);
 app.use('/api/notifications', notificationsRoutes);
 app.use('/api/push', pushRoutes);
+app.use('/api/audit-logs', auditLogsRoutes);
 
 // Health check endpoint - must be before static files and wildcard
 app.get('/api/health', (req, res) => {

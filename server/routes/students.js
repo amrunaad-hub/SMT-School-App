@@ -80,7 +80,7 @@ router.get('/', auth, async (req, res) => {
 // ahead of GET /:id so "edit-requests" isn't swallowed as an :id value.
 router.get('/edit-requests', auth, async (req, res) => {
   try {
-    const isAdmin = req.user.role === 'admin' || req.user.role === 'principal';
+    const isAdmin = ['admin', 'principal', 'superuser'].includes(req.user.role);
     const { status } = req.query;
     let query = db('student_edit_requests as r')
       .join('students as s', 's.id', 'r.student_id')

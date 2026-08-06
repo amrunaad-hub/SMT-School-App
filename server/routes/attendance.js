@@ -47,7 +47,7 @@ const STUDENT_JOIN_COLUMNS = [
 ];
 
 async function assertGradeAccess(req, res, grade) {
-  if (req.user.role === 'admin' || req.user.role === 'principal') return true;
+  if (['admin', 'principal', 'superuser'].includes(req.user.role)) return true;
   if (req.user.role === 'teacher' && await teacherCanAccessGrade(db, req.user.id, grade)) return true;
   res.status(403).json({ message: 'You are not assigned to this grade.' });
   return false;

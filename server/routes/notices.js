@@ -224,7 +224,7 @@ const CAMEL_TO_SNAKE = {
 // null, which no teacher can match — effectively admin/principal-only, which
 // is the safe default for ownerless legacy notices.
 const canModifyNotice = (notice, user) => {
-  if (user.role === 'admin' || user.role === 'principal') return true;
+  if (['admin', 'principal', 'superuser'].includes(user.role)) return true;
   return notice.created_by_user_id === user.id;
 };
 

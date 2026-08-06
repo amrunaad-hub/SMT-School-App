@@ -26,6 +26,7 @@ import Teachers from './components/Teachers';
 import Login from './components/Login';
 import MyDocuments from './components/MyDocuments';
 import PublicAdmissionForm from './components/PublicAdmissionForm';
+import AuditLogs from './components/AuditLogs';
 
 const getHomePath = (role) => {
   if (role === 'parent') return '/parents';
@@ -39,7 +40,9 @@ const ProtectedRoute = ({ authRole, allowedRoles, children }) => {
     return <Navigate to="/login" replace />;
   }
 
-  if (!allowedRoles.includes(authRole)) {
+  // Unfettered access by design — every module in the app, no allowlist
+  // needed per-route.
+  if (authRole !== 'superuser' && !allowedRoles.includes(authRole)) {
     return <Navigate to={getHomePath(authRole)} replace />;
   }
 
@@ -130,6 +133,7 @@ function App() {
     // otherwise return a 401 mid-logout and get misread by api.js as a
     // surprise session death.
     markLoggingOut();
+    api.post('/api/auth/logout').catch(() => {});
     const clearLocal = () => {
       setAuthRole('');
       setSessionExpired(false);
@@ -169,7 +173,7 @@ function App() {
             path="/"
             element={
               <ProtectedRoute authRole={authRole} allowedRoles={['admin', 'parent', 'teacher', 'principal']}>
-                {authRole === 'admin' ? <Dashboard /> : <Navigate to={getHomePath(authRole)} replace />}
+                {(authRole === 'admin' || authRole === 'superuser') ? <Dashboard /> : <Navigate to={getHomePath(authRole)} replace />}
               </ProtectedRoute>
             }
           />
@@ -200,6 +204,7 @@ function App() {
           <Route path="/communication" element={<ProtectedRoute authRole={authRole} allowedRoles={['admin', 'principal', 'teacher']}><Communication /></ProtectedRoute>} />
           <Route path="/edit-requests" element={<ProtectedRoute authRole={authRole} allowedRoles={['admin', 'principal']}><EditRequests /></ProtectedRoute>} />
           <Route path="/my-documents" element={<ProtectedRoute authRole={authRole} allowedRoles={['admin', 'principal', 'teacher', 'parent']}><MyDocuments /></ProtectedRoute>} />
+          <Route path="/audit-logs" element={<ProtectedRoute authRole={authRole} allowedRoles={['superuser']}><AuditLogs /></ProtectedRoute>} />
 
           <Route path="*" element={<Navigate to={authRole ? getHomePath(authRole) : '/login'} replace />} />
         </Routes>

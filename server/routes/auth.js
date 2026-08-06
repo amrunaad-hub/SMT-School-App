@@ -4,11 +4,12 @@ const jwt = require('jsonwebtoken');
 const db = require('../db/database');
 const { encryptText, decryptText } = require('../utils/crypto');
 const { serializeRow } = require('../utils/serialize');
+const { logAudit } = require('../utils/auditLog');
 const auth = require('../middleware/auth');
 const authorize = require('../middleware/authorize');
 const router = express.Router();
 
-const ROLES = ['admin', 'parent', 'teacher', 'principal'];
+const ROLES = ['admin', 'parent', 'teacher', 'principal', 'superuser'];
 
 const FALLBACK_USERS = {
     admin: { password: 'admin', role: 'admin' },
@@ -96,6 +97,7 @@ router.post('/login', async (req, res) => {
             }
 
             const token = issueToken({ id: `demo-${username}`, username, role: demoUser.role });
+            logAudit({ eventType: 'login', userId: null, username, role: demoUser.role, ip: req.ip, method: 'POST', path: '/api/auth/login', summary: 'Demo login' });
 
             return res.json({
                 token,
@@ -110,6 +112,7 @@ router.post('/login', async (req, res) => {
         }
 
         const token = issueToken(user);
+        logAudit({ eventType: 'login', userId: user.id, username: user.username, role: user.role, ip: req.ip, method: 'POST', path: '/api/auth/login', summary: 'Login succeeded' });
         return res.json({
             token,
             user: { id: user.id, username: user.username, role: user.role },
@@ -118,6 +121,15 @@ router.post('/login', async (req, res) => {
         console.error('Login error:', err.message);
         return res.status(500).json({ message: 'Server error' });
     }
+});
+
+// POST /api/auth/logout — the client calls this (fire-and-forget) at the
+// start of its logout flow, while the token is still valid, purely so the
+// event lands in the audit trail. Nothing server-side actually needs
+// invalidating — JWTs aren't tracked/blacklisted here.
+router.post('/logout', auth, (req, res) => {
+    logAudit({ eventType: 'logout', userId: typeof req.user.id === 'number' ? req.user.id : null, username: req.user.username, role: req.user.role, ip: req.ip, method: 'POST', path: '/api/auth/logout', summary: 'Logout' });
+    return res.json({ message: 'Logged out.' });
 });
 
 // GET /api/me/children — resolves the logged-in parent to their linked

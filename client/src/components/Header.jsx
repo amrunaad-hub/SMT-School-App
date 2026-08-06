@@ -126,6 +126,12 @@ const Header = ({ role = 'admin', onLogout, homePath = '/' }) => {
     const mobileNavItemStyle = isMobile ? { flex: '1 1 calc(50% - 10px)', minWidth: '140px' } : {};
     const isAdmin = role === 'admin';
     const isPrincipal = role === 'principal';
+    // Unfettered access: gets the full admin nav, plus the "upcoming"
+    // features actually clickable instead of disabled placeholders (they
+    // work, they're just not admin-polished yet), plus the exclusive
+    // Server Logs page.
+    const isSuperuser = role === 'superuser';
+    const superuserExtraLinks = [{ to: '/audit-logs', label: '🛡️ Server Logs' }];
 
     // Principal gets the same oversight groups as admin, minus the back-office-only
     // items (Transport, Inventory, HR, Teachers-as-admin-view) that stay admin-only
@@ -162,17 +168,22 @@ const Header = ({ role = 'admin', onLogout, homePath = '/' }) => {
             ) : (
             <nav style={{ width: isMobile ? '100%' : 'auto', overflow: 'visible' }}>
                 <ul style={{ display: 'flex', gap: '10px', listStyle: 'none', margin: 0, padding: 0, flexWrap: 'wrap', overflow: 'visible', scrollbarWidth: 'thin' }}>
-                    {(isAdmin || isPrincipal) ? (
+                    {(isAdmin || isPrincipal || isSuperuser) ? (
                         <>
                             <li style={mobileNavItemStyle}>
-                                <Link style={{ ...topLinkStyle, width: isMobile ? '100%' : 'auto', textAlign: 'center', background: 'rgba(16,185,129,0.25)', border: '2px solid rgba(16,185,129,0.55)' }} to={isAdmin ? '/' : '/command-center'}>🏠 Home</Link>
+                                <Link style={{ ...topLinkStyle, width: isMobile ? '100%' : 'auto', textAlign: 'center', background: 'rgba(16,185,129,0.25)', border: '2px solid rgba(16,185,129,0.55)' }} to={(isAdmin || isSuperuser) ? '/' : '/command-center'}>🏠 Home</Link>
                             </li>
-                            {isAdmin && adminWorkingLinks.map((item) => (
+                            {(isAdmin || isSuperuser) && adminWorkingLinks.map((item) => (
                                 <li key={item.to} style={mobileNavItemStyle}>
                                     <Link style={{ ...topLinkStyle, width: isMobile ? '100%' : 'auto', textAlign: 'center' }} to={item.to}>{item.label}</Link>
                                 </li>
                             ))}
-                            {(isAdmin ? [adminUpcomingGroup] : principalNav).map((group) => {
+                            {isSuperuser && superuserExtraLinks.map((item) => (
+                                <li key={item.to} style={mobileNavItemStyle}>
+                                    <Link style={{ ...topLinkStyle, width: isMobile ? '100%' : 'auto', textAlign: 'center', background: 'rgba(250,204,21,0.2)', border: '2px solid rgba(250,204,21,0.55)' }} to={item.to}>{item.label}</Link>
+                                </li>
+                            ))}
+                            {(isAdmin || isSuperuser ? [adminUpcomingGroup] : principalNav).map((group) => {
                                 const isOpen = openGroup === group.key;
                                 return (
                                     <li
@@ -184,7 +195,7 @@ const Header = ({ role = 'admin', onLogout, homePath = '/' }) => {
                                         <button
                                             type="button"
                                             onClick={() => setOpenGroup(isOpen ? null : group.key)}
-                                            style={{ ...topLinkStyle, width: isMobile ? '100%' : 'auto', textAlign: 'center', fontFamily: 'inherit', ...(group.key === 'upcoming' ? { background: 'rgba(255,255,255,0.05)', border: '2px dashed rgba(255,255,255,0.4)' } : {}) }}
+                                            style={{ ...topLinkStyle, width: isMobile ? '100%' : 'auto', textAlign: 'center', fontFamily: 'inherit', ...(group.key === 'upcoming' && !isSuperuser ? { background: 'rgba(255,255,255,0.05)', border: '2px dashed rgba(255,255,255,0.4)' } : {}) }}
                                         >
                                             {group.label} ▾
                                         </button>
@@ -195,11 +206,11 @@ const Header = ({ role = 'admin', onLogout, homePath = '/' }) => {
                                                 style={{ position: isMobile ? 'static' : 'absolute', top: isMobile ? 'auto' : '100%', left: 0, paddingTop: isMobile ? '8px' : '6px', minWidth: isMobile ? '100%' : '220px', width: isMobile ? '100%' : 'auto', zIndex: 30 }}
                                             >
                                                 <div style={{ background: '#f8fafc', border: '1px solid #bfdbfe', borderRadius: '10px', padding: '8px', boxShadow: '0 12px 24px rgba(15, 23, 42, 0.2)' }}>
-                                                    {group.key === 'upcoming' && (
+                                                    {group.key === 'upcoming' && !isSuperuser && (
                                                         <p style={{ margin: '2px 6px 8px', color: '#94a3b8', fontSize: '0.72rem', fontWeight: 600 }}>Not yet finished — disabled for now.</p>
                                                     )}
                                                     {group.items.map((item) => (
-                                                        group.key === 'upcoming' ? (
+                                                        group.key === 'upcoming' && !isSuperuser ? (
                                                             <span
                                                                 key={item.to}
                                                                 style={{ ...dropdownItemStyle, color: '#94a3b8', background: '#f1f5f9', cursor: 'not-allowed' }}
