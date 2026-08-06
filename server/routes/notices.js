@@ -219,14 +219,9 @@ const CAMEL_TO_SNAKE = {
   attachmentUrl: 'attachment_url', priority: 'priority', isActive: 'is_active',
 };
 
-// A teacher may only touch notices they created themselves; admin/principal
-// can touch anything. Rows created before created_by_user_id existed have it
-// null, which no teacher can match — effectively admin/principal-only, which
-// is the safe default for ownerless legacy notices.
-const canModifyNotice = (notice, user) => {
-  if (['admin', 'principal', 'superuser'].includes(user.role)) return true;
-  return notice.created_by_user_id === user.id;
-};
+// Teachers get the same edit/deactivate/delete control over every notice as
+// admin/principal — not just ones they created themselves.
+const canModifyNotice = (notice, user) => ['admin', 'principal', 'superuser', 'teacher'].includes(user.role);
 
 // PUT /api/notices/:id (admin, principal, or the teacher who created it)
 router.put('/:id', auth, authorize(['admin', 'principal', 'teacher']), async (req, res) => {

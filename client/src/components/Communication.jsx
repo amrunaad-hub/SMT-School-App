@@ -378,8 +378,7 @@ const AudiencePicker = ({ audience, onChange, inputStyle, labelStyle }) => {
 
 const Communication = () => {
   const role = window.localStorage.getItem('smt-school-role');
-  const canManage = role === 'admin' || role === 'principal' || role === 'teacher';
-  const isAdminOrPrincipal = role === 'admin' || role === 'principal';
+  const canManage = ['admin', 'principal', 'teacher', 'superuser'].includes(role);
 
   const [currentUserId, setCurrentUserId] = useState(null);
   useEffect(() => {
@@ -400,9 +399,10 @@ const Communication = () => {
       })
       .catch(() => {});
   }, [role]);
-  // Teachers can only edit/deactivate/delete notices they created themselves;
-  // admin/principal can touch anything (mirrors the server-side check).
-  const canModify = (notice) => isAdminOrPrincipal || notice.createdByUserId === currentUserId;
+  // Teachers get the same edit/deactivate/delete control over every notice
+  // as admin/principal — not just ones they created (mirrors the
+  // server-side check).
+  const canModify = () => canManage;
 
   const [notices, setNotices] = useState([]);
   const [loading, setLoading] = useState(true);
