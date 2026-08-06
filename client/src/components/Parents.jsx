@@ -10,6 +10,16 @@ import { formatDateIST, formatDateTimeIST, formatDateDMY, formatDateTimeDMY } fr
 // APIs need the bare numeric grade.
 const gradeNumber = (label) => Number(String(label).replace(/\D/g, ''));
 
+// Strips one query param from the address bar without a navigation/reload —
+// used after a deep-link (?noticeId=, ?date=) has done its one-time job, so
+// a later plain refresh of the same URL doesn't keep re-triggering it.
+const removeSearchParam = (key) => {
+  const url = new URL(window.location.href);
+  if (!url.searchParams.has(key)) return;
+  url.searchParams.delete(key);
+  window.history.replaceState({}, '', url.pathname + (url.search ? url.search : '') + url.hash);
+};
+
 const Parents = () => {
   const deepLinkNoticeId = new URLSearchParams(window.location.search).get('noticeId');
   const deepLinkAttendanceDate = new URLSearchParams(window.location.search).get('date');
@@ -88,6 +98,10 @@ const Parents = () => {
   const [apiNotices, setApiNotices] = useState([]);
   const [dailyActivities, setDailyActivities] = useState([]);
   const [serverNotifications, setServerNotifications] = useState({ unreadCount: 0, notifications: [] });
+  // Set by clicking an individual item in the bell dropdown — { type: 'notice'|'update', id } —
+  // and consumed by the two effects below to open + scroll to that exact card,
+  // the same way a push-notification's ?noticeId= deep link does.
+  const [scrollTarget, setScrollTarget] = useState(null);
   // 'unsupported' | 'off' | 'on' | 'busy' — push notification opt-in state.
   const [pushStatus, setPushStatus] = useState(
     ('serviceWorker' in navigator && 'PushManager' in window) ? 'off' : 'unsupported'
@@ -188,12 +202,39 @@ const Parents = () => {
   // (toggleCircularAccordion's read POST below), so auto-expanding here
   // would silently under-count reads for anything opened via a notification.
   useEffect(() => {
-    if (!deepLinkNoticeId || !apiNotices.length) return;
-    const notice = apiNotices.find((n) => String(n._id) === deepLinkNoticeId);
+    const targetId = deepLinkNoticeId || (scrollTarget?.type === 'notice' ? String(scrollTarget.id) : null);
+    if (!targetId || !apiNotices.length) return;
+    const notice = apiNotices.find((n) => String(n._id) === targetId);
     if (!notice) return;
     const cardId = `circular-${notice._id}`;
+    // Actually open it, not just bring it into view still collapsed — a
+    // click from the bell dropdown should land you reading it, same as a
+    // manual tap on "Open Notice" would.
+    setExpandedCards((prev) => ({ ...prev, [cardId]: true }));
+    if (!notice.isRead) api.post(`/api/notices/${notice._id}/read`).catch(() => {});
     document.getElementById(cardId)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-  }, [apiNotices, deepLinkNoticeId]);
+    // Drop the param once used — otherwise it's still sitting in the address
+    // bar and a plain refresh (not a fresh notification click) re-triggers
+    // this same scroll forever.
+    removeSearchParam('noticeId');
+    setScrollTarget(null);
+  }, [apiNotices, deepLinkNoticeId, scrollTarget]);
+
+  // Same as above, for a bell-dropdown click on an individual Teaching
+  // Update rather than a Communication notice.
+  useEffect(() => {
+    if (!scrollTarget || scrollTarget.type !== 'update') return;
+    const note = periodNoteUpdates.find((n) => n.id === scrollTarget.id);
+    if (!note) return;
+    const cardId = `periodnote-${note.id}`;
+    setExpandedCards((prev) => ({ ...prev, [cardId]: true }));
+    if (!note.isRead) {
+      api.post(`/api/period-notes/${note.id}/read`).catch(() => {});
+      setPeriodNoteUpdates((prev) => prev.map((n) => (n.id === note.id ? { ...n, isRead: true } : n)));
+    }
+    document.getElementById(cardId)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    setScrollTarget(null);
+  }, [scrollTarget, periodNoteUpdates]);
 
   // In-app notifications (e.g. "attendance locked for today") — no email/push
   // infra exists yet, so this is what the parent sees on next portal visit.
@@ -231,6 +272,9 @@ const Parents = () => {
     // have nothing to regularize/explain) — a Present notification still
     // lands on the right month, just without forcing an empty modal open.
     if (day && day.status !== 'present') setSelectedDateDetail(day);
+    // Same reasoning as the noticeId deep link above — a bare refresh
+    // shouldn't keep reopening this modal every time.
+    removeSearchParam('date');
   }, [attendanceData, deepLinkAttendanceDate]);
 
   // Full student record (beyond the curated linkedStudents display fields)
@@ -1115,13 +1159,32 @@ const Parents = () => {
   // The bell shows the real total of open action items across every module
   // — same numbers as the Quick Access badges below, not the separate
   // server push-notification log, which was showing an unrelated (and much
-  // smaller) count. Clicking it lists exactly what's pending, grouped by
-  // module, each item jumping straight to that module.
+  // smaller) count. Notices and Teaching Updates are each genuinely a list
+  // of independent items, so they're listed here one row per item (clicking
+  // one opens and scrolls straight to that exact notice/update via
+  // scrollTarget above) rather than collapsed into a single "N unread"
+  // summary row a parent then has to go hunt through a whole module to
+  // resolve. Profile-completeness and attendance-regularization aren't
+  // "a list of things" in the same sense (there's one profile, one
+  // calendar), so those two stay single grouped rows that just open their
+  // module.
   const pendingActionItems = [
-    profileIncompleteCount > 0 && { key: 'profile', icon: '👤', label: 'Student Profile', count: profileIncompleteCount, desc: `${profileIncompleteCount} field${profileIncompleteCount === 1 ? '' : 's'} incomplete` },
-    attendancePendingRegularizationCount > 0 && { key: 'attendance', icon: '📅', label: 'Attendance', count: attendancePendingRegularizationCount, desc: `${attendancePendingRegularizationCount} day${attendancePendingRegularizationCount === 1 ? '' : 's'} need regularization` },
-    circularUnreadCount > 0 && { key: 'circular', icon: '📢', label: 'Communication', count: circularUnreadCount, desc: `${circularUnreadCount} unread notice${circularUnreadCount === 1 ? '' : 's'}` },
-    activitiesUnreadCount > 0 && { key: 'activities', icon: '📚', label: 'Teaching Updates', count: activitiesUnreadCount, desc: `${activitiesUnreadCount} unread update${activitiesUnreadCount === 1 ? '' : 's'}` },
+    profileIncompleteCount > 0 && { key: 'profile', icon: '👤', label: 'Student Profile', count: profileIncompleteCount, desc: `${profileIncompleteCount} field${profileIncompleteCount === 1 ? '' : 's'} incomplete`, onOpen: () => openModule('profile') },
+    attendancePendingRegularizationCount > 0 && { key: 'attendance', icon: '📅', label: 'Attendance', count: attendancePendingRegularizationCount, desc: `${attendancePendingRegularizationCount} day${attendancePendingRegularizationCount === 1 ? '' : 's'} need regularization`, onOpen: () => openModule('attendance') },
+    ...mergedCircularNotices
+      .filter((n) => !n.isArchived && !n.isRead)
+      .map((n) => ({
+        key: `circular-${n.id}`, icon: '📢', label: n.title, count: 1,
+        desc: `${n.issuedBy || 'School'} · ${formatDateDMY(n.date)}`,
+        onOpen: () => { openModule('circular'); setScrollTarget({ type: 'notice', id: n.id }); },
+      })),
+    ...periodNoteUpdates
+      .filter((n) => !n.isRead)
+      .map((n) => ({
+        key: `update-${n.id}`, icon: '📚', label: n.subject ? `${n.subject} · Period ${n.periodIndex}` : `Period ${n.periodIndex} update`, count: 1,
+        desc: `By ${n.senderName} · ${formatDateDMY(n.date)}`,
+        onOpen: () => { openModule('activities'); setScrollTarget({ type: 'update', id: n.id }); },
+      })),
   ].filter(Boolean);
   const totalPendingCount = pendingActionItems.reduce((sum, item) => sum + item.count, 0);
 
@@ -1535,7 +1598,7 @@ const Parents = () => {
                   // first open is still the one that fires the read POST.
                   const isOpen = expandedCards[cardId] !== undefined ? expandedCards[cardId] : note.isRead;
                   return (
-                    <div key={cardId} style={{ marginBottom: '8px', background: isOpen ? '#fff' : '#f5f6ff', borderRadius: '10px', border: `1px solid ${note.isRead ? '#e0e7ff' : '#818cf8'}`, overflow: 'hidden' }}>
+                    <div id={cardId} key={cardId} style={{ marginBottom: '8px', background: isOpen ? '#fff' : '#f5f6ff', borderRadius: '10px', border: `1px solid ${note.isRead ? '#e0e7ff' : '#818cf8'}`, overflow: 'hidden' }}>
                       <div style={{ padding: isMobile ? '10px' : '12px' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
                           <p style={{ margin: 0, color: '#3730a3', fontWeight: 800, fontSize: isMobile ? '0.85rem' : '0.9rem' }}>
@@ -1801,7 +1864,16 @@ const Parents = () => {
                       auto is the safety net for the rare one that does. */}
                   <div style={{ maxHeight: isOpen ? '4000px' : '0px', overflow: isOpen ? 'auto' : 'hidden', opacity: isOpen ? 1 : 0, transition: 'max-height 240ms ease, opacity 220ms ease' }}>
                     <div style={{ padding: isMobile ? '0 12px 12px' : '0 14px 14px', borderTop: '1px solid #ffe4e6' }}>
-                      <style>{'.notice-body-html { overflow-wrap: anywhere; max-width: 100%; } .notice-body-html * { white-space: normal !important; overflow-wrap: anywhere !important; max-width: 100% !important; }'}</style>
+                      {/* Admin-authored notices go through Quill, which joins
+                          words with &nbsp; (non-breaking space) rather than a
+                          plain space in a lot of pasted/typed content — a run
+                          of &nbsp;-joined text has no regular space to break
+                          at, so overflow-wrap alone doesn't reliably catch it
+                          in every browser. word-break: break-word as a second,
+                          more aggressive fallback does. table-layout: fixed
+                          stops a stray empty <table> (a Quill table-plugin
+                          artifact) from expanding past the card too. */}
+                      <style>{'.notice-body-html { overflow-wrap: anywhere; word-break: break-word; max-width: 100%; overflow-x: hidden; } .notice-body-html * { white-space: normal !important; overflow-wrap: anywhere !important; word-break: break-word !important; max-width: 100% !important; } .notice-body-html table { table-layout: fixed !important; width: 100% !important; }'}</style>
                       <div className="notice-body-html" style={{ margin: '10px 0 0', color: '#374151', fontSize: isMobile ? '0.82rem' : '0.9rem', lineHeight: 1.5 }} dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(notice.body) }} />
                       {notice.attachments.length > 0 && (
                         <button onClick={() => openAttachmentPreview(notice.title, notice.attachments)} style={{ marginTop: '8px', border: '1px solid #fb7185', background: '#fff1f2', color: '#9f1239', borderRadius: '999px', padding: '6px 10px', fontWeight: 700, cursor: 'pointer' }}>📎 {notice.attachments.length} Attachment</button>
@@ -1967,21 +2039,22 @@ const Parents = () => {
             {pendingActionItems.length === 0 ? (
               <p style={{ margin: 0, padding: '16px 14px', color: '#9ca3af', fontSize: '0.84rem' }}>Nothing needs your attention right now.</p>
             ) : (
-              pendingActionItems.map((item) => (
-                <button
-                  key={item.key}
-                  type="button"
-                  onClick={() => { openModule(item.key); setShowNotifDropdown(false); }}
-                  style={{ display: 'flex', alignItems: 'center', gap: '10px', width: '100%', textAlign: 'left', border: 'none', borderBottom: '1px solid #fff1f2', background: '#fff', padding: '10px 14px', cursor: 'pointer' }}
-                >
-                  <span style={{ fontSize: '1.15rem' }}>{item.icon}</span>
-                  <span style={{ flex: 1 }}>
-                    <span style={{ display: 'block', fontWeight: 700, color: '#9f1239', fontSize: '0.84rem' }}>{item.label}</span>
-                    <span style={{ display: 'block', color: '#6b7280', fontSize: '0.76rem' }}>{item.desc}</span>
-                  </span>
-                  <span style={{ minWidth: '22px', height: '22px', padding: '0 6px', borderRadius: '999px', background: '#e11d48', color: '#fff', fontSize: '0.72rem', fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{item.count}</span>
-                </button>
-              ))
+              <div style={{ maxHeight: '360px', overflowY: 'auto' }}>
+                {pendingActionItems.map((item) => (
+                  <button
+                    key={item.key}
+                    type="button"
+                    onClick={() => { item.onOpen(); setShowNotifDropdown(false); }}
+                    style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', width: '100%', textAlign: 'left', border: 'none', borderBottom: '1px solid #fff1f2', background: '#fff', padding: '10px 14px', cursor: 'pointer' }}
+                  >
+                    <span style={{ fontSize: '1.15rem', flexShrink: 0 }}>{item.icon}</span>
+                    <span style={{ flex: 1, minWidth: 0 }}>
+                      <span style={{ display: 'block', fontWeight: 700, color: '#9f1239', fontSize: '0.84rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.label}</span>
+                      <span style={{ display: 'block', color: '#6b7280', fontSize: '0.76rem' }}>{item.desc}</span>
+                    </span>
+                  </button>
+                ))}
+              </div>
             )}
           </div>
         )}
