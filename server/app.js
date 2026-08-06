@@ -6,6 +6,7 @@ const path = require('path');
 require('dotenv').config();
 const db = require('./db/database');
 const { startBackupCron } = require('./cron/backup');
+const { startResourceSampler } = require('./cron/resourceSampler');
 const authRoutes = require('./routes/auth');
 const attachmentRoutes = require('./routes/attachments');
 const { ensureDefaultUsers } = require('./utils/seedUsers');
@@ -110,6 +111,7 @@ db.migrate.latest()
         await ensureDefaultUsers();
         console.log('Default role users ensured');
         startBackupCron();
+        startResourceSampler();
     })
     .catch(err => {
         dbReady = false;
