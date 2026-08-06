@@ -16,6 +16,7 @@ import PeriodDetails from './components/PeriodDetails';
 import HR from './components/HR';
 import Exams from './components/Exams';
 import Attendance from './components/Attendance';
+import AttendanceRegister from './components/AttendanceRegister';
 import Transport from './components/Transport';
 import Inventory from './components/Inventory';
 import Communication from './components/Communication';
@@ -197,6 +198,7 @@ function App() {
           {/* Teachers mark their own class's attendance — this route previously excluded
               them entirely despite Attendance.js already supporting it. */}
           <Route path="/attendance" element={<ProtectedRoute authRole={authRole} allowedRoles={['admin', 'principal', 'teacher']}><Attendance /></ProtectedRoute>} />
+          <Route path="/attendance-register" element={<ProtectedRoute authRole={authRole} allowedRoles={['admin', 'principal', 'teacher']}><AttendanceRegister /></ProtectedRoute>} />
           <Route path="/transport" element={<ProtectedRoute authRole={authRole} allowedRoles={['admin']}><Transport /></ProtectedRoute>} />
           <Route path="/inventory" element={<ProtectedRoute authRole={authRole} allowedRoles={['admin']}><Inventory /></ProtectedRoute>} />
           <Route path="/washrooms" element={<ProtectedRoute authRole={authRole} allowedRoles={['admin']}><Washrooms /></ProtectedRoute>} />

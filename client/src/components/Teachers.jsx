@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../api';
-import { formatDateKey, isSameDate, generateCalendarDays, buildWeekStrip, jsDayToApiDay } from '../utils/calendarHelpers';
+import { formatDateKey, isSameDate, generateCalendarDays, buildWeekStrip, jsDayToApiDay, isWorkingDayFor } from '../utils/calendarHelpers';
 import { formatDateDMY } from '../utils/formatDate';
 import AttendanceModal from './AttendanceModal';
 
@@ -26,14 +26,6 @@ const EMPTY_TEACHER = {
 
 const DAY_LABELS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 const DIVISIONS = ['alpha', 'beta', 'gamma'];
-
-const getSaturdayOccurrence = (date) => Math.floor((date.getDate() - 1) / 7) + 1;
-const isWorkingDayFor = (date) => {
-  const day = date.getDay();
-  if (day === 0) return false;
-  if (day === 6) return ![2, 4].includes(getSaturdayOccurrence(date));
-  return true;
-};
 
 // AttendanceModal now lives in its own file (shared with Timetable.jsx's
 // Full Timetable page) — see ./AttendanceModal.
@@ -245,13 +237,13 @@ const Teachers = () => {
   // consistent navigation strip, not two different-looking concepts.
   const externalTabs = [
     { to: '/timetable', label: '📅 Full Timetable' },
+    { to: '/attendance-register', label: '📖 Attendance Register' },
     { to: '/communication', label: '💬 Communication' },
     { to: '/my-documents', label: '📁 My Documents' },
   ];
 
   const UPCOMING_LINKS = [
     { title: 'Exams', desc: 'Assessment schedules and marks.', color: '#b45309' },
-    { title: 'Attendance Module', desc: 'School-wide attendance analytics.', color: '#059669' },
   ];
 
   const cardBase = { background: '#fff', border: '1px solid #e2e8f0', borderRadius: '14px', padding: '16px', boxShadow: '0 4px 12px rgba(15,23,42,0.06)' };

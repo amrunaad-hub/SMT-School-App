@@ -5,6 +5,9 @@ const auth = require('../middleware/auth');
 const authorize = require('../middleware/authorize');
 const { teacherCanAccessGrade } = require('../utils/classAccess');
 const { sendToSubscriptions } = require('../utils/webPush');
+const { isWorkingDayFor } = require('../utils/workingDay');
+
+const MAX_REGISTER_RANGE_DAYS = 120;
 
 // Shapes a joined attendance+student row into the same { ...attendance, student: {...} }
 // structure the old Mongoose .populate('student', ...) produced.
@@ -178,6 +181,149 @@ router.get('/roster', auth, async (req, res) => {
     return res.json({ roster, isLocked: existingRows.length > 0 && existingRows.every((r) => r.is_locked) });
   } catch (err) {
     console.error('GET /api/attendance/roster error:', err.message);
+    return res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// GET /api/attendance/register?grade=&division=&from=&to= — a whole class's
+// attendance across a date range, shaped for the weekly-grid / monthly-summary
+// register view: per-student per-date cell classification plus per-student
+// aggregates over that exact range, and a `today` block computed independently
+// of from/to (the always-on summary dashboard shouldn't change just because
+// the caller is browsing a past week/month).
+function addDays(dateStr, delta) {
+  const d = new Date(`${dateStr}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + delta);
+  return d.toISOString().slice(0, 10);
+}
+
+router.get('/register', auth, async (req, res) => {
+  try {
+    const { grade, division, from, to } = req.query;
+    if (!grade || !division || !from || !to) {
+      return res.status(400).json({ message: 'grade, division, from, and to are required.' });
+    }
+    if (to < from) {
+      return res.status(400).json({ message: '"to" must not be before "from".' });
+    }
+    const dayCount = Math.round((new Date(`${to}T00:00:00Z`) - new Date(`${from}T00:00:00Z`)) / 86400000) + 1;
+    if (dayCount > MAX_REGISTER_RANGE_DAYS) {
+      return res.status(400).json({ message: `Date range too large — please pick ${MAX_REGISTER_RANGE_DAYS} days or fewer.` });
+    }
+    if (!(await assertGradeAccess(req, res, grade))) return;
+
+    const gradeNum = Number(grade);
+    const divisionLower = String(division).toLowerCase();
+    const todayStr = new Date().toISOString().slice(0, 10);
+
+    const students = await db('students')
+      .where({ grade: gradeNum, division: divisionLower, status: 'Active' })
+      .orderBy('roll_no');
+    const studentIds = students.map((s) => s.id);
+
+    const [attendanceRows, leaveRows, todayAttendanceRows] = await Promise.all([
+      studentIds.length
+        ? db('attendance').where({ grade: gradeNum, division: divisionLower }).whereBetween('date', [from, to]).whereIn('student_id', studentIds)
+        : [],
+      studentIds.length
+        ? db('leave_requests').whereIn('student_id', studentIds).where('from_date', '<=', to).where('to_date', '>=', from)
+        : [],
+      db('attendance').where({ grade: gradeNum, division: divisionLower, date: todayStr }),
+    ]);
+
+    const attendanceByKey = new Map(attendanceRows.map((r) => [`${r.student_id}_${r.date}`, r]));
+    const leavesByStudent = new Map();
+    leaveRows.forEach((l) => {
+      if (!leavesByStudent.has(l.student_id)) leavesByStudent.set(l.student_id, []);
+      leavesByStudent.get(l.student_id).push(l);
+    });
+    const isOnLeave = (studentId, date) =>
+      (leavesByStudent.get(studentId) || []).some((l) => l.from_date <= date && l.to_date >= date);
+
+    const dates = [];
+    for (let d = from; d <= to; d = addDays(d, 1)) {
+      const dow = new Date(`${d}T00:00:00Z`).getUTCDay();
+      dates.push({ date: d, dayOfWeek: dow, isWorkingDay: isWorkingDayFor(d) });
+    }
+
+    const classify = (studentId, dateInfo) => {
+      if (dateInfo.date > todayStr) return { status: 'future' };
+      if (!dateInfo.isWorkingDay) return { status: 'holiday' };
+      const row = attendanceByKey.get(`${studentId}_${dateInfo.date}`);
+      if (!row) return { status: 'unmarked' };
+      if (row.status === 'Absent') {
+        return isOnLeave(studentId, dateInfo.date)
+          ? { status: 'leave', rawStatus: row.status, reason: row.reason || undefined }
+          : { status: 'absent', rawStatus: row.status, reason: row.reason || undefined };
+      }
+      if (row.status === 'HalfDay') return { status: 'halfday', rawStatus: row.status, reason: row.reason || undefined };
+      // Present / Late both read as the ✓ cell — rawStatus keeps the distinction for a tooltip.
+      return { status: 'present', rawStatus: row.status, reason: row.reason || undefined };
+    };
+
+    const shapedStudents = students.map((s) => {
+      const cells = {};
+      let presentCount = 0;
+      let halfdayCount = 0;
+      let absentDays = 0;
+      let leaveDays = 0;
+      dates.forEach((dateInfo) => {
+        const cell = classify(s.id, dateInfo);
+        cells[dateInfo.date] = cell;
+        if (cell.status === 'present') presentCount += 1;
+        else if (cell.status === 'halfday') halfdayCount += 1;
+        else if (cell.status === 'absent') absentDays += 1;
+        else if (cell.status === 'leave') leaveDays += 1;
+      });
+      const workingDaysConsidered = presentCount + halfdayCount + absentDays + leaveDays;
+      const presentCredit = presentCount + halfdayCount * 0.5;
+      const attendancePercent = workingDaysConsidered > 0 ? Math.round((presentCredit / workingDaysConsidered) * 1000) / 10 : null;
+      return {
+        studentId: s.id,
+        studentCode: s.student_code,
+        firstName: s.first_name,
+        lastName: s.last_name,
+        rollNo: s.roll_no,
+        cells,
+        aggregate: { presentDays: presentCount, halfDays: halfdayCount, absentDays, leaveDays, workingDaysConsidered, attendancePercent },
+      };
+    });
+
+    // "Today" summary — independent of the requested from/to range.
+    const todayByStudent = new Map(todayAttendanceRows.map((r) => [r.student_id, r]));
+    let presentToday = 0;
+    let absentToday = 0;
+    let onLeaveToday = 0;
+    studentIds.forEach((id) => {
+      const row = todayByStudent.get(id);
+      if (!row) return;
+      if (row.status === 'Absent') {
+        if (isOnLeave(id, todayStr)) onLeaveToday += 1; else absentToday += 1;
+      } else {
+        presentToday += 1; // Present, Late, and HalfDay all count as accounted-for today.
+      }
+    });
+    const markedToday = presentToday + absentToday + onLeaveToday;
+
+    return res.json({
+      range: { from, to },
+      grade: gradeNum,
+      division: divisionLower,
+      dates,
+      students: shapedStudents,
+      today: {
+        date: todayStr,
+        isWorkingDay: isWorkingDayFor(todayStr),
+        totalStudents: students.length,
+        presentToday,
+        absentToday,
+        onLeaveToday,
+        isMarked: todayAttendanceRows.length > 0,
+        overallAttendancePercent: markedToday > 0 ? Math.round((presentToday / markedToday) * 1000) / 10 : null,
+      },
+    });
+  } catch (err) {
+    console.error('GET /api/attendance/register error:', err.message);
     return res.status(500).json({ message: 'Server error' });
   }
 });
