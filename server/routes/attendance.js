@@ -422,7 +422,8 @@ router.post('/leave-requests', auth, async (req, res) => {
       requested_by: req.user.id, created_at: now, updated_at: now,
     });
     const row = await db('leave_requests').where({ id }).first();
-    return res.status(201).json(shapeLeaveRequest(row));
+    // Freshly created — there's no attendance record for it yet by definition.
+    return res.status(201).json(shapeLeaveRequest(row, []));
   } catch (err) {
     console.error('POST /api/attendance/leave-requests error:', err.message);
     return res.status(500).json({ message: 'Server error' });
