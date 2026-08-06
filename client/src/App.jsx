@@ -91,6 +91,13 @@ function App() {
     return () => window.removeEventListener('auth:expired', onExpired);
   }, []);
 
+  // Returns { ok: true } or { ok: false, reason, message } rather than a
+  // bare boolean — a wrong password, a rate limit, and a dead network were
+  // all previously collapsed into the same "Invalid credentials or server
+  // unavailable" text on the login screen, which is genuinely three
+  // different problems with three different fixes (retype it / wait a few
+  // minutes / check your connection) and made real reports (e.g. a rate
+  // limit hit) look identical to a typo.
   const handleLogin = async (username, password) => {
     try {
       const response = await fetch('/api/auth/login', {
@@ -101,13 +108,19 @@ function App() {
         body: JSON.stringify({ username, password }),
       });
 
+      if (response.status === 429) {
+        const payload = await response.json().catch(() => ({}));
+        return { ok: false, reason: 'rate-limited', message: payload.message };
+      }
+
       if (!response.ok) {
-        return false;
+        const payload = await response.json().catch(() => ({}));
+        return { ok: false, reason: 'invalid', message: payload.message };
       }
 
       const payload = await response.json();
       if (!payload || !payload.token || !payload.user || !payload.user.role) {
-        return false;
+        return { ok: false, reason: 'invalid' };
       }
 
       // Write storage BEFORE flipping React state. This app is on React 17,
@@ -122,9 +135,9 @@ function App() {
       clearLoggingOut();
       setAuthRole(payload.user.role);
       setSessionExpired(false);
-      return true;
+      return { ok: true };
     } catch (error) {
-      return false;
+      return { ok: false, reason: 'network' };
     }
   };
 

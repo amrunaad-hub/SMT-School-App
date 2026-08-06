@@ -1,6 +1,17 @@
 import React, { useState } from 'react';
+import { Link } from 'react-router-dom';
 import schoolLogo from '../assets/logo-source.png';
 import FontSizeControl from './FontSizeControl';
+
+// Maps handleLogin's failure reason to an accurate, actionable message —
+// previously every failure (wrong password, rate-limited, dead network)
+// showed the same "Invalid credentials or server unavailable" text, which
+// made a real rate-limit report look indistinguishable from a typo.
+const ERROR_MESSAGES = {
+  invalid: 'Incorrect username or password. Please check and try again.',
+  'rate-limited': 'Too many login attempts. Please wait a few minutes and try again.',
+  network: 'Could not reach the server. Check your internet connection and try again.',
+};
 
 const Login = ({ onLogin, sessionExpired }) => {
   const [username, setUsername] = useState('');
@@ -12,11 +23,11 @@ const Login = ({ onLogin, sessionExpired }) => {
   const handleSubmit = async (event) => {
     event.preventDefault();
     setIsSubmitting(true);
-    const ok = await onLogin(username.trim().toLowerCase(), password.trim());
+    const result = await onLogin(username.trim().toLowerCase(), password.trim());
     setIsSubmitting(false);
 
-    if (!ok) {
-      setError('Invalid credentials or server unavailable. Check username/password and try again.');
+    if (!result.ok) {
+      setError((result.reason === 'rate-limited' && result.message) || ERROR_MESSAGES[result.reason] || ERROR_MESSAGES.invalid);
       return;
     }
 
@@ -79,6 +90,10 @@ const Login = ({ onLogin, sessionExpired }) => {
             {isSubmitting ? 'Signing in...' : 'Login'}
           </button>
         </form>
+
+        <p style={{ textAlign: 'center', marginTop: '16px', marginBottom: 0, fontSize: '0.86rem', color: '#64748b' }}>
+          New family? <Link to="/apply" style={{ color: '#1e3a8a', fontWeight: 700 }}>Apply for admission</Link>
+        </p>
       </section>
     </main>
   );
