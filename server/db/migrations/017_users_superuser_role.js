@@ -4,6 +4,17 @@
 // constraint on other tables (SQLite can't ALTER a CHECK constraint in
 // place). Adds 'superuser', an unfettered-access role (see
 // middleware/authorize.js) with its own Server Logs / audit-trail page.
+//
+// Unlike 007/015, this one needs `transaction: false` below: SQLite is a
+// documented no-op for `PRAGMA foreign_keys` while a transaction is open,
+// and knex wraps every migration in one by default — so the PRAGMA below
+// silently didn't take effect and DROP TABLE users correctly failed with a
+// FK violation (many tables reference users.id: guardians, staff, notices,
+// leave_requests, documents.uploaded_by, and more). Rolled back cleanly
+// with no data loss since it was still inside that transaction; this
+// rerun runs untransacted so the PRAGMA actually applies.
+exports.config = { transaction: false };
+
 exports.up = async function (knex) {
   await knex.raw('PRAGMA foreign_keys = OFF');
 
