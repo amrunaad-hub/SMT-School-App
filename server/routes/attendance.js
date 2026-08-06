@@ -331,18 +331,19 @@ router.put('/:id', auth, authorize(['admin', 'principal', 'teacher']), async (re
   }
 });
 
-function shapeLeaveRequest(row) {
-  // row.status is never updated after insert anywhere in this codebase — a
-  // leave request "takes effect immediately" (see POST above, no approval
-  // gate), so the DB column is permanently stuck at whatever it was set to
-  // on creation ('Pending'), regardless of whether the leave has already
-  // happened. That produced a visible contradiction: this list showed
-  // "Pending" for a date while the attendance-derived "Last 10 Days
-  // History" correctly showed "Approved Leave" for that same date. Derive
-  // the status from the date range instead — once a request's start date
-  // has arrived, it's already in effect.
+// row.status is never updated after insert anywhere in this codebase — a
+// leave request "takes effect immediately" (see POST above, no approval
+// gate), so the DB column is permanently stuck at whatever it was set to on
+// creation ('Pending'). Deriving "Approved" purely from the date having
+// arrived was also wrong: a request for today isn't actually reflected
+// anywhere until a teacher marks that day's attendance (roster default only
+// applies once that happens) — a request briefly showed "Approved" here
+// while attendance for that exact date hadn't been marked yet, contradicting
+// reality. Only call it Approved once a real attendance row confirms it.
+function shapeLeaveRequest(row, attendanceRows) {
   const todayStr = new Date().toISOString().slice(0, 10);
-  const status = row.from_date <= todayStr ? 'Approved' : 'Pending';
+  const isConfirmed = attendanceRows.some((a) => a.status === 'Absent' && a.date >= row.from_date && a.date <= row.to_date);
+  const status = isConfirmed ? 'Approved' : (row.to_date < todayStr ? 'Awaiting Attendance' : 'Pending');
   return {
     id: row.id,
     studentId: row.student_id,
@@ -369,7 +370,13 @@ router.get('/leave-requests', auth, async (req, res) => {
       return res.status(403).json({ message: 'Not your child.' });
     }
     const requests = await db('leave_requests').where({ student_id: studentId }).orderBy('created_at', 'desc');
-    return res.json({ leaveRequests: requests.map(shapeLeaveRequest) });
+    let attendanceRows = [];
+    if (requests.length) {
+      const minFrom = requests.reduce((min, r) => (r.from_date < min ? r.from_date : min), requests[0].from_date);
+      const maxTo = requests.reduce((max, r) => (r.to_date > max ? r.to_date : max), requests[0].to_date);
+      attendanceRows = await db('attendance').where({ student_id: studentId }).whereBetween('date', [minFrom, maxTo]);
+    }
+    return res.json({ leaveRequests: requests.map((r) => shapeLeaveRequest(r, attendanceRows)) });
   } catch (err) {
     console.error('GET /api/attendance/leave-requests error:', err.message);
     return res.status(500).json({ message: 'Server error' });

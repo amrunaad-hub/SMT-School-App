@@ -61,11 +61,11 @@ const Parents = () => {
   const [leaveFormErrors, setLeaveFormErrors] = useState({});
   const [leaveSubmitting, setLeaveSubmitting] = useState(false);
   const [selectedDateDetail, setSelectedDateDetail] = useState(null);
-  const [leaveRequests, setLeaveRequests] = useState([
-    { id: 'LR-001', type: 'advance', fromDate: '2026-04-09', toDate: '2026-04-09', reason: 'Family function', status: 'Approved', submittedAt: '2026-04-07 09:15 AM', approvedBy: 'Ms. Rekha Iyer', approvedAt: '2026-04-07 02:30 PM' },
-    { id: 'LR-002', type: 'advance', fromDate: '2026-04-03', toDate: '2026-04-03', reason: 'Medical leave', status: 'Approved', submittedAt: '2026-04-01 11:00 AM', approvedBy: 'Ms. Rekha Iyer', approvedAt: '2026-04-01 04:15 PM' },
-    { id: 'LR-003', type: 'regularization', fromDate: '2026-04-06', toDate: '2026-04-06', reason: 'Fever — medical certificate attached', status: 'Pending', submittedAt: '2026-04-08 08:45 AM', approvedBy: null, approvedAt: null },
-  ]);
+  const [leaveRequests, setLeaveRequests] = useState([]);
+  // Collapsed by default — "Last 10 Days History" right below already covers
+  // the same dates day-by-day; this list is only needed when you actually
+  // want the submitted reason/timestamp behind a specific application.
+  const [showLeaveApplications, setShowLeaveApplications] = useState(false);
   const [notifications, setNotifications] = useState([]);
   const [apiNotices, setApiNotices] = useState([]);
   const [dailyActivities, setDailyActivities] = useState([]);
@@ -185,15 +185,14 @@ const Parents = () => {
       .catch(() => {});
   }, []);
 
-  // Load leave requests from API for current student
+  // Load leave requests from API for current student — always replaces the
+  // placeholder, including with an empty list (a student with genuinely no
+  // leave requests should show none, not the fixture data below forever).
   useEffect(() => {
     if (!selectedChildId) return;
     api.get('/api/attendance/leave-requests', { studentId: selectedChildId })
-      .then((data) => {
-        const remote = data.leaveRequests || [];
-        if (remote.length > 0) setLeaveRequests(remote);
-      })
-      .catch(() => {});
+      .then((data) => setLeaveRequests(data.leaveRequests || []))
+      .catch(() => setLeaveRequests([]));
   }, [selectedChildId]);
 
   // Load real attendance records for the calendar's currently displayed month.
@@ -413,11 +412,6 @@ const Parents = () => {
   const last10DaysAttendance = useMemo(() => {
     return attendanceData.slice(-10);
   }, [attendanceData]);
-
-  const adminNotes = useMemo(() => [
-    { id: 1, author: 'Ms. Smita Naik', role: 'Principal', text: 'Repeated absenteeism observed. Please ensure regular attendance to avoid impact on academics and term completion.', timestamp: '14-APR-2026, 10:30 AM', priority: 'high' },
-    { id: 2, author: 'Ms. Rekha Iyer', role: 'Class Teacher', text: 'Please visit school and meet the class teacher to discuss recent absence pattern. Next PTM is 20 April.', timestamp: '10-APR-2026, 02:15 PM', priority: 'medium' },
-  ], []);
 
   const pushNotification = (message, type = 'success') => {
     const id = Date.now();
@@ -693,12 +687,18 @@ const Parents = () => {
   // Calendar cell color: future/unmarked days stay blank (nothing to show
   // yet), weekly-offs and public holidays get their own colors regardless of
   // attendance data, and only past working days are colored by attendance.
+  // Future dates and past-but-unrecorded dates used to render identically
+  // (blank, "Not Marked / Upcoming") — indistinguishable even though they
+  // mean very different things: one hasn't happened yet, the other should
+  // have attendance by now and doesn't. Split them so a parent can actually
+  // tell "nothing to see yet" apart from "this needs a teacher's attention".
   const getDayColor = (date, att) => {
     if (att && att.status === 'holiday') return '#14b8a6';
     if (isNonWorkingDay(date)) return '#a78bfa';
     const today = new Date(); today.setHours(0, 0, 0, 0);
     const cellDate = new Date(date); cellDate.setHours(0, 0, 0, 0);
-    if (cellDate > today || !att) return '#ffffff';
+    if (cellDate > today) return '#ffffff';
+    if (!att) return '#e2e8f0';
     if (att.status === 'present') return '#10b981';
     if (att.type === 'unregularized') return '#ef4444';
     if (att.type === 'approved-leave' || att.type === 'leave-applied') return '#f97316';
@@ -707,8 +707,10 @@ const Parents = () => {
 
   const getDayLabel = (date, att) => {
     if (att && att.status === 'holiday') return getStatusLabel(att.status, att.type);
-    if (isNonWorkingDay(date)) return '● Non-working Day';
-    if (!att) return '';
+    if (isNonWorkingDay(date)) return '● Weekly Off';
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const cellDate = new Date(date); cellDate.setHours(0, 0, 0, 0);
+    if (!att) return cellDate > today ? '○ Upcoming' : '— Unmarked';
     return getStatusLabel(att.status, att.type);
   };
 
@@ -965,8 +967,7 @@ const Parents = () => {
             </div>
           );
       case 'attendance': {
-        const priorityBadge = { high: { bg: '#fee2e2', color: '#dc2626', label: 'High' }, medium: { bg: '#fef3c7', color: '#d97706', label: 'Medium' }, low: { bg: '#f0fdf4', color: '#16a34a', label: 'Low' } };
-        const statusBadge = { Pending: { bg: '#fef3c7', color: '#d97706' }, Approved: { bg: '#dcfce7', color: '#166534' }, Rejected: { bg: '#fee2e2', color: '#dc2626' }, Regularized: { bg: '#dbeafe', color: '#1d4ed8' } };
+        const statusBadge = { Pending: { bg: '#fef3c7', color: '#d97706' }, Approved: { bg: '#dcfce7', color: '#166534' }, Rejected: { bg: '#fee2e2', color: '#dc2626' }, Regularized: { bg: '#dbeafe', color: '#1d4ed8' }, 'Awaiting Attendance': { bg: '#e0e7ff', color: '#4338ca' } };
 
         const submitLeave = () => {
           const errors = {};
@@ -1050,7 +1051,7 @@ const Parents = () => {
                 {calendarDays.map((date, index) => {
                   const att = date ? getAttendanceForDate(date) : null;
                   const bg = !date ? '#f3f4f6' : getDayColor(date, att);
-                  const isBlank = bg === '#ffffff';
+                  const isBlank = bg === '#ffffff' || bg === '#e2e8f0';
                   const isToday = date && new Date().toDateString() === date.toDateString();
                   const clickable = date && att && att.status !== 'present';
                   return (
@@ -1067,47 +1068,29 @@ const Parents = () => {
               </div>
             </div>
 
-            {/* Legend */}
-            <div style={{ background: '#fff', padding: '12px 16px', borderRadius: '12px', border: '1px solid #dcfce7', marginBottom: '16px' }}>
-              <h4 style={{ color: '#166534', fontWeight: 700, marginBottom: '8px', margin: '0 0 8px' }}>Legend</h4>
-              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                {[['#10b981', '✓ Present', '#fff'], ['#f97316', '✕ Absent (leave)', '#fff'], ['#ef4444', '⚠ Unregularized', '#fff'], ['#a78bfa', '● Non-working Day', '#fff'], ['#14b8a6', '★ Public Holiday', '#fff'], ['#ffffff', '○ Not Marked / Upcoming', '#334155']].map(([color, label, text]) => (
-                  <span key={label} style={{ background: color, color: text, border: color === '#ffffff' ? '1px solid #cbd5e1' : 'none', padding: '3px 9px', borderRadius: '6px', fontSize: '0.76rem', fontWeight: 700 }}>{label}</span>
+            {/* Legend — short codes with the full word as a tooltip, to stay
+                compact instead of a wall of six full-word pills. */}
+            <div style={{ background: '#fff', padding: '10px 14px', borderRadius: '12px', border: '1px solid #dcfce7', marginBottom: '16px' }}>
+              <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', alignItems: 'center' }}>
+                {[['#10b981', 'P', 'Present', '#fff'], ['#f97316', 'L', 'Leave', '#fff'], ['#ef4444', 'A', 'Absent', '#fff'], ['#14b8a6', 'H', 'Holiday', '#fff'], ['#a78bfa', 'W', 'Weekly Off', '#fff'], ['#e2e8f0', 'U', 'Unmarked', '#334155'], ['#ffffff', 'O', 'Upcoming', '#334155']].map(([color, code, full, text]) => (
+                  <span key={code} title={full} style={{ background: color, color: text, border: (color === '#ffffff' || color === '#e2e8f0') ? '1px solid #cbd5e1' : 'none', width: '24px', height: '24px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', borderRadius: '6px', fontSize: '0.74rem', fontWeight: 800, cursor: 'default' }}>{code}</span>
                 ))}
               </div>
-              <p style={{ margin: '8px 0 0', color: '#64748b', fontSize: '0.76rem' }}>Tap any non-present date to see details or apply regularization.</p>
+              <p style={{ margin: '6px 0 0', color: '#94a3b8', fontSize: '0.7rem' }}>P Present · L Leave · A Absent · H Holiday · W Weekly Off · U Unmarked · O Upcoming — tap any non-present date for details.</p>
             </div>
-
-            {/* Admin / Principal Notes */}
-            {adminNotes.length > 0 && (
-              <div style={{ background: '#fff', borderRadius: '12px', border: '1px solid #fecdd3', marginBottom: '16px', overflow: 'hidden' }}>
-                <div style={{ padding: '10px 14px', background: '#fef2f2', borderBottom: '1px solid #fecdd3' }}>
-                  <h4 style={{ margin: 0, color: '#9f1239', fontWeight: 800, fontSize: '0.95rem' }}>🔔 Notes from School Administration</h4>
-                </div>
-                {adminNotes.map((note) => {
-                  const pb = priorityBadge[note.priority];
-                  return (
-                    <div key={note.id} style={{ padding: '12px 14px', borderBottom: '1px solid #fef2f2' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: '10px', alignItems: 'flex-start', flexWrap: 'wrap' }}>
-                        <div style={{ flex: 1 }}>
-                          <p style={{ margin: 0, color: '#0f172a', fontSize: '0.88rem', fontWeight: 600, lineHeight: 1.5 }}>{note.text}</p>
-                          <p style={{ margin: '5px 0 0', color: '#64748b', fontSize: '0.76rem' }}>{note.author} · {note.role} · {note.timestamp}</p>
-                        </div>
-                        <span style={{ padding: '3px 9px', borderRadius: '999px', background: pb.bg, color: pb.color, fontWeight: 700, fontSize: '0.72rem', whiteSpace: 'nowrap' }}>{pb.label} Priority</span>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
 
             {/* Leave Requests */}
             {leaveRequests.length > 0 && (
               <div style={{ background: '#fff', borderRadius: '12px', border: '1px solid #dcfce7', marginBottom: '16px', overflow: 'hidden' }}>
-                <div style={{ padding: '10px 14px', background: '#f0fdf4', borderBottom: '1px solid #dcfce7' }}>
-                  <h4 style={{ margin: 0, color: '#166534', fontWeight: 800, fontSize: '0.95rem' }}>📋 My Leave Applications</h4>
-                </div>
-                {leaveRequests.map((req) => {
+                <button
+                  type="button"
+                  onClick={() => setShowLeaveApplications((v) => !v)}
+                  style={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', background: '#f0fdf4', border: 'none', borderBottom: showLeaveApplications ? '1px solid #dcfce7' : 'none', cursor: 'pointer', textAlign: 'left' }}
+                >
+                  <h4 style={{ margin: 0, color: '#166534', fontWeight: 800, fontSize: '0.95rem' }}>📋 My Leave Applications ({leaveRequests.length})</h4>
+                  <span style={{ color: '#166534', fontWeight: 700 }}>{showLeaveApplications ? '▲' : '▼'}</span>
+                </button>
+                {showLeaveApplications && leaveRequests.map((req) => {
                   const sb = statusBadge[req.status];
                   return (
                     <div key={req.id} style={{ padding: '12px 14px', borderBottom: '1px solid #f0fdf4' }}>
@@ -1818,7 +1801,7 @@ const Parents = () => {
 
       <section style={{ marginBottom: '16px', background: '#fff', border: '1px solid #fecdd3', borderRadius: '16px', padding: isMobile ? '12px' : '16px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
-          <h3 style={{ margin: 0, color: '#9f1239', fontSize: isMobile ? '1rem' : '1.1rem' }}>Quick Access</h3>
+          <h3 style={{ margin: 0, color: '#9f1239', fontSize: isMobile ? '1rem' : '1.1rem' }}>Explore</h3>
           <span style={{ fontSize: isMobile ? '0.75rem' : '0.82rem', color: '#be123c', fontWeight: 600 }}>Linked Students: {linkedStudents.length}</span>
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(4, minmax(0, 1fr))' : 'repeat(8, minmax(0, 1fr))', gridAutoRows: isMobile ? '5.5rem' : '6rem', gap: '8px' }}>
@@ -1849,7 +1832,7 @@ const Parents = () => {
                   </span>
                 )}
                 <span style={{ fontSize: isMobile ? '1.05rem' : '1.2rem', flexShrink: 0 }}>{module.icon}</span>
-                <span style={{ fontSize: isMobile ? '0.66rem' : '0.78rem', fontWeight: 700, textAlign: 'center', lineHeight: 1.2, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{module.label}</span>
+                <span style={{ fontSize: isMobile ? '0.66rem' : '0.78rem', fontWeight: 700, textAlign: 'center', lineHeight: 1.2, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', overflowWrap: 'break-word', wordBreak: 'break-word', width: '100%' }}>{module.label}</span>
               </button>
             );
           })}
@@ -1880,7 +1863,7 @@ const Parents = () => {
               }}
             >
               <span style={{ fontSize: isMobile ? '1.05rem' : '1.2rem', flexShrink: 0 }}>{module.icon}</span>
-              <span style={{ fontSize: isMobile ? '0.66rem' : '0.78rem', fontWeight: 700, textAlign: 'center', lineHeight: 1.2, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{module.label}</span>
+              <span style={{ fontSize: isMobile ? '0.66rem' : '0.78rem', fontWeight: 700, textAlign: 'center', lineHeight: 1.2, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', overflowWrap: 'break-word', wordBreak: 'break-word', width: '100%' }}>{module.label}</span>
             </div>
           ))}
         </div>
@@ -1961,7 +1944,7 @@ const Parents = () => {
                     }}
                   >
                     <span style={{ fontSize: '1.12rem', flexShrink: 0 }}>{module.icon}</span>
-                    <span style={{ fontSize: '0.69rem', fontWeight: 700, textAlign: 'center', lineHeight: 1.2, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{module.label}</span>
+                    <span style={{ fontSize: '0.69rem', fontWeight: 700, textAlign: 'center', lineHeight: 1.2, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', overflowWrap: 'break-word', wordBreak: 'break-word', width: '100%' }}>{module.label}</span>
                   </button>
                 ))}
               </div>
