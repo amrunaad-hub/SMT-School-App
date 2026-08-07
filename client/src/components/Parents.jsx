@@ -103,6 +103,15 @@ const Parents = () => {
   // and consumed by the two effects below to open + scroll to that exact card,
   // the same way a push-notification's ?noticeId= deep link does.
   const [scrollTarget, setScrollTarget] = useState(null);
+  // Declared here (not further down, where it conceptually belongs with the
+  // effect that fetches it) because the scrollTarget effect below closes
+  // over it in its dependency array — and a dependency array, unlike an
+  // effect's callback body, is evaluated synchronously as part of the
+  // useEffect(...) call itself, not deferred. Referencing a const in a dep
+  // array before its own declaration line is a real ReferenceError (TDZ),
+  // not just a stale-closure risk — this crashed the whole component on
+  // every render until caught.
+  const [periodNoteUpdates, setPeriodNoteUpdates] = useState([]);
   // 'unsupported' | 'off' | 'on' | 'busy' — push notification opt-in state.
   const [pushStatus, setPushStatus] = useState(
     ('serviceWorker' in navigator && 'PushManager' in window) ? 'off' : 'unsupported'
@@ -291,7 +300,7 @@ const Parents = () => {
   // Recent teaching-update notes (classwork/homework), Communication-style —
   // fetched independently of the month/week/day drill-down below so the
   // Quick Access badge and preview list both work without navigating there.
-  const [periodNoteUpdates, setPeriodNoteUpdates] = useState([]);
+  // (state declared near the top of the component — see the comment there.)
   useEffect(() => {
     if (!selectedChildId) return;
     api.get('/api/period-notes/mine', { studentId: selectedChildId })
