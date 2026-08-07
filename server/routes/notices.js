@@ -2,10 +2,10 @@ const express = require('express');
 const router = express.Router();
 const db = require('../db/database');
 const auth = require('../middleware/auth');
-const authorize = require('../middleware/authorize');
 const { serializeRow, serializeRows } = require('../utils/serialize');
 const { noticeAppliesToUser, normalizeAudience, resolveReachCount, AUDIENCE_DEFAULT } = require('../utils/noticeAudience');
 const { sendToSubscriptions } = require('../utils/webPush');
+const { getRepresentativeScope, scopeToAllowedGradeDivisions, audienceWithinScope } = require('../utils/representatives');
 
 const JSON_FIELDS = ['target_audience'];
 const BOOL_FIELDS = ['is_active'];
@@ -16,10 +16,16 @@ const serialize = (row) => {
 };
 
 // Human-readable sender label for a notice — "Admin"/"Principal" for those
-// roles (no personal name on file for them), or the teacher's actual name
-// from their staff record (falling back to their username if for some
-// reason they have no linked staff row).
-const resolveSenderLabel = async (user) => {
+// roles (no personal name on file for them), the teacher's actual name from
+// their staff record (falling back to their username if for some reason
+// they have no linked staff row), or a PTA/CR rep's guardian name with their
+// designation tacked on so recipients know it isn't an official school notice.
+const resolveSenderLabel = async (user, repScope) => {
+  if (repScope) {
+    const guardian = await db('guardians').where({ user_id: user.id }).first();
+    const name = guardian?.full_name || user.username;
+    return repScope.isPta ? `${name} (PTA, Grade ${repScope.ptaGrade})` : `${name} (Class Representative)`;
+  }
   if (user.role === 'teacher') {
     const staff = await db('staff').where({ user_id: user.id }).first();
     if (staff) return staff.display_name;
@@ -27,6 +33,46 @@ const resolveSenderLabel = async (user) => {
   if (user.role === 'admin') return 'Admin';
   if (user.role === 'principal') return 'Principal';
   return user.username;
+};
+
+// Parents hold no role beyond 'parent' even when they're a PTA/class rep
+// (see server/utils/representatives.js) — so unlike the rest of this file's
+// role checks, letting them write notices needs an async designation lookup
+// and can't be the generic role-only `authorize` middleware. Stashes the
+// resolved scope on req.repScope for the audience-clamping below.
+const authorizeNoticeWriter = async (req, res, next) => {
+  if (['admin', 'principal', 'teacher', 'superuser'].includes(req.user.role)) return next();
+  if (req.user.role === 'parent') {
+    const scope = await getRepresentativeScope(req.user.id);
+    if (scope.isPta || scope.classRepScopes.length > 0) {
+      req.repScope = scope;
+      return next();
+    }
+  }
+  return res.status(403).json({ message: 'Forbidden: insufficient permissions.' });
+};
+
+// A rep-authored notice's audience may not reach outside their own
+// grade/division(s) — gradeSelections are checked synchronously,
+// studentIds need a DB lookup since we have to know each student's
+// grade/division to compare against the rep's scope.
+const validateRepAudience = async (repScope, audience) => {
+  if (!audienceWithinScope(repScope, audience)) {
+    return 'You can only send to your own grade/division.';
+  }
+  const studentIds = audience.studentIds || [];
+  if (studentIds.length > 0) {
+    const allowed = scopeToAllowedGradeDivisions(repScope);
+    const students = await db('students').whereIn('id', studentIds).select('id', 'grade', 'division');
+    const inScope = (s) => {
+      const a = allowed.find((x) => x.grade === s.grade);
+      return a && (a.allDivisions || a.divisions.includes(s.division));
+    };
+    if (students.length !== studentIds.length || !students.every(inScope)) {
+      return 'You can only message parents within your own grade/division.';
+    }
+  }
+  return null;
 };
 
 // Auto-generate noticeCode
@@ -114,6 +160,26 @@ router.get('/mine', auth, async (req, res) => {
   }
 });
 
+// GET /api/notices/sent — notices the logged-in user personally authored.
+// Mainly for PTA/class reps (parents don't otherwise have any "manage my
+// notices" view) — staff already see everything via GET /, scoped by
+// canModifyNotice client-side.
+router.get('/sent', auth, async (req, res) => {
+  try {
+    const rows = await db('notices').where({ created_by_user_id: req.user.id }).orderBy('published_at', 'desc');
+    const notices = await Promise.all(rows.map(async (row) => {
+      const notice = serialize(row);
+      notice.reachCount = await resolveReachCount(db, notice.targetAudience);
+      return notice;
+    }));
+    await attachDocuments(notices);
+    return res.json({ notices, total: notices.length });
+  } catch (err) {
+    console.error('GET /api/notices/sent error:', err.message);
+    return res.status(500).json({ message: 'Server error' });
+  }
+});
+
 // GET /api/notices/:id
 router.get('/:id', auth, async (req, res) => {
   try {
@@ -168,8 +234,8 @@ async function notifySubscribers(notice) {
   ]);
 }
 
-// POST /api/notices (admin, principal, teacher)
-router.post('/', auth, authorize(['admin', 'principal', 'teacher']), async (req, res) => {
+// POST /api/notices (admin, principal, teacher, or a parent who is a PTA/class rep)
+router.post('/', auth, authorizeNoticeWriter, async (req, res) => {
   try {
     const noticeCode = await generateNoticeCode();
     const now = new Date().toISOString();
@@ -182,14 +248,21 @@ router.post('/', auth, authorize(['admin', 'principal', 'teacher']), async (req,
       return res.status(400).json({ message: 'title and body are required.' });
     }
 
+    const audience = targetAudience || AUDIENCE_DEFAULT;
+    if (req.repScope) {
+      const violation = await validateRepAudience(req.repScope, audience);
+      if (violation) return res.status(403).json({ message: violation });
+    }
+
     const [id] = await db('notices').insert({
       notice_code: noticeCode,
       title,
       body,
       category: category || 'General',
-      target_audience: JSON.stringify(targetAudience || AUDIENCE_DEFAULT),
-      issued_by: issuedBy || await resolveSenderLabel(req.user),
+      target_audience: JSON.stringify(audience),
+      issued_by: issuedBy || await resolveSenderLabel(req.user, req.repScope),
       created_by_user_id: req.user.id,
+      source: req.repScope ? (req.repScope.isPta ? 'pta' : 'class_rep') : 'school',
       published_at: publishedAt || now,
       event_date: eventDate || null,
       expires_at: expiresAt || null,
@@ -220,16 +293,25 @@ const CAMEL_TO_SNAKE = {
 };
 
 // Teachers get the same edit/deactivate/delete control over every notice as
-// admin/principal — not just ones they created themselves.
-const canModifyNotice = (notice, user) => ['admin', 'principal', 'superuser', 'teacher'].includes(user.role);
+// admin/principal — not just ones they created themselves. A PTA/class rep
+// (repScope set) only gets that control over notices they themselves sent.
+const canModifyNotice = (notice, user, repScope) => {
+  if (['admin', 'principal', 'superuser', 'teacher'].includes(user.role)) return true;
+  if (repScope) return notice.created_by_user_id === user.id;
+  return false;
+};
 
-// PUT /api/notices/:id (admin, principal, or the teacher who created it)
-router.put('/:id', auth, authorize(['admin', 'principal', 'teacher']), async (req, res) => {
+// PUT /api/notices/:id (admin, principal, teacher, or the rep who sent it)
+router.put('/:id', auth, authorizeNoticeWriter, async (req, res) => {
   try {
     const existing = await db('notices').where({ id: req.params.id }).first();
     if (!existing) return res.status(404).json({ message: 'Notice not found.' });
-    if (!canModifyNotice(existing, req.user)) {
+    if (!canModifyNotice(existing, req.user, req.repScope)) {
       return res.status(403).json({ message: 'You can only edit notices you created.' });
+    }
+    if (req.repScope && req.body.targetAudience) {
+      const violation = await validateRepAudience(req.repScope, req.body.targetAudience);
+      if (violation) return res.status(403).json({ message: violation });
     }
 
     const updates = {};
@@ -276,12 +358,12 @@ router.post('/:id/read', auth, async (req, res) => {
   }
 });
 
-// DELETE /api/notices/:id (admin, principal, or the teacher who created it)
-router.delete('/:id', auth, authorize(['admin', 'principal', 'teacher']), async (req, res) => {
+// DELETE /api/notices/:id (admin, principal, teacher, or the rep who sent it)
+router.delete('/:id', auth, authorizeNoticeWriter, async (req, res) => {
   try {
     const existing = await db('notices').where({ id: req.params.id }).first();
     if (!existing) return res.status(404).json({ message: 'Notice not found.' });
-    if (!canModifyNotice(existing, req.user)) {
+    if (!canModifyNotice(existing, req.user, req.repScope)) {
       return res.status(403).json({ message: 'You can only delete notices you created.' });
     }
 

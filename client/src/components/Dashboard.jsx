@@ -8,6 +8,7 @@ const workingModules = [
   { name: 'Timetable', path: '/timetable', description: 'Schedule classes', icon: '⏰', color: '#7c3aed' },
   { name: 'Communication', path: '/communication', description: 'Announcements and messages', icon: '💬', color: '#ec4899' },
   { name: 'Edit Requests', path: '/edit-requests', description: 'Review teacher-submitted edits', icon: '✏️', color: '#0891b2' },
+  { name: 'PTA & Class Reps', path: '/representatives', description: 'Assign PTA and class representatives', icon: '🤝', color: '#059669' },
 ];
 
 const upcomingModules = [

@@ -5,6 +5,7 @@ import { api } from '../api';
 import ParentStudentProfile from './ParentStudentProfile';
 import MyDocuments from './MyDocuments';
 import Forms from './Forms';
+import PtaCommunication from './PtaCommunication';
 import { formatDateIST, formatDateTimeIST, formatDateDMY, formatDateTimeDMY } from '../utils/formatDate';
 
 // currentStudent.grade is a display string ("Grade 3"); the timetable/notes
@@ -28,6 +29,15 @@ const Parents = () => {
     () => new URLSearchParams(window.location.search).get('module') || 'profile'
   );
   const [selectedChildId, setSelectedChildId] = useState(null);
+  // Populated only for a parent who additionally holds a PTA or class-rep
+  // designation (server/utils/representatives.js) — gates the PTA/CR
+  // Communication tab below. Regular parents get { isPta: false,
+  // classRepScopes: [] } back, so the tab stays hidden.
+  const [repScope, setRepScope] = useState(null);
+  useEffect(() => {
+    api.get('/api/representatives/me').then(setRepScope).catch(() => {});
+  }, []);
+  const isRepresentative = !!repScope && (repScope.isPta || (repScope.classRepScopes || []).length > 0);
   const today = new Date();
   const [selectedActivityDate, setSelectedActivityDate] = useState(today);
   const [selectedTimetableDate, setSelectedTimetableDate] = useState(today);
@@ -1147,6 +1157,7 @@ const Parents = () => {
     { key: 'contact', label: 'Important Contacts', icon: '📞' },
     { key: 'documents', label: 'My Documents', icon: '📁' },
     { key: 'forms', label: 'Forms', icon: '📝' },
+    ...(isRepresentative ? [{ key: 'pta-comm', label: 'PTA/CR Communication', icon: '📣' }] : []),
   ];
 
   // Small "you haven't seen this yet" counts shown as a badge on each Quick
@@ -1208,6 +1219,8 @@ const Parents = () => {
 
   const renderModule = () => {
     switch (activeModule) {
+      case 'pta-comm':
+        return isRepresentative ? <PtaCommunication scope={repScope} /> : null;
       case 'profile':
         return /^\d+$/.test(String(currentStudent.id))
           ? <ParentStudentProfile studentId={currentStudent.id} isMobile={isMobile} />

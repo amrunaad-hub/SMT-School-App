@@ -30,6 +30,7 @@ const notificationsRoutes = require('./routes/notifications');
 const pushRoutes = require('./routes/push');
 const auditLogsRoutes = require('./routes/audit-logs');
 const formsRoutes = require('./routes/forms');
+const representativesRoutes = require('./routes/representatives');
 const { UPLOAD_ROOT } = require('./utils/upload');
 const { logAudit } = require('./utils/auditLog');
 
@@ -176,6 +177,7 @@ app.use('/api/notifications', notificationsRoutes);
 app.use('/api/push', pushRoutes);
 app.use('/api/audit-logs', auditLogsRoutes);
 app.use('/api/forms', formsRoutes);
+app.use('/api/representatives', representativesRoutes);
 
 // Health check endpoint - must be before static files and wildcard
 app.get('/api/health', (req, res) => {

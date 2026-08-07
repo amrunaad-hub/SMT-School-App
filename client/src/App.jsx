@@ -21,6 +21,7 @@ import Forms from './components/Forms';
 import Transport from './components/Transport';
 import Inventory from './components/Inventory';
 import Communication from './components/Communication';
+import Representatives from './components/Representatives';
 import EditRequests from './components/EditRequests';
 import Washrooms from './components/Washrooms';
 import Parents from './components/Parents';
@@ -219,6 +220,7 @@ function App() {
           <Route path="/washrooms" element={<ProtectedRoute authRole={authRole} allowedRoles={['admin']}><Washrooms /></ProtectedRoute>} />
           <Route path="/washrooms/:washroomId" element={<ProtectedRoute authRole={authRole} allowedRoles={['admin']}><Washrooms /></ProtectedRoute>} />
           <Route path="/communication" element={<ProtectedRoute authRole={authRole} allowedRoles={['admin', 'principal', 'teacher']}><Communication /></ProtectedRoute>} />
+          <Route path="/representatives" element={<ProtectedRoute authRole={authRole} allowedRoles={['admin']}><Representatives /></ProtectedRoute>} />
           <Route path="/edit-requests" element={<ProtectedRoute authRole={authRole} allowedRoles={['admin', 'principal']}><EditRequests /></ProtectedRoute>} />
           <Route path="/my-documents" element={<ProtectedRoute authRole={authRole} allowedRoles={['admin', 'principal', 'teacher', 'parent']}><MyDocuments /></ProtectedRoute>} />
           <Route path="/audit-logs" element={<ProtectedRoute authRole={authRole} allowedRoles={['superuser']}><AuditLogs /></ProtectedRoute>} />
