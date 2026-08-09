@@ -1,0 +1,8 @@
+{
+  "eslint.workingDirectories": ["server", "client"],
+  "search.exclude": {
+    "**/node_modules": true,
+    "**/build": true,
+    "**/school.db": true
+  }
+}

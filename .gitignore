@@ -6,6 +6,8 @@ client/.vite/
 server/uploads/
 backups/
 *.db
+*.db-shm
+*.db-wal
 *.sqlite
 .env
 .env.local

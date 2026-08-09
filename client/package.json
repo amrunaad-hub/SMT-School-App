@@ -41,5 +41,9 @@
     "vite-plugin-pwa": "^0.21.2",
     "workbox-precaching": "^7.4.1",
     "workbox-routing": "^7.4.1"
+  },
+  "allowScripts": {
+    "core-js@3.49.0": true,
+    "esbuild@0.21.5": true
   }
 }

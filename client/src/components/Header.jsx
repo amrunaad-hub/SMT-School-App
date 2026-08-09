@@ -168,7 +168,7 @@ const Header = ({ role = 'admin', onLogout, homePath = '/' }) => {
                     {(isAdmin || isPrincipal || isSuperuser) ? (
                         <>
                             <li>
-                                <Link className={`${NAV_LINK_BASE} ${isMobile ? 'w-full' : 'w-auto'} bg-emerald-500/25 border-emerald-500/55`} to={(isAdmin || isSuperuser) ? '/' : '/command-center'}>🏠 Home</Link>
+                                <Link className={`${NAV_LINK_BASE} ${isMobile ? 'w-full' : 'w-auto'} bg-emerald-500/25 border-emerald-500/55`} to={(isAdmin || isSuperuser) ? '/' : '/command-center'}>🏠 home</Link>
                             </li>
                             {(isAdmin || isSuperuser) && adminWorkingLinks.map((item) => (
                                 <li key={item.to}>
