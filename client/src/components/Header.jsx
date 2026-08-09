@@ -175,7 +175,7 @@ const Header = ({ role = 'admin', onLogout, homePath = '/' }) => {
                     {(isAdmin || isPrincipal || isSuperuser) ? (
                         <>
                             <li style={mobileNavItemStyle}>
-                                <Link style={{ ...topLinkStyle, width: isMobile ? '100%' : 'auto', textAlign: 'center', background: 'rgba(16,185,129,0.25)', border: '2px solid rgba(16,185,129,0.55)' }} to={(isAdmin || isSuperuser) ? '/' : '/command-center'}>🏠 Home</Link>
+                                <Link style={{ ...topLinkStyle, width: isMobile ? '100%' : 'auto', textAlign: 'center', background: 'rgba(16,185,129,0.25)', border: '2px solid rgba(16,185,129,0.55)' }} to={(isAdmin || isSuperuser) ? '/' : '/command-center'}>🏠 home</Link>
                             </li>
                             {(isAdmin || isSuperuser) && adminWorkingLinks.map((item) => (
                                 <li key={item.to} style={mobileNavItemStyle}>
