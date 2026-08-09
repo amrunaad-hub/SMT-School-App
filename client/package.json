@@ -34,7 +34,9 @@
     ]
   },
   "devDependencies": {
+    "@tailwindcss/vite": "^4.3.3",
     "@vitejs/plugin-react": "^4.7.0",
+    "tailwindcss": "^4.3.3",
     "vite": "^5.4.21",
     "vite-plugin-pwa": "^0.21.2",
     "workbox-precaching": "^7.4.1",

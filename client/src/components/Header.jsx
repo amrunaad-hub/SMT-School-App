@@ -4,6 +4,15 @@ import schoolLogo from '../assets/logo-source.png';
 import { api } from '../api';
 import FontSizeControl from './FontSizeControl';
 
+// Base pill-button look shared by every top-level nav link/button —
+// equivalent to the old `topLinkStyle` object, now a Tailwind class string.
+// bg-white/10 + border-white/30 reproduce the original
+// rgba(255,255,255,0.1)/rgba(255,255,255,0.3) translucent overlays exactly.
+const NAV_LINK_BASE = 'text-white no-underline whitespace-nowrap px-3.5 py-2 border-2 border-white/30 rounded-lg inline-block text-[0.85rem] font-semibold bg-white/10 cursor-pointer text-center font-sans';
+
+// Equivalent to the old `dropdownItemStyle` object.
+const DROPDOWN_ITEM = 'block px-2.5 py-2 rounded-lg no-underline text-ink text-[0.82rem] font-semibold bg-white';
+
 const Header = ({ role = 'admin', onLogout, homePath = '/' }) => {
     const [isMobile, setIsMobile] = useState(() => window.innerWidth < 900);
     const [openGroup, setOpenGroup] = useState(null);
@@ -102,32 +111,6 @@ const Header = ({ role = 'admin', onLogout, homePath = '/' }) => {
         },
     ];
 
-    const topLinkStyle = {
-        color: 'white',
-        textDecoration: 'none',
-        whiteSpace: 'nowrap',
-        padding: '8px 14px',
-        border: '2px solid rgba(255,255,255,0.3)',
-        borderRadius: '8px',
-        display: 'inline-block',
-        fontSize: '0.85rem',
-        fontWeight: '600',
-        background: 'rgba(255,255,255,0.1)',
-        cursor: 'pointer',
-    };
-
-    const dropdownItemStyle = {
-        display: 'block',
-        padding: '8px 10px',
-        borderRadius: '8px',
-        textDecoration: 'none',
-        color: '#0f172a',
-        fontSize: '0.82rem',
-        fontWeight: '600',
-        background: '#ffffff',
-    };
-
-    const mobileNavItemStyle = isMobile ? { flex: '1 1 calc(50% - 10px)', minWidth: '140px' } : {};
     const isAdmin = role === 'admin';
     const isPrincipal = role === 'principal';
     // Unfettered access: gets the full admin nav, plus the "upcoming"
@@ -150,56 +133,67 @@ const Header = ({ role = 'admin', onLogout, homePath = '/' }) => {
     const isParent = role === 'parent';
 
     return (
-        <header style={{ background: 'linear-gradient(135deg, #1e40af 0%, #1e3a8a 100%)', color: 'white', padding: isMobile ? '14px 12px' : '20px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: isParent ? 'nowrap' : 'wrap', gap: '12px', boxShadow: '0 4px 16px rgba(0, 0, 0, 0.15)', position: 'relative', zIndex: 50 }}>
-            <Link to={homePath} style={{ display: 'flex', alignItems: 'center', gap: '12px', width: isParent || !isMobile ? 'auto' : '100%', minWidth: 0, textDecoration: 'none', color: 'inherit' }}>
-                <img src={schoolLogo} alt="SMT English Medium School Logo" style={{ height: isMobile ? '42px' : '60px', width: 'auto', borderRadius: '6px', flexShrink: 0 }} />
-                <div style={{ minWidth: 0 }}>
-                    <h1 style={{ margin: 0, fontSize: isMobile ? '1.05rem' : '1.6rem', fontWeight: '700', whiteSpace: isParent ? 'nowrap' : 'normal', overflow: isParent ? 'hidden' : 'visible', textOverflow: isParent ? 'ellipsis' : 'clip' }}>SMT&apos;s VidyaSetu</h1>
-                    <p style={{ margin: '6px 0 0', color: '#dbeafe', fontSize: isMobile ? '0.82rem' : '1rem', fontWeight: '500', whiteSpace: isParent ? 'nowrap' : 'normal', overflow: isParent ? 'hidden' : 'visible', textOverflow: isParent ? 'ellipsis' : 'clip' }}>{displayName ? `Welcome, ${displayName}` : `Smart School Management • ${role.toUpperCase()}`}</p>
+        <header className={`bg-gradient-to-br from-primary to-primaryDark text-white flex justify-between items-center gap-3 shadow-lg relative z-50 font-sans ${isMobile ? 'px-3 py-3.5' : 'px-6 py-5'} ${isParent ? 'flex-nowrap' : 'flex-wrap'}`}>
+            <Link to={homePath} className={`flex items-center gap-3 no-underline text-inherit min-w-0 ${isParent || !isMobile ? 'w-auto' : 'w-full'}`}>
+                <img src={schoolLogo} alt="SMT English Medium School Logo" className={`${isMobile ? 'h-[42px]' : 'h-[60px]'} w-auto rounded-md flex-shrink-0`} />
+                <div className="min-w-0">
+                    <h1 className={`m-0 font-bold ${isMobile ? 'text-[1.05rem]' : 'text-[1.6rem]'} ${isParent ? 'whitespace-nowrap overflow-hidden text-ellipsis' : 'whitespace-normal overflow-visible text-clip'}`}>SMT&apos;s VidyaSetu</h1>
+                    <p className={`mt-1.5 text-blue-100 font-medium ${isMobile ? 'text-[0.82rem]' : 'text-base'} ${isParent ? 'whitespace-nowrap overflow-hidden text-ellipsis' : 'whitespace-normal overflow-visible text-clip'}`}>{displayName ? `Welcome, ${displayName}` : `Smart School Management • ${role.toUpperCase()}`}</p>
                 </div>
             </Link>
             {isParent ? (
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+                <div className="flex items-center gap-2 flex-shrink-0">
                     <FontSizeControl variant="dark" />
                     <button
                         type="button"
                         onClick={onLogout}
-                        style={{ flexShrink: 0, color: 'white', border: '1px solid rgba(248,113,113,0.8)', background: 'rgba(239,68,68,0.25)', borderRadius: '8px', padding: isMobile ? '6px 10px' : '8px 14px', fontSize: isMobile ? '0.78rem' : '0.85rem', fontWeight: '600', cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}
+                        className={`flex-shrink-0 text-white border border-red-400/80 bg-red-500/25 rounded-lg font-semibold cursor-pointer font-sans whitespace-nowrap ${isMobile ? 'px-2.5 py-1.5 text-[0.78rem]' : 'px-3.5 py-2 text-[0.85rem]'}`}
                     >
                         🔒 Logout
                     </button>
                 </div>
             ) : (
-            <nav style={{ width: isMobile ? '100%' : 'auto', overflow: 'visible' }}>
-                <ul style={{ display: 'flex', gap: '10px', listStyle: 'none', margin: 0, padding: 0, flexWrap: 'wrap', overflow: 'visible', scrollbarWidth: 'thin' }}>
+            <nav className={isMobile ? 'w-full overflow-visible' : 'w-auto overflow-visible'}>
+                {/* Mobile: real CSS grid (1 col below Tailwind's sm breakpoint, 2 cols
+                    from sm up) instead of the old flex-wrap + `flex-basis: calc(50% - 10px)`
+                    layout. That fixed 2-column split ignored how narrow the viewport
+                    actually was, so on real small phones (~360px) two pill buttons plus
+                    their gap didn't fit and both the buttons and their nowrap text got
+                    clipped. A grid_cols-1 default means every button gets the full
+                    width on narrow phones — no forced second column until there's
+                    actually room for it. */}
+                <ul className={isMobile
+                    ? 'grid grid-cols-1 sm:grid-cols-2 gap-2.5 list-none m-0 p-0'
+                    : 'flex flex-wrap gap-2.5 list-none m-0 p-0'}>
                     {(isAdmin || isPrincipal || isSuperuser) ? (
                         <>
-                            <li style={mobileNavItemStyle}>
-                                <Link style={{ ...topLinkStyle, width: isMobile ? '100%' : 'auto', textAlign: 'center', background: 'rgba(16,185,129,0.25)', border: '2px solid rgba(16,185,129,0.55)' }} to={(isAdmin || isSuperuser) ? '/' : '/command-center'}>🏠 Home</Link>
+                            <li>
+                                <Link className={`${NAV_LINK_BASE} ${isMobile ? 'w-full' : 'w-auto'} bg-emerald-500/25 border-emerald-500/55`} to={(isAdmin || isSuperuser) ? '/' : '/command-center'}>🏠 Home</Link>
                             </li>
                             {(isAdmin || isSuperuser) && adminWorkingLinks.map((item) => (
-                                <li key={item.to} style={mobileNavItemStyle}>
-                                    <Link style={{ ...topLinkStyle, width: isMobile ? '100%' : 'auto', textAlign: 'center' }} to={item.to}>{item.label}</Link>
+                                <li key={item.to}>
+                                    <Link className={`${NAV_LINK_BASE} ${isMobile ? 'w-full' : 'w-auto'}`} to={item.to}>{item.label}</Link>
                                 </li>
                             ))}
                             {isSuperuser && superuserExtraLinks.map((item) => (
-                                <li key={item.to} style={mobileNavItemStyle}>
-                                    <Link style={{ ...topLinkStyle, width: isMobile ? '100%' : 'auto', textAlign: 'center', background: 'rgba(250,204,21,0.2)', border: '2px solid rgba(250,204,21,0.55)' }} to={item.to}>{item.label}</Link>
+                                <li key={item.to}>
+                                    <Link className={`${NAV_LINK_BASE} ${isMobile ? 'w-full' : 'w-auto'} bg-yellow-400/20 border-yellow-400/55`} to={item.to}>{item.label}</Link>
                                 </li>
                             ))}
                             {(isAdmin || isSuperuser ? [adminUpcomingGroup] : principalNav).map((group) => {
                                 const isOpen = openGroup === group.key;
+                                const isUpcomingDisabled = group.key === 'upcoming' && !isSuperuser;
                                 return (
                                     <li
                                         key={group.key}
-                                        style={{ ...mobileNavItemStyle, position: 'relative' }}
+                                        className="relative"
                                         onMouseEnter={() => { if (!isMobile) { cancelClose(); openDropdown(group.key); } }}
                                         onMouseLeave={() => { if (!isMobile) scheduleClose(); }}
                                     >
                                         <button
                                             type="button"
                                             onClick={() => setOpenGroup(isOpen ? null : group.key)}
-                                            style={{ ...topLinkStyle, width: isMobile ? '100%' : 'auto', textAlign: 'center', fontFamily: 'inherit', ...(group.key === 'upcoming' && !isSuperuser ? { background: 'rgba(255,255,255,0.05)', border: '2px dashed rgba(255,255,255,0.4)' } : {}) }}
+                                            className={`${NAV_LINK_BASE} ${isMobile ? 'w-full' : 'w-auto'} ${isUpcomingDisabled ? 'bg-white/5 border-2 border-dashed border-white/40' : ''}`}
                                         >
                                             {group.label} ▾
                                         </button>
@@ -207,17 +201,17 @@ const Header = ({ role = 'admin', onLogout, homePath = '/' }) => {
                                             <div
                                                 onMouseEnter={cancelClose}
                                                 onMouseLeave={scheduleClose}
-                                                style={{ position: isMobile ? 'static' : 'absolute', top: isMobile ? 'auto' : '100%', left: 0, paddingTop: isMobile ? '8px' : '6px', minWidth: isMobile ? '100%' : '220px', width: isMobile ? '100%' : 'auto', zIndex: 30 }}
+                                                className={`z-30 ${isMobile ? 'static pt-2 w-full' : 'absolute top-full left-0 pt-1.5 min-w-[220px] w-auto'}`}
                                             >
-                                                <div style={{ background: '#f8fafc', border: '1px solid #bfdbfe', borderRadius: '10px', padding: '8px', boxShadow: '0 12px 24px rgba(15, 23, 42, 0.2)' }}>
-                                                    {group.key === 'upcoming' && !isSuperuser && (
-                                                        <p style={{ margin: '2px 6px 8px', color: '#94a3b8', fontSize: '0.72rem', fontWeight: 600 }}>Not yet finished — disabled for now.</p>
+                                                <div className="bg-slate-50 border border-blue-200 rounded-card p-2 shadow-[0_12px_24px_rgba(15,23,42,0.2)]">
+                                                    {isUpcomingDisabled && (
+                                                        <p className="mx-1.5 mt-0.5 mb-2 text-subtle text-[0.72rem] font-semibold">Not yet finished — disabled for now.</p>
                                                     )}
                                                     {group.items.map((item) => (
-                                                        group.key === 'upcoming' && !isSuperuser ? (
+                                                        isUpcomingDisabled ? (
                                                             <span
                                                                 key={item.to}
-                                                                style={{ ...dropdownItemStyle, color: '#94a3b8', background: '#f1f5f9', cursor: 'not-allowed' }}
+                                                                className={`${DROPDOWN_ITEM} text-subtle bg-slate-100 cursor-not-allowed`}
                                                             >
                                                                 {item.label}
                                                             </span>
@@ -226,7 +220,7 @@ const Header = ({ role = 'admin', onLogout, homePath = '/' }) => {
                                                                 key={item.to}
                                                                 to={item.to}
                                                                 onClick={() => setOpenGroup(null)}
-                                                                style={dropdownItemStyle}
+                                                                className={DROPDOWN_ITEM}
                                                             >
                                                                 {item.label}
                                                             </Link>
@@ -242,20 +236,20 @@ const Header = ({ role = 'admin', onLogout, homePath = '/' }) => {
                     ) : (
                         // Only teacher reaches here — parent gets the compact
                         // logo-row layout above instead of this nav entirely.
-                        <li style={{ ...mobileNavItemStyle, minWidth: '220px' }}>
-                            <Link style={{ ...topLinkStyle, width: '100%', textAlign: 'center', background: 'rgba(16,185,129,0.25)', border: '2px solid rgba(16,185,129,0.55)' }} to="/teachers">
+                        <li className="min-w-[220px]">
+                            <Link className={`${NAV_LINK_BASE} w-full bg-emerald-500/25 border-emerald-500/55`} to="/teachers">
                                 👩‍🏫 Teachers Portal
                             </Link>
                         </li>
                     )}
-                    <li style={{ ...mobileNavItemStyle, display: 'flex', alignItems: 'center', justifyContent: isMobile ? 'center' : 'flex-start' }}>
+                    <li className={`flex items-center ${isMobile ? 'justify-center' : 'justify-start'}`}>
                         <FontSizeControl variant="dark" />
                     </li>
-                    <li style={mobileNavItemStyle}>
+                    <li>
                         <button
                             type="button"
                             onClick={onLogout}
-                            style={{ ...topLinkStyle, width: isMobile ? '100%' : 'auto', textAlign: 'center', border: '2px solid rgba(248,113,113,0.8)', background: 'rgba(239,68,68,0.25)', fontFamily: 'inherit' }}
+                            className={`${NAV_LINK_BASE} ${isMobile ? 'w-full' : 'w-auto'} border-2 border-red-400/80 bg-red-500/25`}
                         >
                             🔒 Logout
                         </button>
