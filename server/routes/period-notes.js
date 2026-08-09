@@ -19,7 +19,7 @@ router.get('/', auth, async (req, res) => {
     const rows = await db('timetable_period_notes')
       .where({ grade: Number(grade), division: String(division).toLowerCase(), date })
       .orderBy('period_index');
-    const notes = serializeRows(rows);
+    const notes = serializeRows(rows, { boolFields: ['is_locked'] });
 
     const noteIds = notes.map((n) => n.id);
     const [documents, readRows] = await Promise.all([
@@ -193,9 +193,14 @@ router.get('/subject-summary', auth, async (req, res) => {
 
 // PUT /api/period-notes (admin/principal/teacher, gated to their own grade) —
 // upserts one period's classwork/homework/instructions for a specific date.
+// body: { ..., lock? } — `lock: true` (sent by the Submit button) both saves
+// and locks the note in the same request, same as attendance's POST /bulk
+// `lock` flag. Once locked, only admin/principal can save over it (mirrors
+// attendance's PUT /:id lock check) — everyone else must ask one of them to
+// unlock it first via POST /unlock below.
 router.put('/', auth, authorize(['admin', 'principal', 'teacher']), async (req, res) => {
   try {
-    const { grade, division, date, periodIndex, classwork, homework, specialInstructions } = req.body;
+    const { grade, division, date, periodIndex, classwork, homework, specialInstructions, lock } = req.body;
     if (!grade || !division || !date || periodIndex === undefined) {
       return res.status(400).json({ message: 'grade, division, date, and periodIndex are required.' });
     }
@@ -206,6 +211,12 @@ router.put('/', auth, authorize(['admin', 'principal', 'teacher']), async (req, 
     const key = {
       grade: Number(grade), division: String(division).toLowerCase(), date, period_index: Number(periodIndex),
     };
+
+    const existing = await db('timetable_period_notes').where(key).first();
+    if (existing?.is_locked && !['admin', 'principal'].includes(req.user.role)) {
+      return res.status(409).json({ message: 'This teaching update is locked. Ask an admin to unlock it first.' });
+    }
+
     const now = new Date().toISOString();
 
     await db('timetable_period_notes')
@@ -215,16 +226,37 @@ router.put('/', auth, authorize(['admin', 'principal', 'teacher']), async (req, 
         homework: homework || null,
         special_instructions: specialInstructions || null,
         created_by: req.user.id,
+        is_locked: !!lock,
+        locked_at: lock ? now : null,
+        locked_by: lock ? req.user.id : null,
         created_at: now,
         updated_at: now,
       })
       .onConflict(['grade', 'division', 'date', 'period_index'])
-      .merge(['classwork', 'homework', 'special_instructions', 'updated_at']);
+      .merge(['classwork', 'homework', 'special_instructions', 'is_locked', 'locked_at', 'locked_by', 'updated_at']);
 
     const row = await db('timetable_period_notes').where(key).first();
-    return res.json(serializeRow(row));
+    return res.json(serializeRow(row, { boolFields: ['is_locked'] }));
   } catch (err) {
     console.error('PUT /api/period-notes error:', err.message);
+    return res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// POST /api/period-notes/unlock (admin/principal) — clears the lock for one
+// grade+division+date+period so the teacher can submit corrections.
+router.post('/unlock', auth, authorize(['admin', 'principal']), async (req, res) => {
+  try {
+    const { grade, division, date, periodIndex } = req.body;
+    if (!grade || !division || !date || periodIndex === undefined) {
+      return res.status(400).json({ message: 'grade, division, date, and periodIndex are required.' });
+    }
+    const count = await db('timetable_period_notes')
+      .where({ grade: Number(grade), division: String(division).toLowerCase(), date, period_index: Number(periodIndex) })
+      .update({ is_locked: false, locked_at: null, locked_by: null, updated_at: new Date().toISOString() });
+    return res.json({ message: count ? 'Unlocked.' : 'No matching note found.', count });
+  } catch (err) {
+    console.error('POST /api/period-notes/unlock error:', err.message);
     return res.status(500).json({ message: 'Server error' });
   }
 });

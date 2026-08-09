@@ -20,9 +20,17 @@ const PeriodDetails = () => {
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState('');
   const [uploading, setUploading] = useState(false);
+  const [isLocked, setIsLocked] = useState(false);
+  const [unlocking, setUnlocking] = useState(false);
 
   const role = window.localStorage.getItem('smt-school-role');
   const canEdit = ['admin', 'principal', 'teacher'].includes(role);
+  const canOverrideLock = ['admin', 'principal'].includes(role);
+  // Teachers lose edit access once submitted/locked; admin/principal keep
+  // theirs (mirrors attendance's PUT /:id lock check — same override rule),
+  // but still get an Unlock button so they can hand editing back to the
+  // teacher without having to make the correction themselves.
+  const isReadOnly = !canEdit || (isLocked && !canOverrideLock);
 
   const loadPeriod = () => {
     setLoading(true);
@@ -51,11 +59,13 @@ const PeriodDetails = () => {
           setNoteId(existingNote.id);
           setAttachments(existingNote.attachments || []);
           setOpenCount(existingNote.openCount || 0);
+          setIsLocked(!!existingNote.isLocked);
         } else {
           setNote({ classwork: '', homework: '', specialInstructions: '' });
           setNoteId(null);
           setAttachments([]);
           setOpenCount(0);
+          setIsLocked(false);
         }
         setLoading(false);
       })
@@ -64,32 +74,73 @@ const PeriodDetails = () => {
 
   useEffect(loadPeriod, [grade, division, periodIndex, date]);
 
+  // Submit both saves and locks the note in one step (lock: true) — once
+  // submitted, a teacher can no longer edit this period's update; only
+  // admin/principal can (see isReadOnly above) or explicitly unlock it below.
   const saveNote = () => {
     setSaving(true);
     setSaveError('');
-    api.put('/api/period-notes', { grade: Number(grade), division, date, periodIndex: Number(periodIndex), ...note })
-      .then((row) => { setNoteId(row.id); setSaving(false); })
+    api.put('/api/period-notes', { grade: Number(grade), division, date, periodIndex: Number(periodIndex), ...note, lock: true })
+      .then((row) => { setNoteId(row.id); setIsLocked(!!row.isLocked); setSaving(false); })
       .catch((err) => { setSaveError(err.message || 'Failed to save.'); setSaving(false); });
   };
 
-  const handleUpload = (e) => {
-    const file = e.target.files && e.target.files[0];
-    if (!file || !noteId) { setSaveError('Save the note first, then attach a file.'); return; }
+  const unlockNote = () => {
+    setUnlocking(true);
+    setSaveError('');
+    api.post('/api/period-notes/unlock', { grade: Number(grade), division, date, periodIndex: Number(periodIndex) })
+      .then(() => { setIsLocked(false); setUnlocking(false); })
+      .catch((err) => { setSaveError(err.message || 'Failed to unlock.'); setUnlocking(false); });
+  };
+
+  // Accepts one or many files in a single pick — uploaded sequentially (the
+  // uploads endpoint takes one file per request) so `attachments` grows by
+  // exactly the files actually picked rather than racing parallel requests
+  // against the same noteId. Attachments are linked by the note's row id, so
+  // if the note hasn't been saved yet this silently creates it (unlocked —
+  // the teacher hasn't hit Submit) before uploading, instead of making the
+  // user save first.
+  const handleUpload = async (e) => {
+    const files = e.target.files ? Array.from(e.target.files) : [];
+    if (!files.length) return;
     setUploading(true);
-    const formData = new FormData();
-    formData.append('category', 'period-notes');
-    formData.append('ownerType', 'period_note');
-    formData.append('ownerId', noteId);
-    formData.append('file', file);
+    setSaveError('');
+    let currentNoteId = noteId;
+    if (!currentNoteId) {
+      try {
+        const row = await api.put('/api/period-notes', { grade: Number(grade), division, date, periodIndex: Number(periodIndex), ...note, lock: false });
+        currentNoteId = row.id;
+        setNoteId(row.id);
+        setIsLocked(!!row.isLocked);
+      } catch (err) {
+        setUploading(false);
+        setSaveError(err.message || 'Failed to save note before attaching files.');
+        return;
+      }
+    }
     const token = window.localStorage.getItem('smt-school-token');
-    fetch('/api/uploads', { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: formData })
-      .then((r) => r.json().then((data) => { if (!r.ok) throw new Error(data.message); return data; }))
-      .then(() => { setUploading(false); loadPeriod(); })
-      .catch((err) => { setUploading(false); setSaveError(err.message || 'Upload failed.'); });
+    const failed = [];
+    for (const file of files) {
+      const formData = new FormData();
+      formData.append('category', 'period-notes');
+      formData.append('ownerType', 'period_note');
+      formData.append('ownerId', currentNoteId);
+      formData.append('file', file);
+      try {
+        const r = await fetch('/api/uploads', { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: formData });
+        const data = await r.json();
+        if (!r.ok) throw new Error(data.message);
+      } catch (err) {
+        failed.push(`${file.name}: ${err.message || 'upload failed'}`);
+      }
+    }
+    setUploading(false);
+    if (failed.length) setSaveError(`Some files failed to attach — ${failed.join('; ')}`);
+    loadPeriod();
     // Deferred, not synchronous — resetting a file input's value inside its
     // own onChange corrupts React's internal value-tracking for that
-    // element, silently dropping the next native change event (attaching a
-    // second file in a row stops working). Let React finish first.
+    // element, silently dropping the next native change event (attaching
+    // more files in a row stops working). Let React finish first.
     const input = e.target;
     setTimeout(() => { input.value = ''; }, 0);
   };
@@ -167,12 +218,30 @@ const PeriodDetails = () => {
                   👁 Opened by {openCount} parent{openCount === 1 ? '' : 's'}
                 </span>
               )}
+              {isLocked && (
+                <span style={{ padding: '3px 10px', borderRadius: '999px', background: '#fef3c7', color: '#92400e', fontSize: '0.78rem', fontWeight: 700 }}>
+                  🔒 Submitted &amp; locked
+                </span>
+              )}
             </div>
+            {isLocked && !canOverrideLock && (
+              <p style={{ marginTop: '8px', color: '#92400e', fontSize: '0.85rem' }}>
+                This update has been submitted and is locked. Ask an admin to unlock it if it needs a correction.
+              </p>
+            )}
+            {isLocked && canOverrideLock && (
+              <div style={{ marginTop: '8px', display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                <p style={{ margin: 0, color: '#92400e', fontSize: '0.85rem' }}>Locked — you can still edit and re-submit, or unlock it for the teacher.</p>
+                <button type="button" onClick={unlockNote} disabled={unlocking} style={{ padding: '6px 14px', borderRadius: '8px', border: '1px solid #cbd5e1', background: '#fff', fontWeight: 600, fontSize: '0.82rem', cursor: 'pointer' }}>
+                  {unlocking ? 'Unlocking…' : '🔓 Unlock'}
+                </button>
+              </div>
+            )}
             {saveError && <p style={{ color: '#dc2626', fontSize: '0.85rem' }}>{saveError}</p>}
             <div style={detailStyle}>
               <div style={{ ...fieldStyle, gridColumn: '1 / -1' }}>
                 <strong>Classwork</strong>
-                {canEdit ? (
+                {!isReadOnly ? (
                   <textarea style={textareaStyle} value={note.classwork} onChange={(e) => setNote({ ...note, classwork: e.target.value })} placeholder="What was covered in class today" />
                 ) : (
                   <p style={{ marginTop: '8px', marginBottom: 0 }}>{note.classwork || 'Not added yet.'}</p>
@@ -180,7 +249,7 @@ const PeriodDetails = () => {
               </div>
               <div style={{ ...fieldStyle, gridColumn: '1 / -1' }}>
                 <strong>Homework</strong>
-                {canEdit ? (
+                {!isReadOnly ? (
                   <textarea style={textareaStyle} value={note.homework} onChange={(e) => setNote({ ...note, homework: e.target.value })} placeholder="Homework assigned for this period" />
                 ) : (
                   <p style={{ marginTop: '8px', marginBottom: 0 }}>{note.homework || 'None assigned.'}</p>
@@ -188,7 +257,7 @@ const PeriodDetails = () => {
               </div>
               <div style={{ ...fieldStyle, gridColumn: '1 / -1' }}>
                 <strong>Special Instructions</strong>
-                {canEdit ? (
+                {!isReadOnly ? (
                   <textarea style={textareaStyle} value={note.specialInstructions} onChange={(e) => setNote({ ...note, specialInstructions: e.target.value })} placeholder="Anything parents/students should know" />
                 ) : (
                   <p style={{ marginTop: '8px', marginBottom: 0 }}>{note.specialInstructions || 'None.'}</p>
@@ -203,19 +272,19 @@ const PeriodDetails = () => {
                     <a key={a.id} href={a.fileUrl} target="_blank" rel="noreferrer" style={{ color: '#2563eb', fontSize: '0.88rem' }}>{a.originalFilename}</a>
                   ))}
                 </div>
-                {canEdit && (
+                {!isReadOnly && (
                   <label style={{ display: 'inline-block', marginTop: '10px', padding: '8px 14px', borderRadius: '8px', border: '1px solid #cbd5e1', background: '#fff', cursor: 'pointer', fontSize: '0.85rem' }}>
-                    {uploading ? 'Uploading…' : (noteId ? '+ Attach File' : 'Save note first to attach files')}
-                    <input type="file" onChange={handleUpload} disabled={uploading || !noteId} style={{ display: 'none' }} />
+                    {uploading ? 'Uploading…' : '+ Attach Files'}
+                    <input type="file" multiple onChange={handleUpload} disabled={uploading} style={{ display: 'none' }} />
                   </label>
                 )}
               </div>
             </div>
 
-            {canEdit && (
+            {!isReadOnly && (
               <div style={{ marginTop: '14px', display: 'flex', justifyContent: 'flex-end' }}>
                 <button type="button" onClick={saveNote} disabled={saving} style={{ padding: '10px 22px', borderRadius: '10px', border: 'none', background: '#1e3a8a', color: '#fff', fontWeight: 700, cursor: 'pointer' }}>
-                  {saving ? 'Saving…' : 'Save Notes'}
+                  {saving ? 'Submitting…' : 'Submit'}
                 </button>
               </div>
             )}
