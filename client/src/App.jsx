@@ -31,6 +31,24 @@ import MyDocuments from './components/MyDocuments';
 import PublicAdmissionForm from './components/PublicAdmissionForm';
 import AuditLogs from './components/AuditLogs';
 
+// Finds this device's current push subscription (if any) and removes it —
+// server row via the unauthenticated DELETE /api/push/subscribe (works even
+// with no valid session, see that route's comment), plus the browser-side
+// unsubscribe() so the device stops holding a subscription it no longer
+// needs. Used any time a session ends without going through the normal
+// logout flow (a dead/expired token) and as the startup safety net below —
+// both catch subscriptions the normal logout flow's own cleanup missed.
+async function unsubscribeDevicePush() {
+  if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
+  try {
+    const reg = await navigator.serviceWorker.ready;
+    const sub = await reg.pushManager.getSubscription();
+    if (!sub) return;
+    await api.delete('/api/push/subscribe', { endpoint: sub.endpoint }).catch(() => {});
+    await sub.unsubscribe().catch(() => {});
+  } catch { /* best effort — nothing more to do if the SW/PushManager itself is unavailable */ }
+}
+
 const getHomePath = (role) => {
   if (role === 'parent') return '/parents';
   if (role === 'teacher') return '/teachers';
@@ -66,6 +84,19 @@ function App() {
     const savedToken = window.localStorage.getItem('smt-school-token');
     return savedRole && savedToken ? savedRole : '';
   });
+
+  // Strict-logout backstop: if the app starts up with no logged-in session
+  // at all, but this device still holds an active push subscription, that
+  // subscription is orphaned — some earlier logout (explicit or forced)
+  // didn't finish cleaning it up, most likely because the device was
+  // offline at that exact moment. Without this, an orphaned subscription
+  // would keep receiving school notices indefinitely, since nothing else
+  // ever revisits it (push delivery success/failure doesn't depend on
+  // whether anyone's logged in). Runs once, on mount, before any login.
+  useEffect(() => {
+    const savedToken = window.localStorage.getItem('smt-school-token');
+    if (!savedToken) unsubscribeDevicePush();
+  }, []);
   const [sessionExpired, setSessionExpired] = useState(false);
 
   // Applies the saved text-size preference on every route, including the
@@ -82,12 +113,18 @@ function App() {
   // Portal reading "no student linked" hours after a real login, when the
   // actual problem was an expired session). Force a clean, honest logout
   // instead, with a message explaining why.
+  //
+  // This path used to skip push cleanup entirely — a dead/expired token
+  // still left the device's push subscription active server-side, so it
+  // kept receiving notices indefinitely after a forced logout. Unsubscribe
+  // here too, same as the explicit logout button.
   useEffect(() => {
     const onExpired = () => {
       setAuthRole('');
       window.localStorage.removeItem('smt-school-role');
       window.localStorage.removeItem('smt-school-token');
       setSessionExpired(true);
+      unsubscribeDevicePush();
     };
     window.addEventListener('auth:expired', onExpired);
     return () => window.removeEventListener('auth:expired', onExpired);
@@ -143,37 +180,37 @@ function App() {
     }
   };
 
-  const handleLogout = () => {
-    // Mark this as intentional before anything else fires — the push-
-    // unsubscribe call below (or any other request already in flight) could
-    // otherwise return a 401 mid-logout and get misread by api.js as a
-    // surprise session death.
+  const handleLogout = async () => {
+    // Mark this as intentional before anything else fires — the push-lookup
+    // below (or any other request already in flight) could otherwise return
+    // a 401 mid-logout and get misread by api.js as a surprise session death.
     markLoggingOut();
-    api.post('/api/auth/logout').catch(() => {});
-    const clearLocal = () => {
-      setAuthRole('');
-      setSessionExpired(false);
-      window.localStorage.removeItem('smt-school-role');
-      window.localStorage.removeItem('smt-school-token');
-    };
 
     // Push subscriptions live at the browser/device level, not per-login —
     // on a shared device a stale subscription would otherwise keep sending
-    // whoever logs in next the previous user's notifications. Unsubscribe
-    // fully (server row + browser) before wiping the token that authorizes
-    // the delete call, so the next login starts clean and has to opt in
-    // again explicitly.
+    // whoever logs in next the previous user's notifications. The endpoint
+    // (if any) rides along in the /logout request itself below, so the
+    // server can delete the subscription row atomically with the logout —
+    // a single request that either both succeed or both don't, rather than
+    // two separate calls where the second (a plain DELETE) could fail on
+    // its own and leave a stale, indefinitely-notifying subscription behind.
+    let pushEndpoint = null;
+    let sub = null;
     if ('serviceWorker' in navigator && 'PushManager' in window) {
-      navigator.serviceWorker.ready
-        .then((reg) => reg.pushManager.getSubscription())
-        .then((sub) => (sub
-          ? api.delete('/api/push/subscribe', { endpoint: sub.endpoint }).catch(() => {}).then(() => sub.unsubscribe().catch(() => {}))
-          : null))
-        .catch(() => {})
-        .finally(clearLocal);
-    } else {
-      clearLocal();
+      try {
+        const reg = await navigator.serviceWorker.ready;
+        sub = await reg.pushManager.getSubscription();
+        if (sub) pushEndpoint = sub.endpoint;
+      } catch { /* proceed without it — the startup safety net covers this */ }
     }
+
+    api.post('/api/auth/logout', { pushEndpoint }).catch(() => {});
+    if (sub) sub.unsubscribe().catch(() => {}); // browser-side cleanup, best effort
+
+    setAuthRole('');
+    setSessionExpired(false);
+    window.localStorage.removeItem('smt-school-role');
+    window.localStorage.removeItem('smt-school-token');
   };
 
   return (

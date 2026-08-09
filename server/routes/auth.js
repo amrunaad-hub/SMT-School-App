@@ -127,7 +127,20 @@ router.post('/login', async (req, res) => {
 // start of its logout flow, while the token is still valid, purely so the
 // event lands in the audit trail. Nothing server-side actually needs
 // invalidating — JWTs aren't tracked/blacklisted here.
-router.post('/logout', auth, (req, res) => {
+// body: { pushEndpoint? } — deletes this device's push subscription in the
+// SAME request as the logout, instead of the client having to make a second,
+// separate DELETE /api/push/subscribe call afterward. That second call used
+// to be the only thing removing the subscription row, so anything that
+// interrupted it (network drop, tab closed, an unrelated error) between this
+// request succeeding and that one running left a stale subscription that
+// kept receiving notices indefinitely after the user believed they were
+// logged out. Folding it in here means a single successful request is
+// enough for both.
+router.post('/logout', auth, async (req, res) => {
+    if (req.body?.pushEndpoint) {
+        try { await db('push_subscriptions').where({ endpoint: req.body.pushEndpoint }).del(); }
+        catch (err) { console.error('logout push_subscriptions cleanup error:', err.message); }
+    }
     logAudit({ eventType: 'logout', userId: typeof req.user.id === 'number' ? req.user.id : null, username: req.user.username, role: req.user.role, ip: req.ip, method: 'POST', path: '/api/auth/logout', summary: 'Logout' });
     return res.json({ message: 'Logged out.' });
 });
