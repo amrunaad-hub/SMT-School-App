@@ -64,12 +64,12 @@ router.post('/register', auth, authorize(['admin']), async (req, res) => {
             return res.status(400).json({ message: 'User already exists' });
         }
 
-        const [id] = await db('users').insert({
+        const [{ id }] = await db('users').insert({
             username,
             role,
             password: await bcrypt.hash(password, 12),
             email_encrypted: encryptText(email),
-        });
+        }).returning('id');
 
         return res.status(201).json({
             message: 'User registered successfully.',

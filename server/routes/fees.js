@@ -54,9 +54,9 @@ router.get('/', auth, async (req, res) => {
     if (search && search.trim()) {
       const keyword = `%${search.trim()}%`;
       query = query.where((qb) => {
-        qb.whereRaw('students.first_name LIKE ? COLLATE NOCASE', [keyword])
-          .orWhereRaw('students.last_name LIKE ? COLLATE NOCASE', [keyword])
-          .orWhereRaw('students.student_code LIKE ? COLLATE NOCASE', [keyword]);
+        qb.whereILike('students.first_name', keyword)
+          .orWhereILike('students.last_name', keyword)
+          .orWhereILike('students.student_code', keyword);
       });
     }
 

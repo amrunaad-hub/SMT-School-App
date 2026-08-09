@@ -47,7 +47,7 @@ router.get('/', auth, async (req, res) => {
     if (search && search.trim()) {
       const kw = `%${search.trim()}%`;
       query = query.where((qb) => {
-        qb.whereRaw('name LIKE ? COLLATE NOCASE', [kw]).orWhereRaw('item_code LIKE ? COLLATE NOCASE', [kw]);
+        qb.whereILike('name', kw).orWhereILike('item_code', kw);
       });
     }
 
@@ -84,7 +84,7 @@ router.post('/', auth, authorize(['admin']), async (req, res) => {
   try {
     const itemCode = await generateItemCode();
     const now = new Date().toISOString();
-    const [id] = await db('inventory_items').insert({ ...bodyToRow(req.body), item_code: itemCode, created_at: now, updated_at: now });
+    const [{ id }] = await db('inventory_items').insert({ ...bodyToRow(req.body), item_code: itemCode, created_at: now, updated_at: now }).returning('id');
     const item = await db('inventory_items').where({ id }).first();
     return res.status(201).json(withStatus(item));
   } catch (err) {

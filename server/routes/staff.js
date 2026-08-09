@@ -43,15 +43,15 @@ router.get('/', auth, async (req, res) => {
     let query = db('staff');
 
     if (category && category !== 'all') query = query.where({ category });
-    if (department && department !== 'all') query = query.whereRaw('department LIKE ? COLLATE NOCASE', [`%${department}%`]);
+    if (department && department !== 'all') query = query.whereILike('department', `%${department}%`);
     if (search && search.trim()) {
       const keyword = `%${search.trim()}%`;
       query = query.where((qb) => {
-        qb.whereRaw('display_name LIKE ? COLLATE NOCASE', [keyword])
-          .orWhereRaw('staff_code LIKE ? COLLATE NOCASE', [keyword])
-          .orWhereRaw('role LIKE ? COLLATE NOCASE', [keyword])
-          .orWhereRaw('department LIKE ? COLLATE NOCASE', [keyword])
-          .orWhereRaw('assigned_subjects LIKE ? COLLATE NOCASE', [keyword]);
+        qb.whereILike('display_name', keyword)
+          .orWhereILike('staff_code', keyword)
+          .orWhereILike('role', keyword)
+          .orWhereILike('department', keyword)
+          .orWhereILike('assigned_subjects', keyword);
       });
     }
 
@@ -125,7 +125,7 @@ router.post('/', auth, authorize(['admin']), async (req, res) => {
   try {
     const now = new Date().toISOString();
     const row = { ...bodyToRow(req.body), created_at: now, updated_at: now };
-    const [id] = await db('staff').insert(row);
+    const [{ id }] = await db('staff').insert(row).returning('id');
     const staffMember = await db('staff').where({ id }).first();
     return res.status(201).json(serialize(staffMember));
   } catch (err) {
@@ -178,9 +178,9 @@ router.post('/:code/class-assignments', auth, authorize(['admin']), async (req, 
     const staffMember = await db('staff').where({ staff_code: req.params.code }).first();
     if (!staffMember) return res.status(404).json({ message: 'Staff member not found.' });
 
-    const [id] = await db('staff_class_assignments').insert({
+    const [{ id }] = await db('staff_class_assignments').insert({
       staff_id: staffMember.id, grade: Number(grade), division: String(division).toLowerCase(), academic_year: academicYear,
-    });
+    }).returning('id');
     const row = await db('staff_class_assignments').where({ id }).first();
     return res.status(201).json(serializeRow(row));
   } catch (err) {
@@ -223,10 +223,10 @@ router.post('/:code/class-teacher', auth, authorize(['admin', 'principal']), asy
         .where({ grade: Number(grade), division: divisionLower, academic_year: academicYear, unassigned_at: null })
         .update({ unassigned_at: new Date().toISOString() });
 
-      const [id] = await trx('class_teacher_history').insert({
+      const [{ id }] = await trx('class_teacher_history').insert({
         grade: Number(grade), division: divisionLower, academic_year: academicYear,
         staff_id: staffMember.id, assigned_by: typeof req.user.id === 'number' ? req.user.id : null,
-      });
+      }).returning('id');
 
       const existingAssignment = await trx('staff_class_assignments')
         .where({ staff_id: staffMember.id, grade: Number(grade), division: divisionLower, academic_year: academicYear }).first();
@@ -281,9 +281,9 @@ router.post('/:code/link-login', auth, authorize(['admin']), async (req, res) =>
 
     const generatedUsername = await generateUsername(db, staffMember.display_name);
     const tempPassword = generateTempPassword(staffMember.display_name);
-    const [userId] = await db('users').insert({
+    const [{ id: userId }] = await db('users').insert({
       username: generatedUsername, role, password: await bcrypt.hash(tempPassword, 12),
-    });
+    }).returning('id');
     await db('staff').where({ id: staffMember.id }).update({ user_id: userId, updated_at: new Date().toISOString() });
     return res.status(201).json({ created: { username: generatedUsername, tempPassword } });
   } catch (err) {

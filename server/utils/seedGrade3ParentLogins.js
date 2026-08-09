@@ -24,12 +24,13 @@ async function ensureLogin(username, guardian) {
     userId = existingUser.id;
     await db('users').where({ id: userId }).update({ password: passwordHash, role: 'parent' });
   } else {
-    [userId] = await db('users').insert({
+    const [inserted] = await db('users').insert({
       username,
       role: 'parent',
       password: passwordHash,
       email_encrypted: encryptText(guardian.email || `${username}@smtthane.edu`),
-    });
+    }).returning('id');
+    userId = inserted.id;
   }
 
   await db('guardians').where({ id: guardian.id }).update({ user_id: userId, updated_at: new Date().toISOString() });

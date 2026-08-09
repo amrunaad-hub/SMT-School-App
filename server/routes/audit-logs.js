@@ -21,7 +21,7 @@ router.get('/', auth, authorize(['superuser']), async (req, res) => {
     if (search) {
       const term = `%${search}%`;
       query = query.where((qb) => {
-        qb.where('username', 'like', term).orWhere('ip_address', 'like', term).orWhere('summary', 'like', term);
+        qb.whereILike('username', term).orWhereILike('ip_address', term).orWhereILike('summary', term);
       });
     }
     const rows = await query.limit(Math.min(Number(limit) || 200, 1000));
@@ -78,11 +78,16 @@ router.get('/server-stats', auth, authorize(['superuser']), async (req, res) => 
   }
 });
 
+// SQLite's strftime() and Postgres's to_char() use different token syntax for
+// the same bucket granularity — sqliteFormat feeds strftime(), pgFormat feeds
+// to_char(). Verified against a real Postgres instance that 'HH24:00' renders
+// its literal '00' correctly (not misread as a template code) before relying
+// on it here.
 const RANGE_CONFIG = {
-  hour: { intervalMinutes: 60, bucketFormat: '%Y-%m-%d %H:%M' },   // raw minute samples
-  day: { intervalMinutes: 24 * 60, bucketFormat: '%Y-%m-%d %H:00' }, // hourly
-  week: { intervalMinutes: 7 * 24 * 60, bucketFormat: '%Y-%m-%d %H:00' }, // hourly
-  month: { intervalMinutes: 31 * 24 * 60, bucketFormat: '%Y-%m-%d' }, // daily
+  hour: { intervalMinutes: 60, sqliteFormat: '%Y-%m-%d %H:%M', pgFormat: 'YYYY-MM-DD HH24:MI' },   // raw minute samples
+  day: { intervalMinutes: 24 * 60, sqliteFormat: '%Y-%m-%d %H:00', pgFormat: 'YYYY-MM-DD HH24:00' }, // hourly
+  week: { intervalMinutes: 7 * 24 * 60, sqliteFormat: '%Y-%m-%d %H:00', pgFormat: 'YYYY-MM-DD HH24:00' }, // hourly
+  month: { intervalMinutes: 31 * 24 * 60, sqliteFormat: '%Y-%m-%d', pgFormat: 'YYYY-MM-DD' }, // daily
 };
 
 // GET /api/audit-logs/server-stats/history?range=hour|day|week|month —
@@ -91,13 +96,17 @@ const RANGE_CONFIG = {
 router.get('/server-stats/history', auth, authorize(['superuser']), async (req, res) => {
   try {
     const range = RANGE_CONFIG[req.query.range] ? req.query.range : 'day';
-    const { intervalMinutes, bucketFormat } = RANGE_CONFIG[range];
+    const { intervalMinutes, sqliteFormat, pgFormat } = RANGE_CONFIG[range];
     const sinceIso = new Date(Date.now() - intervalMinutes * 60 * 1000).toISOString();
+    const isPg = db.client.config.client === 'pg';
+    const bucketExpr = isPg
+      ? db.raw('to_char(sampled_at, ?) as bucket', [pgFormat])
+      : db.raw('strftime(?, sampled_at) as bucket', [sqliteFormat]);
 
     const rows = await db('resource_samples')
       .where('sampled_at', '>=', sinceIso)
       .select(
-        db.raw(`strftime('${bucketFormat}', sampled_at) as bucket`),
+        bucketExpr,
         db.raw('avg(cpu_percent) as avg_cpu'),
         db.raw('max(cpu_percent) as max_cpu'),
         db.raw('avg(app_cpu_percent) as avg_app_cpu'),

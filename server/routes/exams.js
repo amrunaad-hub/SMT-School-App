@@ -39,7 +39,7 @@ router.get('/', auth, async (req, res) => {
     const { grade, subject, status, academicYear } = req.query;
     let query = db('exams');
     if (grade && grade !== 'all') query = query.where({ grade: Number(grade) });
-    if (subject && subject !== 'all') query = query.whereRaw('subject LIKE ? COLLATE NOCASE', [`%${subject}%`]);
+    if (subject && subject !== 'all') query = query.whereILike('subject', `%${subject}%`);
     if (status && status !== 'all') query = query.where({ status });
     if (academicYear) query = query.where({ academic_year: academicYear });
 
@@ -69,9 +69,9 @@ router.post('/', auth, authorize(['admin']), async (req, res) => {
   try {
     const examCode = await generateExamCode();
     const now = new Date().toISOString();
-    const [id] = await db('exams').insert({
+    const [{ id }] = await db('exams').insert({
       ...bodyToRow(req.body), exam_code: examCode, created_at: now, updated_at: now,
-    });
+    }).returning('id');
     const exam = await db('exams').where({ id }).first();
     return res.status(201).json(serialize(exam));
   } catch (err) {

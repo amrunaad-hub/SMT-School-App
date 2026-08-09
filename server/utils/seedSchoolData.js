@@ -213,7 +213,7 @@ async function seed() {
     const primaryGuardian = family.guardians.find((g) => g.isPrimary) || family.guardians[0];
 
     const now = new Date().toISOString();
-    const [studentId] = await db('students').insert({
+    const [{ id: studentId }] = await db('students').insert({
       student_code: studentCode,
       first_name: firstName,
       last_name: family.surname,
@@ -240,7 +240,7 @@ async function seed() {
       is_twin_of: (twinPartnerIdx !== undefined && insertedStudentIds[twinPartnerIdx]) ? insertedStudentIds[twinPartnerIdx] : null,
       created_at: now,
       updated_at: now,
-    });
+    }).returning('id');
     insertedStudentIds[i] = studentId;
 
     // Twin linkage is mutual, but slots are processed in index order — whichever
@@ -259,10 +259,11 @@ async function seed() {
       if (guardian) {
         guardianId = guardian.id;
       } else {
-        [guardianId] = await db('guardians').insert({
+        const [inserted] = await db('guardians').insert({
           full_name: g.fullName, mobile: g.mobile, email: g.email, occupation: g.occupation,
           qualification: g.qualification, address: family.address, created_at: now, updated_at: now,
-        });
+        }).returning('id');
+        guardianId = inserted.id;
       }
       await db('student_guardians').insert({
         student_id: studentId, guardian_id: guardianId, relation: g.relation,
@@ -273,7 +274,7 @@ async function seed() {
     // Matching admissions row (status Confirmed, back-referencing the student) so
     // the admission->student link looks realistic in demo data too.
     const admissionCreatedAt = isMidYear ? randomDateInYear(admissionYear, 5, 10) : randomDateInYear(admissionYear, 0, 3);
-    const [admissionId] = await db('admissions').insert({
+    const [{ id: admissionId }] = await db('admissions').insert({
       enquiry_code: `ENQ-${admissionYear}-${pad(i + 1, 4)}`,
       child_name: `${firstName} ${family.surname}`,
       dob,
@@ -294,7 +295,7 @@ async function seed() {
       student_id: studentId,
       created_at: admissionCreatedAt,
       updated_at: admissionCreatedAt,
-    });
+    }).returning('id');
 
     await db('students').where({ id: studentId }).update({ admission_id: admissionId });
 

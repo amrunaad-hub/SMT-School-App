@@ -562,11 +562,11 @@ router.post('/leave-requests', auth, async (req, res) => {
     const type = fromDate < todayStr ? 'regularization' : 'advance';
 
     const now = new Date().toISOString();
-    const [id] = await db('leave_requests').insert({
+    const [{ id }] = await db('leave_requests').insert({
       student_id: studentId, type, category: ['Medical', 'Casual'].includes(category) ? category : 'Casual',
       from_date: fromDate, to_date: toDate, reason,
       requested_by: req.user.id, created_at: now, updated_at: now,
-    });
+    }).returning('id');
     const row = await db('leave_requests').where({ id }).first();
     // Freshly created — there's no attendance record for it yet by definition.
     return res.status(201).json(shapeLeaveRequest(row, []));

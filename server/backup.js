@@ -1,11 +1,6 @@
 const fs = require('fs');
 const path = require('path');
-const sqlite3 = require('sqlite3');
-
-// DB_PATH must match server/db/database.js's resolution exactly.
-const DB_PATH = process.env.DB_PATH
-  ? (path.isAbsolute(process.env.DB_PATH) ? process.env.DB_PATH : path.join(__dirname, '..', process.env.DB_PATH))
-  : path.join(__dirname, '../school.db');
+const { execFile } = require('child_process');
 
 const LOCAL_DIR = path.join(__dirname, '../backups');
 const UPLOADS_DIR = path.join(__dirname, 'uploads');
@@ -26,7 +21,7 @@ function pruneOldBackups(dir) {
   if (!fs.existsSync(dir)) return;
   const cutoff = Date.now() - KEEP_DAYS * 24 * 60 * 60 * 1000;
   fs.readdirSync(dir)
-    .filter((f) => f.startsWith('school-') && f.endsWith('.db'))
+    .filter((f) => f.startsWith('school-') && f.endsWith('.dump'))
     .map((f) => ({ f, mtime: fs.statSync(path.join(dir, f)).mtimeMs }))
     .filter(({ mtime }) => mtime < cutoff)
     .forEach(({ f }) => {
@@ -35,32 +30,46 @@ function pruneOldBackups(dir) {
     });
 }
 
-// Uses VACUUM INTO rather than a plain file copy — school.db runs in WAL mode
-// (see server/db/database.js), so a plain fs.copyFileSync can silently miss
-// recent transactions still sitting in the -wal file. VACUUM INTO atomically
-// merges the WAL and produces a complete, consistent snapshot regardless of
-// concurrent activity.
+// Uses `pg_dump -Fc` (custom format — compressed, restorable with `pg_restore`,
+// and safe to take against a live database: pg_dump runs inside its own
+// transaction with a consistent MVCC snapshot, so a concurrent write mid-dump
+// can't produce a torn/partial backup the way a naive file copy could).
+// Requires the `postgresql-client` package (provides the `pg_dump` binary) to
+// be installed on whatever host runs this — see server/db/README-postgres.md.
 function runBackup() {
   return new Promise((resolve, reject) => {
-    if (!fs.existsSync(DB_PATH)) {
-      console.warn('[Backup] school.db not found — skipping.');
+    const required = ['DB_HOST', 'DB_PORT', 'DB_USER', 'DB_PASSWORD', 'DB_NAME'];
+    const missing = required.filter((k) => !process.env[k]);
+    if (missing.length) {
+      console.warn(`[Backup] Missing env var(s) ${missing.join(', ')} — skipping.`);
       return resolve();
     }
 
     if (!fs.existsSync(LOCAL_DIR)) fs.mkdirSync(LOCAL_DIR, { recursive: true });
     const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-    const dest = path.join(LOCAL_DIR, `school-${stamp}.db`);
+    const dest = path.join(LOCAL_DIR, `school-${stamp}.dump`);
 
-    const db = new sqlite3.Database(DB_PATH, sqlite3.OPEN_READONLY, (err) => {
-      if (err) return reject(err);
-      db.run('VACUUM INTO ?', [dest], (vacErr) => {
-        db.close();
-        if (vacErr) return reject(vacErr);
-        console.log(`[Backup] Local: ${dest}`);
-        pruneOldBackups(LOCAL_DIR);
-        backupUploads();
-        resolve();
-      });
+    const args = [
+      '-h', process.env.DB_HOST,
+      '-p', process.env.DB_PORT,
+      '-U', process.env.DB_USER,
+      '-d', process.env.DB_NAME,
+      '-Fc', // custom format: compressed, restorable with pg_restore
+      '--no-password', // never prompt interactively — PGPASSWORD below supplies it
+      '-f', dest,
+    ];
+    const env = { ...process.env, PGPASSWORD: process.env.DB_PASSWORD };
+    if (process.env.DB_SSL === 'true') env.PGSSLMODE = env.PGSSLMODE || 'require';
+
+    execFile('pg_dump', args, { env }, (err, stdout, stderr) => {
+      if (err) {
+        // Common cause: pg_dump not installed (apt install postgresql-client).
+        return reject(new Error(`pg_dump failed: ${err.message}${stderr ? ` — ${stderr}` : ''}`));
+      }
+      console.log(`[Backup] Local: ${dest}`);
+      pruneOldBackups(LOCAL_DIR);
+      backupUploads();
+      resolve();
     });
   });
 }

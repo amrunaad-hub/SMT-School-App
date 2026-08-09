@@ -150,7 +150,7 @@ function bodyToRow(body) {
 router.post('/log', auth, authorize(['admin']), async (req, res) => {
   try {
     const now = new Date().toISOString();
-    const [id] = await db('washroom_logs').insert({ ...bodyToRow(req.body), created_at: now, updated_at: now });
+    const [{ id }] = await db('washroom_logs').insert({ ...bodyToRow(req.body), created_at: now, updated_at: now }).returning('id');
     const log = await db('washroom_logs').where({ id }).first();
     return res.status(201).json(parseLog(log));
   } catch (err) {

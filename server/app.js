@@ -108,7 +108,7 @@ let dbReady = false;
 db.migrate.latest()
     .then(async () => {
         dbReady = true;
-        console.log('SQLite migrated');
+        console.log(`Database migrated (${db.client.config.client})`);
         await ensureDefaultUsers();
         console.log('Default role users ensured');
         startBackupCron();

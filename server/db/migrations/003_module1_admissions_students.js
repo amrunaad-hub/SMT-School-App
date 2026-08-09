@@ -86,109 +86,152 @@ exports.up = async function (knex) {
     t.integer('is_twin_of').references('id').inTable('students');
   });
 
-  // admissions.status is a SQLite enum (CHECK constraint) and SQLite has no
-  // ALTER COLUMN, so widening it to add 'Clarification Requested' requires the
-  // rebuild-and-swap technique SQLite's own docs recommend: create a new table
-  // with the desired schema, copy rows across, drop the old one, rename in.
-  await knex.raw('PRAGMA foreign_keys = OFF');
+  // admissions.status is an enum (CHECK constraint). Widening it to add
+  // 'Clarification Requested' needs different techniques per engine:
+  // Postgres can ALTER a CHECK constraint directly (DROP + ADD), but SQLite
+  // has no ALTER COLUMN/CONSTRAINT at all, so it needs the rebuild-and-swap
+  // technique SQLite's own docs recommend: create a new table with the
+  // desired schema, copy rows across, drop the old one, rename in.
+  if (knex.client.config.client === 'pg') {
+    // The SQLite rebuild below does two things at once: widens the status
+    // enum AND adds three columns (is_draft/draft_token/student_id) that
+    // don't exist on the table migration 002 originally created. On
+    // Postgres both are handled directly, without any rebuild.
+    //
+    // knex's default (non-native) `.enu()` constraint name on Postgres is
+    // always `<table>_<column>_check` — verified directly against a real
+    // Postgres instance before writing this.
+    await knex.raw('ALTER TABLE admissions DROP CONSTRAINT admissions_status_check');
+    await knex.raw(`
+      ALTER TABLE admissions ADD CONSTRAINT admissions_status_check
+      CHECK (status IN ('Enquiry', 'In Process', 'Document Verification', 'Clarification Requested', 'Confirmed', 'Rejected'))
+    `);
+    await knex.schema.alterTable('admissions', (t) => {
+      t.boolean('is_draft').defaultTo(false);
+      t.string('draft_token').unique();
+      t.integer('student_id').references('id').inTable('students');
+    });
+    // No index re-creation needed here (unlike the SQLite branch below) — the
+    // table itself is never dropped on this path, so the index migration 002
+    // already created on ['status', 'applying_for_grade'] is untouched.
+  } else {
+    await knex.raw('PRAGMA foreign_keys = OFF');
 
-  await knex.schema.createTable('admissions_new', (t) => {
-    t.increments('id');
-    t.string('enquiry_code').unique();
-    t.string('child_name').notNullable();
-    t.date('dob');
-    t.string('current_school');
-    t.integer('applying_for_grade');
-    t.enu('enquiry_type', ['New Admission', 'Transfer', 'Re-Admission']).defaultTo('New Admission');
-    t.string('area');
-    t.string('parent_name');
-    t.string('parent_mobile');
-    t.string('parent_email');
-    t.enu('source', ['Website', 'Phone', 'Walk-in', 'Referral', 'Social Media']).defaultTo('Phone');
-    t.enu('status', ['Enquiry', 'In Process', 'Document Verification', 'Clarification Requested', 'Confirmed', 'Rejected']).defaultTo('Enquiry');
-    t.string('follow_up_note');
-    t.string('rejection_reason');
-    t.string('assigned_to');
-    t.string('academic_year').defaultTo('2025-26');
-    t.boolean('is_draft').defaultTo(false);
-    t.string('draft_token').unique();
-    t.integer('student_id').references('id').inTable('students');
-    t.timestamp('created_at').defaultTo(knex.fn.now());
-    t.timestamp('updated_at').defaultTo(knex.fn.now());
-  });
+    await knex.schema.createTable('admissions_new', (t) => {
+      t.increments('id');
+      t.string('enquiry_code').unique();
+      t.string('child_name').notNullable();
+      t.date('dob');
+      t.string('current_school');
+      t.integer('applying_for_grade');
+      t.enu('enquiry_type', ['New Admission', 'Transfer', 'Re-Admission']).defaultTo('New Admission');
+      t.string('area');
+      t.string('parent_name');
+      t.string('parent_mobile');
+      t.string('parent_email');
+      t.enu('source', ['Website', 'Phone', 'Walk-in', 'Referral', 'Social Media']).defaultTo('Phone');
+      t.enu('status', ['Enquiry', 'In Process', 'Document Verification', 'Clarification Requested', 'Confirmed', 'Rejected']).defaultTo('Enquiry');
+      t.string('follow_up_note');
+      t.string('rejection_reason');
+      t.string('assigned_to');
+      t.string('academic_year').defaultTo('2025-26');
+      t.boolean('is_draft').defaultTo(false);
+      t.string('draft_token').unique();
+      t.integer('student_id').references('id').inTable('students');
+      t.timestamp('created_at').defaultTo(knex.fn.now());
+      t.timestamp('updated_at').defaultTo(knex.fn.now());
+    });
 
-  await knex.raw(`
-    INSERT INTO admissions_new (
-      id, enquiry_code, child_name, dob, current_school, applying_for_grade,
-      enquiry_type, area, parent_name, parent_mobile, parent_email, source,
-      status, follow_up_note, rejection_reason, assigned_to, academic_year,
-      created_at, updated_at
-    )
-    SELECT
-      id, enquiry_code, child_name, dob, current_school, applying_for_grade,
-      enquiry_type, area, parent_name, parent_mobile, parent_email, source,
-      status, follow_up_note, rejection_reason, assigned_to, academic_year,
-      created_at, updated_at
-    FROM admissions
-  `);
+    await knex.raw(`
+      INSERT INTO admissions_new (
+        id, enquiry_code, child_name, dob, current_school, applying_for_grade,
+        enquiry_type, area, parent_name, parent_mobile, parent_email, source,
+        status, follow_up_note, rejection_reason, assigned_to, academic_year,
+        created_at, updated_at
+      )
+      SELECT
+        id, enquiry_code, child_name, dob, current_school, applying_for_grade,
+        enquiry_type, area, parent_name, parent_mobile, parent_email, source,
+        status, follow_up_note, rejection_reason, assigned_to, academic_year,
+        created_at, updated_at
+      FROM admissions
+    `);
 
-  await knex.schema.dropTable('admissions');
-  await knex.schema.renameTable('admissions_new', 'admissions');
-  await knex.schema.alterTable('admissions', (t) => {
-    t.index(['status', 'applying_for_grade']);
-  });
+    await knex.schema.dropTable('admissions');
+    await knex.schema.renameTable('admissions_new', 'admissions');
+    await knex.schema.alterTable('admissions', (t) => {
+      t.index(['status', 'applying_for_grade']);
+    });
 
-  await knex.raw('PRAGMA foreign_keys = ON');
+    await knex.raw('PRAGMA foreign_keys = ON');
+  }
 };
 
 exports.down = async function (knex) {
-  await knex.raw('PRAGMA foreign_keys = OFF');
+  if (knex.client.config.client === 'pg') {
+    // Existing rows carrying the value being dropped from the constraint
+    // must be remapped BEFORE the narrower CHECK is re-added, or the ADD
+    // CONSTRAINT itself fails against those rows.
+    await knex('admissions').where({ status: 'Clarification Requested' }).update({ status: 'In Process' });
+    await knex.raw('ALTER TABLE admissions DROP CONSTRAINT admissions_status_check');
+    await knex.raw(`
+      ALTER TABLE admissions ADD CONSTRAINT admissions_status_check
+      CHECK (status IN ('Enquiry', 'In Process', 'Document Verification', 'Confirmed', 'Rejected'))
+    `);
+    await knex.schema.alterTable('admissions', (t) => {
+      t.dropColumn('is_draft');
+      t.dropColumn('draft_token');
+      t.dropColumn('student_id');
+    });
+  } else {
+    await knex.raw('PRAGMA foreign_keys = OFF');
 
-  await knex.schema.createTable('admissions_old', (t) => {
-    t.increments('id');
-    t.string('enquiry_code').unique();
-    t.string('child_name').notNullable();
-    t.date('dob');
-    t.string('current_school');
-    t.integer('applying_for_grade');
-    t.enu('enquiry_type', ['New Admission', 'Transfer', 'Re-Admission']).defaultTo('New Admission');
-    t.string('area');
-    t.string('parent_name');
-    t.string('parent_mobile');
-    t.string('parent_email');
-    t.enu('source', ['Website', 'Phone', 'Walk-in', 'Referral', 'Social Media']).defaultTo('Phone');
-    t.enu('status', ['Enquiry', 'In Process', 'Document Verification', 'Confirmed', 'Rejected']).defaultTo('Enquiry');
-    t.string('follow_up_note');
-    t.string('rejection_reason');
-    t.string('assigned_to');
-    t.string('academic_year').defaultTo('2025-26');
-    t.timestamp('created_at').defaultTo(knex.fn.now());
-    t.timestamp('updated_at').defaultTo(knex.fn.now());
-  });
+    await knex.schema.createTable('admissions_old', (t) => {
+      t.increments('id');
+      t.string('enquiry_code').unique();
+      t.string('child_name').notNullable();
+      t.date('dob');
+      t.string('current_school');
+      t.integer('applying_for_grade');
+      t.enu('enquiry_type', ['New Admission', 'Transfer', 'Re-Admission']).defaultTo('New Admission');
+      t.string('area');
+      t.string('parent_name');
+      t.string('parent_mobile');
+      t.string('parent_email');
+      t.enu('source', ['Website', 'Phone', 'Walk-in', 'Referral', 'Social Media']).defaultTo('Phone');
+      t.enu('status', ['Enquiry', 'In Process', 'Document Verification', 'Confirmed', 'Rejected']).defaultTo('Enquiry');
+      t.string('follow_up_note');
+      t.string('rejection_reason');
+      t.string('assigned_to');
+      t.string('academic_year').defaultTo('2025-26');
+      t.timestamp('created_at').defaultTo(knex.fn.now());
+      t.timestamp('updated_at').defaultTo(knex.fn.now());
+    });
 
-  await knex.raw(`
-    INSERT INTO admissions_old (
-      id, enquiry_code, child_name, dob, current_school, applying_for_grade,
-      enquiry_type, area, parent_name, parent_mobile, parent_email, source,
-      status, follow_up_note, rejection_reason, assigned_to, academic_year,
-      created_at, updated_at
-    )
-    SELECT
-      id, enquiry_code, child_name, dob, current_school, applying_for_grade,
-      enquiry_type, area, parent_name, parent_mobile, parent_email, source,
-      CASE WHEN status = 'Clarification Requested' THEN 'In Process' ELSE status END,
-      follow_up_note, rejection_reason, assigned_to, academic_year,
-      created_at, updated_at
-    FROM admissions
-  `);
+    await knex.raw(`
+      INSERT INTO admissions_old (
+        id, enquiry_code, child_name, dob, current_school, applying_for_grade,
+        enquiry_type, area, parent_name, parent_mobile, parent_email, source,
+        status, follow_up_note, rejection_reason, assigned_to, academic_year,
+        created_at, updated_at
+      )
+      SELECT
+        id, enquiry_code, child_name, dob, current_school, applying_for_grade,
+        enquiry_type, area, parent_name, parent_mobile, parent_email, source,
+        CASE WHEN status = 'Clarification Requested' THEN 'In Process' ELSE status END,
+        follow_up_note, rejection_reason, assigned_to, academic_year,
+        created_at, updated_at
+      FROM admissions
+    `);
 
-  await knex.schema.dropTable('admissions');
-  await knex.schema.renameTable('admissions_old', 'admissions');
-  await knex.schema.alterTable('admissions', (t) => {
-    t.index(['status', 'applying_for_grade']);
-  });
+    await knex.schema.dropTable('admissions');
+    await knex.schema.renameTable('admissions_old', 'admissions');
+    await knex.schema.alterTable('admissions', (t) => {
+      t.index(['status', 'applying_for_grade']);
+    });
 
-  await knex.raw('PRAGMA foreign_keys = ON');
+    await knex.raw('PRAGMA foreign_keys = ON');
+  }
 
   await knex.schema.alterTable('students', (t) => {
     t.dropColumn('house_id');

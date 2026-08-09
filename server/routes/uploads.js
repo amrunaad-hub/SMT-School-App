@@ -70,14 +70,14 @@ router.post('/', auth, authorize(['admin', 'teacher', 'principal', 'parent']), (
         }
       }
 
-      const [id] = await db('documents').insert({
+      const [{ id }] = await db('documents').insert({
         owner_type: ownerType,
         owner_id: Number(ownerId),
         doc_type: DOC_TYPES.includes(docType) ? docType : 'Other',
         file_url: fileUrl,
         original_filename: req.file.originalname,
         uploaded_by: typeof req.user.id === 'number' ? req.user.id : null,
-      });
+      }).returning('id');
 
       const document = await db('documents').where({ id }).first();
       return res.status(201).json({ fileUrl, originalFilename: req.file.originalname, document: serializeRow(document) });

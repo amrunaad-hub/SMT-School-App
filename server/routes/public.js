@@ -77,7 +77,7 @@ router.post('/admissions/draft', async (req, res) => {
 
     const draftToken = crypto.randomUUID();
     const now = new Date().toISOString();
-    const [id] = await db('admissions').insert({
+    const [{ id }] = await db('admissions').insert({
       ...bodyToRow(req.body),
       source: 'Website',
       status: 'Enquiry',
@@ -85,7 +85,7 @@ router.post('/admissions/draft', async (req, res) => {
       draft_token: draftToken,
       created_at: now,
       updated_at: now,
-    });
+    }).returning('id');
     const admission = await db('admissions').where({ id }).first();
     return res.status(201).json(serialize(admission));
   } catch (err) {
@@ -176,7 +176,7 @@ router.post('/admissions', async (req, res) => {
     const enquiryCode = await generateEnquiryCode();
     const draftToken = crypto.randomUUID();
     const now = new Date().toISOString();
-    const [id] = await db('admissions').insert({
+    const [{ id }] = await db('admissions').insert({
       ...bodyToRow(req.body),
       enquiry_code: enquiryCode,
       source: 'Website',
@@ -185,7 +185,7 @@ router.post('/admissions', async (req, res) => {
       draft_token: draftToken,
       created_at: now,
       updated_at: now,
-    });
+    }).returning('id');
     const admission = await db('admissions').where({ id }).first();
     return res.status(201).json(serialize(admission));
   } catch (err) {
@@ -207,13 +207,13 @@ router.post('/admissions/:token/documents', (req, res) => {
 
       const fileUrl = publicUrlFor(req.file.path);
       const docTypes = ['Birth Certificate', 'Aadhar', 'Transfer Certificate', 'Photo', 'Medical Certificate', 'Other'];
-      const [id] = await db('documents').insert({
+      const [{ id }] = await db('documents').insert({
         owner_type: 'admission',
         owner_id: admission.id,
         doc_type: docTypes.includes(req.body.docType) ? req.body.docType : 'Other',
         file_url: fileUrl,
         original_filename: req.file.originalname,
-      });
+      }).returning('id');
       const document = await db('documents').where({ id }).first();
       return res.status(201).json(serializeRow(document));
     } catch (uploadErr) {

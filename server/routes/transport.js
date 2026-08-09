@@ -69,7 +69,7 @@ router.get('/:id', auth, async (req, res) => {
 router.post('/', auth, authorize(['admin']), async (req, res) => {
   try {
     const now = new Date().toISOString();
-    const [id] = await db('transport_routes').insert({ ...bodyToRow(req.body), created_at: now, updated_at: now });
+    const [{ id }] = await db('transport_routes').insert({ ...bodyToRow(req.body), created_at: now, updated_at: now }).returning('id');
     const route = await db('transport_routes').where({ id }).first();
     return res.status(201).json(serialize(route));
   } catch (err) {

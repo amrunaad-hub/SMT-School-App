@@ -96,9 +96,9 @@ router.get('/', auth, async (req, res) => {
     if (search && search.trim()) {
       const kw = `%${search.trim()}%`;
       query = query.where((qb) => {
-        qb.whereRaw('child_name LIKE ? COLLATE NOCASE', [kw])
-          .orWhereRaw('parent_name LIKE ? COLLATE NOCASE', [kw])
-          .orWhereRaw('enquiry_code LIKE ? COLLATE NOCASE', [kw]);
+        qb.whereILike('child_name', kw)
+          .orWhereILike('parent_name', kw)
+          .orWhereILike('enquiry_code', kw);
       });
     }
 
@@ -177,9 +177,9 @@ router.post('/', auth, async (req, res) => {
   try {
     const enquiryCode = await generateEnquiryCode();
     const now = new Date().toISOString();
-    const [id] = await db('admissions').insert({
+    const [{ id }] = await db('admissions').insert({
       ...bodyToRow(req.body), enquiry_code: enquiryCode, created_at: now, updated_at: now,
-    });
+    }).returning('id');
     const admission = await db('admissions').where({ id }).first();
     return res.status(201).json(serialize(admission));
   } catch (err) {
@@ -283,7 +283,7 @@ router.post('/:id/approve', auth, authorize(['admin']), async (req, res) => {
       const copiedFields = {};
       ADMISSION_TO_STUDENT_FIELDS.forEach((f) => { copiedFields[f] = admission[f] ?? null; });
 
-      const [studentId] = await trx('students').insert({
+      const [{ id: studentId }] = await trx('students').insert({
         ...copiedFields,
         student_code: generateStudentCode(gradeNum, divisionLower, assignedRollNo),
         first_name: nameParts[0],
@@ -303,7 +303,7 @@ router.post('/:id/approve', auth, authorize(['admin']), async (req, res) => {
         status: 'Active',
         created_at: now,
         updated_at: now,
-      });
+      }).returning('id');
 
       const generatedCredentials = [];
 
@@ -315,7 +315,7 @@ router.post('/:id/approve', auth, authorize(['admin']), async (req, res) => {
         if (guardian) {
           guardianId = guardian.id;
         } else {
-          [guardianId] = await trx('guardians').insert({
+          const [inserted] = await trx('guardians').insert({
             full_name: g.fullName || 'Guardian',
             mobile: g.mobile,
             email: g.email || null,
@@ -325,18 +325,19 @@ router.post('/:id/approve', auth, authorize(['admin']), async (req, res) => {
             contribution_areas: JSON.stringify(g.contributionAreas || []),
             created_at: now,
             updated_at: now,
-          });
+          }).returning('id');
+          guardianId = inserted.id;
           guardian = { id: guardianId, user_id: null };
         }
 
         if (createParentLogin && !guardian.user_id) {
           const username = await generateUsername(trx, g.fullName);
           const tempPassword = generateTempPassword(g.fullName);
-          const [userId] = await trx('users').insert({
+          const [{ id: userId }] = await trx('users').insert({
             username,
             role: 'parent',
             password: await bcrypt.hash(tempPassword, 12),
-          });
+          }).returning('id');
           await trx('guardians').where({ id: guardianId }).update({ user_id: userId, updated_at: now });
           generatedCredentials.push({ guardianName: g.fullName, username, tempPassword });
         }

@@ -254,7 +254,7 @@ router.post('/', auth, authorizeNoticeWriter, async (req, res) => {
       if (violation) return res.status(403).json({ message: violation });
     }
 
-    const [id] = await db('notices').insert({
+    const [{ id }] = await db('notices').insert({
       notice_code: noticeCode,
       title,
       body,
@@ -271,7 +271,7 @@ router.post('/', auth, authorizeNoticeWriter, async (req, res) => {
       is_active: isActive === undefined ? 1 : (isActive ? 1 : 0),
       created_at: now,
       updated_at: now,
-    });
+    }).returning('id');
 
     const notice = await db('notices').where({ id }).first();
     const serializedNotice = serialize(notice);

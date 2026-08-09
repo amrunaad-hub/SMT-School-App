@@ -71,7 +71,7 @@ router.post('/', auth, authorize(MANAGE_ROLES), async (req, res) => {
     if (audienceErr) return res.status(400).json({ message: audienceErr });
 
     const now = new Date().toISOString();
-    const [id] = await db('forms').insert({
+    const [{ id }] = await db('forms').insert({
       title: String(title).trim(),
       description: description || '',
       fields: JSON.stringify(fields),
@@ -80,7 +80,7 @@ router.post('/', auth, authorize(MANAGE_ROLES), async (req, res) => {
       created_by: req.user.id,
       created_at: now,
       updated_at: now,
-    });
+    }).returning('id');
     const row = await db('forms').where({ id }).first();
     return res.status(201).json(serializeForm(row));
   } catch (err) {
